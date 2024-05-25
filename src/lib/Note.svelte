@@ -1,5 +1,5 @@
 <script>
-	import Prose from "./Prose.svelte";
+  import Prose from "./Prose.svelte";
 
   export let slug, title, links, backlinks, content;
 </script>
@@ -24,4 +24,14 @@
 
     {@html content}
   </Prose>
+  <style>
+    mjx-container[jax="SVG"] {
+        display: inline-block;
+        vertical-align: middle;
+    }
+    mjx-container[jax="SVG"][display="true"] {
+      display: grid;
+      justify-items: center;
+    }
+  </style>
 </div>
