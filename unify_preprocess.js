@@ -4,7 +4,6 @@ import path from 'path';
 
 import inlineLinks from 'remark-inline-links';
 import { copyFile, mkdir, rm, writeFile } from 'fs/promises';
-import yaml from 'js-yaml';
 import remarkMath from 'remark-math';
 import rehypeMathjax from 'rehype-mathjax';
 import remarkGfm from 'remark-gfm';
@@ -23,7 +22,11 @@ import pino from 'pino';
 import { readdir } from 'fs/promises';
 import { inspect } from 'util';
 
-const logger = pino()
+const logger = pino({
+  transport: {
+    target: 'pino-pretty'
+  },
+})
 
 function shrinkViewBox(nodes, links) {
   let minY = Number.POSITIVE_INFINITY;
@@ -142,9 +145,10 @@ function addTitle() {
   }
 }
 
-const backlinks = new Map();
 
 function addLinks() {
+  const backlinks = this.data().backlinks
+
   return (tree, file) => {
     const links = []
 
@@ -169,6 +173,8 @@ function addLinks() {
 }
 
 function addBacklinks() {
+  const backlinks = this.data().backlinks
+
   return (_, file) => {
     file.data.backlinkSlugs = [...backlinks.get(file.data.slug) || []]
   };
@@ -191,8 +197,7 @@ function printTree() {
   };
 }
 
-
-async function main(config, args) {
+export async function preprocess(config, args) {
   const noteRoot = args[0]
   logger.info(`Processing notes in ${noteRoot}`)
 
@@ -201,7 +206,10 @@ async function main(config, args) {
     mkdir(config.imgSavePath, { recursive: true })
   ])
 
+  const backlinks = new Map();
+
   const processor = unified()
+    .data({backlinks})
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkFrontmatter, ['yaml'])
@@ -419,35 +427,6 @@ async function main(config, args) {
 
       updateAll()
     })
-
-    // process.on("SIGINT", onsigint)
   }
-
 }
-
-
-function parseArgs() {
-  const program = new Command();
-
-  program
-    .description('CLI to pre-process markdown files for noteplot.')
-    .argument("<note-dir>", "Root directory to scan for notes.")
-    .option("-w, --watch", "watch for changes.", false)
-    .option("--save-path", "where to save processed notes", "./src/lib/notes/")
-    .option("--img-save-path", "where to save processed images", "./static/note_imgs/")
-    .option("--img-url", "url under which are the images going to be accessible", "/note_imgs/")
-    .option("--log-level", "log level to filter logs", "debug")
-
-
-  program.parse()
-
-
-  return [program.opts(), program.args]
-}
-
-const [config, args] = parseArgs()
-
-logger.level = config.logLevel
-
-main(config, args)
 

@@ -1,7 +1,10 @@
 {
   "name": "noteplot",
   "version": "0.0.1",
-  "private": true,
+  "private": false,
+  "bin": {
+    "noteplot": "./index.js"
+  },
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
@@ -16,9 +19,6 @@
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.0.0",
-    "@sveltejs/adapter-static": "^3.0.1",
-    "@sveltejs/kit": "^2.0.0",
-    "@sveltejs/vite-plugin-svelte": "^3.0.0",
     "@tailwindcss/typography": "^0.5.13",
     "@types/eslint": "^8.56.0",
     "autoprefixer": "^10.4.19",
@@ -37,6 +37,9 @@
   "type": "module",
   "dependencies": {
     "@astrojs/markdown-remark": "^5.1.0",
+    "@sveltejs/adapter-static": "^3.0.1",
+    "@sveltejs/kit": "^2.5.10",
+    "@sveltejs/vite-plugin-svelte": "^3.1.0",
     "commander": "^12.1.0",
     "concurrently": "^8.2.2",
     "d3": "^7.9.0",
