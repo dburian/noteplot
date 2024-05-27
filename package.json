@@ -13,9 +13,8 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json --watch",
     "lint": "prettier --check . && eslint .",
     "format": "prettier --write .",
-    "watch:notes": "node unify_preprocess.js ../notes/ --watch | pino-pretty",
-    "watch:vite": "vite dev",
-    "watch": "concurrently \"npm:watch:*\""
+    "watch:notes": "node index.js watch --only-notes",
+    "watch": "node index.js watch"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.0.0",

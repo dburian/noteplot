@@ -16,20 +16,20 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 async function watch(noteDir, options, command) {
   const opts = command.optsWithGlobals()
 
-  console.log({noteDir, options, opts})
+  if (!opts.onlyNotes) {
+    const viteServer = await createServer({
+      root: __dirname,
+      server: {
+        port: opts.port,
+      }
+    })
 
-  const viteServer = await createServer({
-    root: __dirname,
-    server: {
-      port: opts.port,
-    }
-  })
+    logger.debug("Starting Vite dev server")
+    await viteServer.listen()
 
-  logger.debug("Starting Vite dev server")
-  await viteServer.listen()
-
-  viteServer.printUrls()
-  viteServer.bindCLIShortcuts({print: true})
+    viteServer.printUrls()
+    viteServer.bindCLIShortcuts({print: true})
+  }
 
   await preprocess({
     watch: true,
@@ -53,6 +53,7 @@ async function main() {
     .description("Runs local server and watches for changes.")
     .argument("<note-dir>", "Root directory containing all notes and images.")
     .option("-p, --port", "Port to host the server on.", 5173)
+    .option("--only-notes", "Only pre-process markdown files", false)
     .action(watch)
 
 
