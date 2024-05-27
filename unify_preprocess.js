@@ -197,6 +197,21 @@ function printTree() {
   };
 }
 
+function setDiff(set1, set2) {
+  if ('difference' in set1) {
+    return set1.difference(set2)
+  }
+
+  const diff = new Set();
+  for (const elem of set1) {
+    if (!set2.has(elem)) {
+      diff.add(elem)
+    }
+  }
+
+  return diff
+}
+
 export async function preprocess(config, args) {
   const noteRoot = args[0]
   logger.info(`Processing notes in ${noteRoot}`)
@@ -373,7 +388,7 @@ export async function preprocess(config, args) {
     const newNotePaths = []
     for (const entry of dirEntries) {
       if (entry.isFile() && path.extname(entry.name) == '.md') {
-        newNotePaths.push(path.join(entry.parentPath, entry.name))
+        newNotePaths.push(path.join(entry.path || entry.parentPath, entry.name))
       }
     }
 
@@ -382,8 +397,8 @@ export async function preprocess(config, args) {
     const newNotes = new Set(updatedNotes.map(n => path.join(config.savePath, `${n.slug}.json`)))
     newNotes.add(path.join(config.savePath, '__graph.json'))
 
-    const outdatedNotes = [...oldNotes.difference(newNotes)]
-    const outdatedImgs = [...oldImages.difference(newImages)]
+    const outdatedNotes = [...setDiff(oldNotes, newNotes)]
+    const outdatedImgs = [...setDiff(oldImages, newImages)]
 
     await Promise.all(
       outdatedNotes.map(notePath => rm(notePath)).concat(
