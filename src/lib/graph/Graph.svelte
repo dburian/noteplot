@@ -44,9 +44,7 @@
       .on("zoom", zoomed)
     d3.select(svgTag).call(zoomBehavior)
 
-    console.log("zoom added")
     function zoomed(event) {
-      console.log("zoomed")
       transform = event.transform;
       const normZoom = (event.transform.k - 1) / (maxZoomCoef - 1);
 

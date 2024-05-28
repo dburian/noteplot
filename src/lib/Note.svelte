@@ -4,7 +4,7 @@
   export let slug, title, links, backlinks, content;
 </script>
 
-<div class="article-container w-full grid justify-center p-6 overflow-auto">
+<div class="article-container w-full grid justify-center p-6">
   <Prose>
     <h1>{title}</h1>
     <h2>Forward links</h2>
@@ -26,8 +26,9 @@
   </Prose>
   <style>
     mjx-container[jax="SVG"] {
-        display: inline-block;
-        vertical-align: middle;
+      display: inline-block;
+      vertical-align: middle;
+      overflow: auto;
     }
     mjx-container[jax="SVG"][display="true"] {
       display: grid;
