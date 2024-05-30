@@ -55,7 +55,7 @@ async function build(noteDir, options, command) {
     watch: false,
     savePath: './src/lib/notes/',
     imgSavePath: './static/note_imgs/',
-    imgUrl: '/note_imgs/',
+    imgUrl: `${opts.baseUrl}/note_imgs/`,
   }, [noteDir])
 
   const buildConfig = {}
@@ -88,7 +88,7 @@ async function main() {
     .command("build")
     .description("Builds a static site.")
     .argument("<note-dir", "Root directory containing all notes and images.")
-    .option("--base-url", "Base URL of the built site.", null)
+    .option("--base-url", "Base URL of the built site. Defaults to reading from $BASE_URL environment variable.", process.env.has("BASE_URL") ? process.env.BASE_URL : "")
     .action(build)
 
 
