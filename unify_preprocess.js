@@ -393,10 +393,11 @@ export async function preprocess(config, args) {
     }
 
     const updatedNotes = await update(newNotePaths)
-    const newImages = new Set(updatedNotes.map(n => n.images.map(img => path.join(config.imgSavePath, img))).flat())
+    const newImages = new Set(updatedNotes.map(n => n.images).flat())
     const newNotes = new Set(updatedNotes.map(n => path.join(config.savePath, `${n.slug}.json`)))
     newNotes.add(path.join(config.savePath, '__graph.json'))
 
+    console.log(newImages)
     const outdatedNotes = [...setDiff(oldNotes, newNotes)]
     const outdatedImgs = [...setDiff(oldImages, newImages)]
 
