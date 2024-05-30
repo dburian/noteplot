@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import pino from "pino";
-import { createServer } from "vite";
+import { createServer, build as viteBuild } from "vite";
 import { preprocess } from "./unify_preprocess.js";
-import {fileURLToPath} from "node:url";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 const logger = pino({
   transport: {
@@ -13,8 +14,16 @@ const logger = pino({
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
-async function watch(noteDir, options, command) {
+function setupCommonOpts(command) {
   const opts = command.optsWithGlobals()
+
+  logger.level = opts.logLevel
+
+  return opts;
+}
+
+async function watch(noteDir, options, command) {
+  const opts = setupCommonOpts(command)
 
   if (!opts.onlyNotes) {
     const viteServer = await createServer({
@@ -28,7 +37,7 @@ async function watch(noteDir, options, command) {
     await viteServer.listen()
 
     viteServer.printUrls()
-    viteServer.bindCLIShortcuts({print: true})
+    viteServer.bindCLIShortcuts({ print: true })
   }
 
   await preprocess({
@@ -39,6 +48,25 @@ async function watch(noteDir, options, command) {
   }, [noteDir])
 }
 
+async function build(noteDir, options, command) {
+  const opts = setupCommonOpts(command)
+
+  await preprocess({
+    watch: false,
+    savePath: './src/lib/notes/',
+    imgSavePath: './static/note_imgs/',
+    imgUrl: '/note_imgs/',
+  }, [noteDir])
+
+  const buildConfig = {}
+
+  if (opts.baseUrl) {
+    buildConfig.base = opts.baseUrl
+    process.env.BASE_URL = opts.baseUrl
+  }
+
+  viteBuild(buildConfig)
+}
 
 async function main() {
   const prog = new Command()
@@ -55,6 +83,13 @@ async function main() {
     .option("-p, --port", "Port to host the server on.", 5173)
     .option("--only-notes", "Only pre-process markdown files", false)
     .action(watch)
+
+  prog
+    .command("build")
+    .description("Builds a static site.")
+    .argument("<note-dir", "Root directory containing all notes and images.")
+    .option("--base-url", "Base URL of the built site.", null)
+    .action(build)
 
 
   await prog.parseAsync()

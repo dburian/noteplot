@@ -16,5 +16,8 @@ export default {
       handleHttpError: 'warn',
     }
   },
-  preprocess: vitePreprocess()
+  preprocess: vitePreprocess(),
+  paths: {
+    base: "BASE_PATH" in process.env ? process.env.BASE_PATH : ''
+  }
 };
