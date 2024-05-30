@@ -1,6 +1,7 @@
 .DS_Store
 node_modules
 src/lib/notes
+static/note_imgs
 /build
 /.svelte-kit
 /package
