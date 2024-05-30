@@ -55,14 +55,15 @@ async function build(noteDir, options, command) {
     watch: false,
     savePath: './src/lib/notes/',
     imgSavePath: './static/note_imgs/',
-    imgUrl: `${opts.baseUrl}/note_imgs/`,
+    imgUrl: `${opts.basePath}/note_imgs/`,
   }, [noteDir])
 
   const buildConfig = {}
 
-  if (opts.baseUrl) {
-    buildConfig.base = opts.baseUrl
-    process.env.BASE_URL = opts.baseUrl
+  if (opts.basePath) {
+    buildConfig.base = opts.basePath
+    //Just in case, overwrite the environment var (as one would expect).
+    process.env.BASE_PATH = opts.basePath
   }
 
   viteBuild(buildConfig)
@@ -88,7 +89,7 @@ async function main() {
     .command("build")
     .description("Builds a static site.")
     .argument("<note-dir", "Root directory containing all notes and images.")
-    .option("--base-url", "Base URL of the built site. Defaults to reading from $BASE_URL environment variable.", "BASE_URL" in process.env ? process.env.BASE_URL : "")
+    .option("--base-path", "Base path of the built site. Defaults to reading from $BASE_PATH environment variable.", "BASE_PATH" in process.env ? process.env.BASE_URL : "")
     .action(build)
 
 

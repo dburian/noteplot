@@ -1,5 +1,4 @@
 <script>
-  import { goto } from '$app/navigation';
   import ToolbarButton from '$lib/toolbar/ToolbarButton.svelte';
     import { getContext, onMount } from 'svelte';
   import Toolbar from '../toolbar/Toolbar.svelte';
