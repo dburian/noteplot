@@ -88,7 +88,7 @@ async function main() {
     .command("build")
     .description("Builds a static site.")
     .argument("<note-dir", "Root directory containing all notes and images.")
-    .option("--base-url", "Base URL of the built site. Defaults to reading from $BASE_URL environment variable.", process.env.has("BASE_URL") ? process.env.BASE_URL : "")
+    .option("--base-url", "Base URL of the built site. Defaults to reading from $BASE_URL environment variable.", "BASE_URL" in process.env ? process.env.BASE_URL : "")
     .action(build)
 
 
