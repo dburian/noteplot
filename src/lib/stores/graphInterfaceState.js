@@ -1,4 +1,5 @@
 import { goto } from "$app/navigation";
+import { base } from "$app/paths";
 import { writable } from "svelte/store";
 
 
@@ -26,7 +27,7 @@ export function createGraphInterfaceState(initialState) {
       if (oldState.withGraph !== newState.withGraph ||
           oldState.viewedNote?.slug !== newState.viewedNote?.slug ||
           oldState.graphFullScreen !== newState.graphFullScreen) {
-        let newUrl = "/"
+        let newUrl = `${base}/`
         if (newState.viewedNote && !newState.withGraph) {
           newUrl += "notes/"
         }
