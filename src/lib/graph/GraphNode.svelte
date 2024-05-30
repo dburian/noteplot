@@ -1,7 +1,9 @@
 <script>
+    import { getContext } from "svelte";
+
+  export let transform;
   export let node;
   export let scale;
-  export let active;
   export let lineWidth;
 
   // Bigger stuff
@@ -11,30 +13,30 @@
 
   let hover = false;
 
-  $: highlighted = hover || active
+  const giState = getContext("graphInterfaceState")
+  $: highlighted = hover || ($giState.viewedNote?.slug === node.slug)
   //$: fontSize = 6 + 4 *  scale
   $: fontSize = 5 + 4 *  scale
 
 </script>
 
-<g transform={`translate(${node.x}, ${node.y})`}>
-  <a
-    href={`/${node.id}`}
-    aria-label={node.id}
-    style="cursor: pointer"
-    on:pointerenter={(_) => {hover = true}}
-    on:pointerleave={(_) => {hover = false}}
-  >
-    <rect
-      width={side}
-      height={side}
-      x={-side/2}
-      y={-side/2}
-      stroke='black'
-      stroke-width={lineWidth}
-      fill="white"
-    />
-    {#if highlighted }
+<g
+  transform={`translate(${node.x * transform.k}, ${node.y * transform.k})`}
+  class="cursor-pointer"
+  on:pointerenter={(_) => {hover = true}}
+  on:pointerleave={(_) => {hover = false}}
+  on:click={() => giState.update({viewedNote: node})}
+>
+  <rect
+    width={side}
+    height={side}
+    x={-side/2}
+    y={-side/2}
+    stroke='black'
+    stroke-width={lineWidth}
+    fill="white"
+  />
+  {#if highlighted }
     <rect
       width={innerSide}
       height={innerSide}
@@ -42,8 +44,7 @@
       y={-innerSide/2}
       fill={"black"}
     />
-    {/if}
-  </a>
+  {/if}
   <text
     class='node-text'
     x={side/2 + side*0.6}

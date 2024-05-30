@@ -1,13 +1,14 @@
 <script>
   import * as d3 from "d3";
-  import {onMount} from 'svelte';
+  import {getContext, onMount} from 'svelte';
   import GraphNode from "./GraphNode.svelte";
 
 
   export let nodes;
   export let links;
   export let viewBox;
-  export let viewedNote;
+
+  const giState = getContext("graphInterfaceState")
 
   const viewBoxWidth = viewBox[2] - viewBox[0];
   const viewBoxHeight = viewBox[3] - viewBox[1];
@@ -56,6 +57,7 @@
       scale = Math.log(normZoom* logScale + 1) / Math.log(logScale + 1)
     }
   }
+
 </script>
 
 <svg
@@ -81,10 +83,10 @@
     {/each}
     {#each nodes as node (node.slug)}
       <GraphNode
-        node={{x: node.x * transform.k,y: node.y * transform.k, id: node.slug, title: node.title}}
+        {transform}
+        {node}
         {scale}
         {lineWidth}
-        active={viewedNote && viewedNote.slug === node.slug}
       />
     {/each}
   </g>

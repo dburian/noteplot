@@ -2,11 +2,12 @@ import { error } from '@sveltejs/kit';
 
 export async function load({ params }) {
   try {
-    const note = await import(`$lib/notes/${params.slug}.json`)
+    const note = (await import(`$lib/notes/${params.slug}.json`)).default
 
     return {
       note,
       withGraph: true,
+      graphFullScreen: false,
     }
   } catch {
     return error(404, {message: `Note ${params.slug} not found.`})

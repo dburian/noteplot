@@ -1,9 +1,7 @@
 import graph  from '$lib/notes/__graph.json';
 
-export function load({url}) {
-  const graphFullScreen = url.searchParams.has('graphFullScreen')
-
-  return {...graph, graphFullScreen};
+export function load() {
+  return {...graph};
 }
 
 export const prerender = true;

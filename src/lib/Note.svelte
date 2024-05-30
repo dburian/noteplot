@@ -1,7 +1,7 @@
 <script>
   import Prose from "./Prose.svelte";
 
-  export let slug, title, links, backlinks, content;
+  export let slug, title, links, backlinks, content, noteRoot, images;
 </script>
 
 <div class="article-container w-full grid justify-center p-6">
