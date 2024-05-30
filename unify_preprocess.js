@@ -15,7 +15,6 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import reporter from 'vfile-reporter';
 import { readSync } from 'to-vfile';
-import { Command } from 'commander';
 import * as d3 from "d3";
 import Watcher from 'watcher';
 import pino from 'pino';
@@ -397,7 +396,6 @@ export async function preprocess(config, args) {
     const newNotes = new Set(updatedNotes.map(n => path.join(config.savePath, `${n.slug}.json`)))
     newNotes.add(path.join(config.savePath, '__graph.json'))
 
-    console.log(newImages)
     const outdatedNotes = [...setDiff(oldNotes, newNotes)]
     const outdatedImgs = [...setDiff(oldImages, newImages)]
 
