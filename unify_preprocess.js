@@ -49,7 +49,16 @@ function shrinkViewBox(nodes, links) {
   }));
 
 
-  const newViewBox = [0, 0, maxX - minX, maxY - minY];
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const paddingFr = 0.1
+  const newViewBox = [
+    -width * paddingFr / 2, // min x
+    -height * paddingFr / 2, // min y
+    width + width * paddingFr, // width
+    height + height * paddingFr // height
+  ];
+
   return { nodes, links, viewBox: newViewBox };
 }
 
@@ -223,7 +232,7 @@ export async function preprocess(config, args) {
   const backlinks = new Map();
 
   const processor = unified()
-    .data({backlinks})
+    .data({ backlinks })
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkFrontmatter, ['yaml'])
@@ -377,7 +386,7 @@ export async function preprocess(config, args) {
     notes.clear()
 
     const lsAbsPaths = async (dir) => {
-      const relPaths = await readdir(dir, {recursive: true})
+      const relPaths = await readdir(dir, { recursive: true })
       return relPaths.map(p => path.join(dir, p))
     }
     const oldImages = new Set(await lsAbsPaths(config.imgSavePath));

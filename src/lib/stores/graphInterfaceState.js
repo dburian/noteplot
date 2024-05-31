@@ -20,7 +20,6 @@ export function createGraphInterfaceState(initialState) {
       if (typeof stateUpdate === "function") {
         stateUpdate = stateUpdate(oldState)
       }
-      console.log({stateUpdate})
       const newState = verifyState({...oldState, ...stateUpdate})
 
       // Change in URL

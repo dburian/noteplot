@@ -3,12 +3,11 @@
 
   export let transform;
   export let node;
-  export let scale;
   export let lineWidth;
 
   // Bigger stuff
   //$: side = 6 + 7 * scale
-  $: side = 3 + 4 * scale
+  $: side = 3
   $: innerSide = side * 1
 
   let hover = false;
@@ -16,12 +15,12 @@
   const giState = getContext("graphInterfaceState")
   $: highlighted = hover || ($giState.viewedNote?.slug === node.slug)
   //$: fontSize = 6 + 4 *  scale
-  $: fontSize = 5 + 4 *  scale
+  $: fontSize = 5
 
 </script>
 
 <g
-  transform={`translate(${node.x * transform.k}, ${node.y * transform.k})`}
+  transform={`translate(${node.x}, ${node.y})`}
   class="cursor-pointer"
   on:pointerenter={(_) => {hover = true}}
   on:pointerleave={(_) => {hover = false}}
@@ -53,7 +52,7 @@
     font-size={`${fontSize}px`}
     stroke-width={`${fontSize*0.5}px`}
   >
-    {#if scale > 0.2 || highlighted}
+    {#if transform.k > 2.2 || highlighted}
       {node.title}
     {/if}
   </text>
