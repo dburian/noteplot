@@ -14,7 +14,7 @@
   let viewportCorrectedViewBox = [...viewBox];
 
   let transform = { x: 0, y: 0, k: 1};
-  const maxZoomCoef = 10
+  const maxZoomCoef = 5
 
   let svgTag;
 
@@ -74,6 +74,8 @@
 
     return zoomBehavior;
   }
+
+  $: stroke = 0.7/transform.k;
 </script>
 
 <svg
@@ -90,7 +92,7 @@
   >
     {#each links as link }
       <line
-        stroke-width={0.8}
+        stroke-width={stroke}
         stroke='#000'
         x1={link.source.x}
         y1={link.source.y}
@@ -102,7 +104,7 @@
       <GraphNode
         transform={transform}
         {node}
-        lineWidth={0.8}
+        lineWidth={stroke}
       />
     {/each}
   </g>

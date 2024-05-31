@@ -7,7 +7,7 @@
 
   // Bigger stuff
   //$: side = 6 + 7 * scale
-  $: side = 3
+  $: side = 4.0/transform.k**0.5;
   $: innerSide = side * 1
 
   let hover = false;
@@ -15,7 +15,7 @@
   const giState = getContext("graphInterfaceState")
   $: highlighted = hover || ($giState.viewedNote?.slug === node.slug)
   //$: fontSize = 6 + 4 *  scale
-  $: fontSize = 5
+  $: fontSize = 8/transform.k;
 
 </script>
 

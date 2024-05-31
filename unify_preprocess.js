@@ -308,6 +308,7 @@ export async function preprocess(config, args) {
     }
 
     const links = []
+    const addedLinks = new Set()
     for (const node of nodes) {
       const fromNodeIdx = slugToIdx.get(node.slug)
 
@@ -315,12 +316,16 @@ export async function preprocess(config, args) {
 
       for (const link of node.links) {
         const toNodeIdx = slugToIdx.get(link.slug)
-
         if (typeof toNodeIdx === "undefined") continue;
+
+        const linkId = [fromNodeIdx, toNodeIdx]
+        if (addedLinks.has(linkId)) continue;
+
         links.push({
           source: fromNodeIdx,
           target: toNodeIdx,
         })
+        addedLinks.add(linkId);
       }
     }
 
