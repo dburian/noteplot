@@ -1,6 +1,6 @@
 <script>
-  import {createGraphInterfaceState} from "$lib/stores/graphInterfaceState.js"
-  import { setContext } from "svelte";
+  import {createGraphState} from "$lib/stores/graphInterfaceState.js"
+  import { getContext, setContext } from "svelte";
 
   export let withGraph = true;
   export let viewedNote = null;
@@ -11,14 +11,16 @@
     graphFullScreen = searchParams.has("graphFullScreen")
   }
 
-  const giState = createGraphInterfaceState({
-    withGraph,
-    graphFullScreen,
-    viewedNote,
-  })
+  const giState = createGraphState(
+    {
+      withGraph,
+      graphFullScreen,
+      viewedNote,
+    }
+  )
 
   // For linking to different notes, we do not have the full information, so we
-  // need to update it 
+  // need to update it.
   $: differentNoteObj = $giState.viewedNote !== viewedNote
   $: sameSlug = $giState.viewedNote?.slug === viewedNote?.slug
   $: if ($giState.viewedNote && differentNoteObj && sameSlug) giState.update({viewedNote})

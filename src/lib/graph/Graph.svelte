@@ -14,7 +14,7 @@
   let viewportCorrectedViewBox = [...viewBox];
 
   let transform = { x: 0, y: 0, k: 1};
-  const maxZoomCoef = 5
+  const maxZoomCoef = 15;
 
   let svgTag;
 
@@ -75,7 +75,8 @@
     return zoomBehavior;
   }
 
-  $: stroke = 0.7/transform.k;
+  let strokeWidth = 0.05;
+  $: fontSize = 0.5/transform.k**0.75;
 </script>
 
 <svg
@@ -84,15 +85,16 @@
   height='100%'
   viewBox={viewportCorrectedViewBox.join(' ')}
   preserveAspectRatio="xMidYMid slice"
-  class="svgGraph"
+  class="svgGraph text-3xl sm:text-2xl md:text-xl lg:text-base"
 >
   <g
     transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}
     class="zoomableContainer"
+    font-size={`${fontSize}em`}
   >
     {#each links as link }
       <line
-        stroke-width={stroke}
+        stroke-width={`${strokeWidth}em`}
         stroke='#000'
         x1={link.source.x}
         y1={link.source.y}
@@ -104,7 +106,8 @@
       <GraphNode
         transform={transform}
         {node}
-        lineWidth={stroke}
+        strokeWidth={strokeWidth}
+        {fontSize}
       />
     {/each}
   </g>
@@ -114,6 +117,7 @@
 .svgGraph {
   background: white;
   cursor: crosshair;
+  touch-action: none;
 }
 
 .zoomableContainer {

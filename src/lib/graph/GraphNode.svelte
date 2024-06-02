@@ -1,56 +1,53 @@
 <script>
-    import { getContext } from "svelte";
+  import { getContext } from "svelte";
 
   export let transform;
   export let node;
-  export let lineWidth;
+  export let strokeWidth;
+  export let fontSize;
 
-  // Bigger stuff
-  //$: side = 6 + 7 * scale
-  $: side = 4.0/transform.k**0.5;
-  $: innerSide = side * 1
-
+  let side = 0.6;
   let hover = false;
 
   const giState = getContext("graphInterfaceState")
   $: highlighted = hover || ($giState.viewedNote?.slug === node.slug)
-  //$: fontSize = 6 + 4 *  scale
-  $: fontSize = 8/transform.k;
 
 </script>
 
 <g
   transform={`translate(${node.x}, ${node.y})`}
   class="cursor-pointer"
-  on:pointerenter={(_) => {hover = true}}
-  on:pointerleave={(_) => {hover = false}}
+  on:mouseenter={() => {hover = true}}
+  on:mouseenter={() => {hover = false}}
   on:click={() => giState.update({viewedNote: node})}
+  role="link"
 >
   <rect
-    width={side}
-    height={side}
-    x={-side/2}
-    y={-side/2}
+    width={`${side}em`}
+    height={`${side}em`}
+    x={`${-side/2}em`}
+    y={`${-side/2}em`}
     stroke='black'
-    stroke-width={lineWidth}
+    stroke-width={`${strokeWidth}em`}
     fill="white"
   />
   {#if highlighted }
     <rect
-      width={innerSide}
-      height={innerSide}
-      x={-innerSide/2}
-      y={-innerSide/2}
+      width={`${side}em`}
+      height={`${side}em`}
+      x={`${-side/2}em`}
+      y={`${-side/2}em`}
+      stroke='black'
+      stroke-width={`${strokeWidth}em`}
       fill={"black"}
     />
   {/if}
   <text
     class='node-text'
-    x={side/2 + side*0.6}
+    x={`${side}em`}
     dominant-baseline="middle"
     fill='black'
-    font-size={`${fontSize}px`}
-    stroke-width={`${fontSize*0.5}px`}
+    stroke-width={`${strokeWidth*5}em`}
   >
     {#if transform.k > 2.2 || highlighted}
       {node.title}

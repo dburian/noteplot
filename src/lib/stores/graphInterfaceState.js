@@ -3,7 +3,7 @@ import { base } from "$app/paths";
 import { writable } from "svelte/store";
 
 
-export function createGraphInterfaceState(initialState) {
+export function createGraphState(initialState) {
   const {subscribe, set, update} = writable({...initialState})
 
   const verifyState = (state) => {
@@ -48,4 +48,7 @@ export function createGraphInterfaceState(initialState) {
     subscribe,
     update: updateWithSideEffects,
   }
+
+
+
 }
