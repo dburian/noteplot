@@ -2,10 +2,8 @@
   import ToolbarButton from '$lib/toolbar/ToolbarButton.svelte';
   import { getContext, onMount } from 'svelte';
   import Toolbar from '../toolbar/Toolbar.svelte';
-  import Graph from './Graph.svelte';
-    import Adaptive from '$lib/adaptive/Adaptive.svelte';
-    import GraphContainer from './GraphContainer.svelte';
-    import MobileNoteContainer from './MobileNoteContainer.svelte';
+  import Adaptive from '$lib/adaptive/Adaptive.svelte';
+  import GraphContainer from './GraphContainer.svelte';
 
   export let graphProps;
 
@@ -18,35 +16,7 @@
   <GraphContainer
     {...graphProps}
   />
-  <Adaptive>
-    <Toolbar
-      slot="desktop"
-    >
-      {#if $giState.viewedNote}
-        <ToolbarButton on:click={() => giState.update({viewedNote: null})}>x</ToolbarButton>
-      {/if}
-      {#if $giState.viewedNote && $giState.withGraph}
-        <ToolbarButton
-          on:click={() => giState.update(oldState => ({
-            graphFullScreen: false,
-            withGraph: oldState.graphFullScreen
-          }))}
-        >
-          {'<'}
-        </ToolbarButton>
-      {/if}
-      {#if $giState.viewedNote && !$giState.graphFullScreen}
-        <ToolbarButton
-          on:click={() => giState.update(oldState => ({
-            withGraph: true,
-            graphFullScreen: oldState.withGraph,
-          }))}
-        >
-          {'>'}
-        </ToolbarButton>
-      {/if}
-    </Toolbar>
-  </Adaptive>
+  <Toolbar />
   <Adaptive>
     <div
       class="flex-auto overflow-auto h-screen"
@@ -55,9 +25,7 @@
     >
       <slot />
     </div>
-    <MobileNoteContainer slot="mobile">
-      <slot />
-    </MobileNoteContainer>
+    <slot slot="mobile" />
   </Adaptive>
 </div>
 

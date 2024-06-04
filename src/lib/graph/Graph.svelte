@@ -1,12 +1,14 @@
 <script>
   import * as d3 from "d3";
-  import {onMount} from 'svelte';
+  import {getContext, onMount} from 'svelte';
   import GraphNode from "./GraphNode.svelte";
 
 
   export let nodes;
   export let links;
   export let viewBox;
+
+  const adaptive = getContext("adaptive")
 
   const viewBoxWidth = viewBox[2];
   const viewBoxHeight = viewBox[3];
@@ -22,8 +24,8 @@
     const zoom = addZoom();
 
     const onResize = () => {
-      const bodyWidth = document.body.clientWidth;
-      const bodyHeight = document.body.clientHeight;
+      const bodyWidth = window.innerWidth
+      const bodyHeight = window.innerHeight;
       const bodyAspect = bodyWidth/bodyHeight;
       const viewBoxAspect = viewBoxWidth / viewBoxHeight;
       const viewPortDiff = viewBoxAspect - bodyAspect
@@ -85,7 +87,7 @@
   height='100%'
   viewBox={viewportCorrectedViewBox.join(' ')}
   preserveAspectRatio="xMidYMid slice"
-  class="svgGraph text-3xl sm:text-2xl md:text-xl lg:text-base"
+  class={`svgGraph text-3xl sm:text-2xl md:text-xl lg:text-base ${$adaptive.desktop ? "h-screen" : ""}`}
 >
   <g
     transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}

@@ -11,11 +11,13 @@
     graphFullScreen = searchParams.has("graphFullScreen")
   }
 
+  const adaptive = getContext("adaptive")
   const giState = createGraphState(
     {
       withGraph,
       graphFullScreen,
       viewedNote,
+      ...$adaptive,
     }
   )
 
@@ -24,6 +26,8 @@
   $: differentNoteObj = $giState.viewedNote !== viewedNote
   $: sameSlug = $giState.viewedNote?.slug === viewedNote?.slug
   $: if ($giState.viewedNote && differentNoteObj && sameSlug) giState.update({viewedNote})
+
+  $: if ($giState.mobile !== $adaptive.mobile) giState.update({...$adaptive})
 
   setContext('graphInterfaceState', giState);
 </script>
