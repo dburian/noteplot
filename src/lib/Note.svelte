@@ -1,20 +1,10 @@
 <script>
-  import { getContext } from "svelte";
   import Prose from "./Prose.svelte";
-  import ToolbarButton from "./toolbar/ToolbarButton.svelte";
-
-  const giState = getContext("graphInterfaceState")
 
   export let slug, title, links, backlinks, content, noteRoot, images;
 </script>
 
 <div class="article-container w-full grid justify-center p-6">
-  {#if $giState.mobile}
-    <!--TODO: dependency on giState is not good. This should be link.--->
-    <div class="top-4 right-4 fixed">
-      <ToolbarButton on:click={() => giState.update({viewedNote: null})}>x</ToolbarButton>
-    </div>
-  {/if}
   <Prose>
     <h1>{title}</h1>
     <h2>Forward links</h2>

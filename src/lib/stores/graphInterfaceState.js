@@ -29,14 +29,9 @@ function propagateToUrl(oldState, newState) {
 }
 
 function verifyState(state) {
-  if (state.mobile) {
-    state.graphFullScreen = !state.viewedNote;
-    state.withGraph = !state.viewedNote;
-  } else {
-    if (!state.viewedNote) {
-      state.graphFullScreen = false;
-      state.withGraph = true;
-    }
+  if (!state.viewedNote) {
+    state.graphFullScreen = false;
+    state.withGraph = true;
   }
 
   return state

@@ -4,6 +4,7 @@
   import Toolbar from '../toolbar/Toolbar.svelte';
   import Adaptive from '$lib/adaptive/Adaptive.svelte';
   import GraphContainer from './GraphContainer.svelte';
+    import MobileNoteContainer from '$lib/MobileNoteContainer.svelte';
 
   export let graphProps;
 
@@ -12,7 +13,7 @@
   let container = null;
 </script>
 
-<div class="sm:flex h-full relative" bind:this={container}>
+<div class="sm:flex h-full" bind:this={container}>
   <GraphContainer
     {...graphProps}
   />
@@ -25,7 +26,11 @@
     >
       <slot />
     </div>
-    <slot slot="mobile" />
+    <MobileNoteContainer
+      slot="mobile"
+    >
+      <slot  />
+    </MobileNoteContainer>
   </Adaptive>
 </div>
 

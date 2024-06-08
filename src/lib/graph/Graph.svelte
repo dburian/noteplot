@@ -56,10 +56,12 @@
     };
 
     onResize()
-    window.addEventListener("resize", onResize)
+    // TODO: is run even when the height of browser toolbar is changed on
+    // mobile, which is not what we want
+    //window.addEventListener("resize", onResize)
 
     return () => {
-      window.removeEventListener("resize", onResize)
+     // window.removeEventListener("resize", onResize)
     }
 
   })

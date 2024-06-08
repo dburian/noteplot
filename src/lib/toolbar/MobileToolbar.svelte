@@ -1,6 +1,8 @@
 <script>
-    import ToolbarButton from "./ToolbarButton.svelte";
+  import { getContext } from "svelte";
+import ToolbarButton from "./ToolbarButton.svelte";
 
+  const giState = getContext("graphInterfaceState")
 
   let opened = false;
 
@@ -13,31 +15,38 @@
     }
   }
 
+  function gotoGraph() {
+    giState.update({wi})
+  }
+
 </script>
 
-<div
-  class="fixed top-0 right-0"
-  style={opened ? "width: min(80%, calc(100% - 7rem));" : ""}
-  >
-  <div class="absolute">
-    <div class="relative left-[-100%] top-4 mr-4">
-      <ToolbarButton on:click={() => opened = !opened}>{opened ? '>' : '<'}</ToolbarButton>
-    </div>
-  </div>
+{#if opened}
 
-  {#if opened}
-    <div class="w-full h-screen bg-white">
-      <div class="inline-grid w-full tmp p-8 justify-center gap-8 justify-items-center">
-        <ToolbarButton>1</ToolbarButton>
-        <ToolbarButton>2</ToolbarButton>
-        <ToolbarButton>3</ToolbarButton>
-        <ToolbarButton>4</ToolbarButton>
-        <ToolbarButton>5</ToolbarButton>
-        <ToolbarButton>6</ToolbarButton>
-        <ToolbarButton>7</ToolbarButton>
-      </div>
+<div
+  class="fixed top-0 left-0 h-screen w-screen bg-white z-50"
+>
+  <div class="inline-grid w-full tmp p-8 justify-center gap-8 justify-items-center">
+    <ToolbarButton on:click={() => opened = false}>x</ToolbarButton>
+    <ToolbarButton>2</ToolbarButton>
+    <ToolbarButton>3</ToolbarButton>
+    <ToolbarButton>4</ToolbarButton>
+    <ToolbarButton>5</ToolbarButton>
+    <ToolbarButton>6</ToolbarButton>
+    <ToolbarButton>7</ToolbarButton>
+  </div>
+</div>
+{/if}
+
+<div class="fixed bottom-4 right-2 z-40">
+    <div
+      class='grid gap-2'
+    >
+      {#if $giState.viewedNote}
+        <ToolbarButton on:click={() => giState.update({viewedNote: null})}>{'x'}</ToolbarButton>
+      {/if}
+      <ToolbarButton on:click={() => opened = !opened}>{'+'}</ToolbarButton>
     </div>
-  {/if}
 </div>
 
 <style>
