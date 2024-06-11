@@ -1,8 +1,9 @@
 <script>
-  import Note from "$lib/Note.svelte";
+    import NoteContent from '$lib/note/NoteContent.svelte';
+
 
   export let data;
 </script>
 
-<Note {...data.note} />
+<NoteContent {...data.note} />
 

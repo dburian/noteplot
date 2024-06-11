@@ -1,10 +1,11 @@
 <script>
-  import Prose from "./Prose.svelte";
+    import Prose from "$lib/Prose.svelte";
+
 
   export let slug, title, links, backlinks, content, noteRoot, images;
 </script>
 
-<div class="article-container w-full grid justify-center p-6">
+<div class="article-container w-full grid justify-center p-3 sm:p-6">
   <Prose>
     <h1>{title}</h1>
     <h2>Forward links</h2>
