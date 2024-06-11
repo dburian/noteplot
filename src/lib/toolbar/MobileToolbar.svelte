@@ -16,7 +16,6 @@ import ToolbarButton from "./ToolbarButton.svelte";
   }
 
   function gotoGraph() {
-    giState.update({wi})
   }
 
 </script>
@@ -27,7 +26,7 @@ import ToolbarButton from "./ToolbarButton.svelte";
   class="fixed top-0 left-0 h-screen w-screen bg-white z-50"
 >
   <div class="inline-grid w-full tmp p-8 justify-center gap-8 justify-items-center">
-    <ToolbarButton on:click={() => opened = false}>x</ToolbarButton>
+    <ToolbarButton on:click={() => opened = false}>-</ToolbarButton>
     <ToolbarButton>2</ToolbarButton>
     <ToolbarButton>3</ToolbarButton>
     <ToolbarButton>4</ToolbarButton>
