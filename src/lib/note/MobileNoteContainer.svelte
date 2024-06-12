@@ -87,7 +87,7 @@
 
 {#if $giState.viewedNote}
 <div
-  class={`${scrollEnabled ? "overflow-auto" : "overflow-hidden"} fixed shadow-hover bg-white z-10 w-full touch-none`}
+  class={`${scrollEnabled ? "overflow-auto" : "overflow-hidden"} fixed bottom-0 ${window && height < window.innerHeight ? "border-t-2" : ""} border-black bg-white z-10 w-full touch-none`}
   style={`margin-top:-${height}px;height: ${height}px`}
   bind:this={container}
   on:pointerdown={pointerDown}

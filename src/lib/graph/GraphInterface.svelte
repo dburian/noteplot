@@ -2,16 +2,34 @@
   import Toolbar from '../toolbar/Toolbar.svelte';
   import GraphContainer from './GraphContainer.svelte';
   import Note from '$lib/note/Note.svelte';
+    import { getContext } from 'svelte';
 
   export let graphProps;
 
-  let container = null;
+  const giState = getContext("graphInterfaceState")
+  $: width = ""
+  $: {
+    if (!$giState.mobile) {
+      if (!$giState.withGraph) {
+        width = "calc(100vw - 4.5rem)"
+      } else if (!$giState.viewedNote || $giState.graphFullScreen) {
+        width = "0px"
+      } else {
+        width = "unset";
+      }
+    }
+
+    console.log(width)
+  }
 </script>
 
-<div class="sm:flex h-full" bind:this={container}>
-  <GraphContainer
-    {...graphProps}
-  />
+<GraphContainer
+  {...graphProps}
+/>
+<div
+  class={`sm:fixed sm:top-0 sm:right-0 sm:border-l-black ${$giState.graphFullScreen || !$giState.viewedNote ? "" : "sm:border-l-2"}`}
+  style={`width: ${width}`}
+>
   <Toolbar />
   <Note>
     <slot />

@@ -11,8 +11,7 @@
 {#key $giState.viewedNote?.slug}
   <Adaptive>
     <div
-      class="flex-auto overflow-auto h-screen"
-      style={!$giState.viewedNote || $giState.graphFullScreen ? 'flex: none; width:0px' : ''}
+      class="overflow-auto h-screen w-full bg-white"
       slot="desktop"
     >
       <slot />
