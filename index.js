@@ -2,9 +2,8 @@
 import { Command } from "commander";
 import pino from "pino";
 import { createServer, build as viteBuild } from "vite";
-import { preprocess } from "./unify_preprocess.js";
+import { preprocess } from "./note_preprocessor.js";
 import { fileURLToPath } from "node:url";
-import path from "node:path";
 
 const logger = pino({
   transport: {
