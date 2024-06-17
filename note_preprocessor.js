@@ -150,8 +150,6 @@ class NotePreprocessor {
   }
 
   async _generateSearchJSON() {
-    console.log(this.notes.get('tmp'))
-
     const filePromises = []
     for (const note of this.notes.values()) {
       filePromises.push(this.retextPipeline.process(readSync(note.originalPath)))

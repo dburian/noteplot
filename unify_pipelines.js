@@ -16,6 +16,8 @@ import { inspect } from 'util';
 import path from 'path';
 import retextLatin from 'retext-latin';
 import retextStringify from 'retext-stringify';
+import stripMarkdown from 'strip-markdown';
+import remarkStringify from 'remark-stringify';
 
 function isURL(str) {
   try {
@@ -193,8 +195,10 @@ export function createRehypePipeline(preprocessor, noteRoot) {
 
 export function createRetextPipeline(preprocessor, noteRoot) {
   const pipeline = createRemarkPipeline(preprocessor, noteRoot)
-    .use(remarkRetext, unified().use(retextLatin), {ignore: ['image']})
-    .use(retextStringify)
+    .use(stripMarkdown)
+    .use(remarkStringify)
+    //.use(remarkRetext, unified().use(retextLatin), {ignore: ['image']})
+    //.use(retextStringify)
 
   return pipeline
 }
