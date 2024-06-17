@@ -1,4 +1,3 @@
-import { goto } from "$app/navigation";
 import * as d3 from "d3";
 
 function dist(p1, p2) {
@@ -109,6 +108,9 @@ export class CanvasGraph {
   }
 
   onHover = (event) => {
+    // Disable hover events on mobile
+    if (event.sourceCapabilities.firesTouchEvents) return
+
     const node = this.getNode({x: event.clientX, y: event.clientY})
 
     if (node) {
@@ -194,8 +196,6 @@ export class CanvasGraph {
     ) {
       return null
     }
-
-    console.log({gridCoords, numCols: this.grid.numCols, numRows: this.grid.numRows})
 
     const gridItems = this.grid.rows[gridCoords.row][gridCoords.col]
 

@@ -12,14 +12,14 @@
     if (!$giState.mobile) {
       if (!$giState.withGraph) {
         width = "calc(100vw - 4.5rem)"
-      } else if (!$giState.viewedNote || $giState.graphFullScreen) {
+      } else if (!$giState.withContent || $giState.graphFullScreen) {
         width = "0px"
       } else {
         width = "unset";
       }
     }
 
-    console.log(width)
+    console.log({giState: $giState})
   }
 </script>
 
@@ -27,7 +27,7 @@
   {...graphProps}
 />
 <div
-  class={`sm:fixed sm:top-0 sm:right-0 sm:border-l-black ${$giState.graphFullScreen || !$giState.viewedNote ? "" : "sm:border-l-2"}`}
+  class={`sm:fixed sm:top-0 sm:right-0 sm:border-l-black ${$giState.graphFullScreen || !$giState.withContent ? "" : "sm:border-l-2"}`}
   style={`width: ${width}`}
 >
   <Toolbar />

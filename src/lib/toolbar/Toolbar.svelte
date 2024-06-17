@@ -1,8 +1,11 @@
 <script>
   import Adaptive from "$lib/adaptive/Adaptive.svelte";
-import { getContext } from "svelte";
-    import ToolbarButton from "./ToolbarButton.svelte";
-    import MobileToolbar from "./MobileToolbar.svelte";
+  import { getContext } from "svelte";
+  import MobileToolbar from "./MobileToolbar.svelte";
+  import CloseContent from "./buttons/CloseContent.svelte";
+  import LargerContent from "./buttons/LargerContent.svelte";
+  import SmallerContent from "./buttons/SmallerContent.svelte";
+  import Search from "./buttons/Search.svelte";
 
   const giState = getContext("graphInterfaceState")
 </script>
@@ -18,30 +21,10 @@ import { getContext } from "svelte";
     <div
       class='grid auto-rows-max gap-y-4'
     >
-      {#if $giState.viewedNote}
-        <ToolbarButton on:click={() => giState.update({viewedNote: null})}>x</ToolbarButton>
-      {/if}
-      {#if $giState.viewedNote && $giState.withGraph}
-        <ToolbarButton
-          on:click={() => giState.update(oldState => ({
-            graphFullScreen: false,
-            withGraph: oldState.graphFullScreen
-          }))}
-        >
-          {'<'}
-        </ToolbarButton>
-      {/if}
-      {#if $giState.viewedNote && !$giState.graphFullScreen}
-        <ToolbarButton
-          on:click={() => giState.update(oldState => ({
-            withGraph: true,
-            graphFullScreen: oldState.withGraph,
-          }))}
-        >
-          {'>'}
-        </ToolbarButton>
-      {/if}
-      <ToolbarButton>?</ToolbarButton>
+      <CloseContent />
+      <LargerContent />
+      <SmallerContent />
+      <Search />
     </div>
   </div>
   </div>

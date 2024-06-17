@@ -16,7 +16,7 @@
       links,
       viewBox,
       canvas,
-      (node) => giState.update({viewedNote: node}),
+      (node) => giState.viewNote(node),
     )
     graph.draw()
 

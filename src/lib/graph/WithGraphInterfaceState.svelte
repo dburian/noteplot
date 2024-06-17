@@ -4,6 +4,7 @@
 
   export let withGraph = true;
   export let viewedNote = null;
+  export let search = null;
 
   let graphFullScreen = false
   if (typeof window !== "undefined" && window.location.search) {
@@ -17,6 +18,7 @@
       withGraph,
       graphFullScreen,
       viewedNote,
+      search,
       ...$adaptive,
     }
   )

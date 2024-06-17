@@ -15,6 +15,7 @@
   <WithGraphStateContext
     withGraph={$page.data.withGraph}
     viewedNote={$page.data.note || null}
+    search={typeof $page.data.search === "undefined" ? null : $page.data.search}
   >
     <GraphInterface
       graphProps={{

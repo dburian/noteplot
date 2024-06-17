@@ -22,32 +22,23 @@
   }
 
   function pointerDown(event) {
-    container.addEventListener("pointerup", pointerUp)
-    container.addEventListener("pointermove", pointerMove)
+    container.addEventListener("pointerup", pointerUp, true)
+    container.addEventListener("pointermove", pointerMove, true)
 
 
     startPointer = {x: event.clientX, y: event.clientY};
   }
 
   function pointerUp(event) {
-    container.removeEventListener("pointerup", pointerUp)
-    container.removeEventListener("pointermove", pointerMove)
+    container.removeEventListener("pointerup", pointerUp, true)
+    container.removeEventListener("pointermove", pointerMove, true)
 
-    const click = Math.abs(event.clientY - startPointer.y) < 10 && Math.abs(event.clientX - startPointer.x) < 10
+    const pointerHeight = 1 - event.clientY / window.innerHeight;
 
-
-    if (click && opened < maxOpened) {
+    if (pointerHeight > 0.5) {
       opened = maxOpened
-    } else if (click && opened == maxOpened) {
-      opened = 1
     } else {
-      const pointerHeight = 1 - event.clientY / window.innerHeight;
-
-      if (pointerHeight > 0.5) {
-        opened = maxOpened
-      } else {
-        opened = 1
-      }
+      opened = 1
     }
 
     heightOffset = 0
@@ -79,20 +70,29 @@
     heightOffset = moveBy;
   }
 
+  function toggle() {
+    if (opened < maxOpened) {
+      opened = maxOpened
+    } else if (opened == maxOpened) {
+      opened = 1
+    }
+  }
+
+
 
   $: height = totalHeight(opened, heightOffset);
 
   const giState = getContext("graphInterfaceState")
 </script>
 
-{#if $giState.viewedNote}
+{#if $giState.withContent}
 <div
   class={`${scrollEnabled ? "overflow-auto" : "overflow-hidden"} fixed bottom-0 ${window && height < window.innerHeight ? "border-t-2" : ""} border-black bg-white z-10 w-full touch-none`}
   style={`margin-top:-${height}px;height: ${height}px`}
   bind:this={container}
   on:pointerdown={pointerDown}
 >
-  <div class="w-1/4 mx-auto my-2 border-2 border-black" />
+  <button class="w-1/4 mx-auto block my-2 border-2 border-black" on:click={toggle} />
   <div class={`w-full ${scrollEnabled ? "touch-auto" : "touch-none"}`}>
     <slot />
   </div>
