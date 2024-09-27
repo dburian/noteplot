@@ -52,9 +52,10 @@ function shrinkViewBox(nodes, links) {
 
 export function computeForceSimulation(nodes, links) {
   const simulation = d3.forceSimulation(nodes)
-    .force("link", d3.forceLink(links).strength(1))
-    .force("charge", d3.forceManyBody().distanceMax(120))
-    .force("center", d3.forceCenter())
+    .alphaDecay(0.0001)
+    .force("link", d3.forceLink(links).strength(0.1))
+    .force("charge", d3.forceManyBody().strength(-10).distanceMax(120))
+    .force("center", d3.forceCenter().strength(0.5))
     .stop()
 
   const numberOfTicksTillEnd = Math.ceil(
@@ -175,7 +176,7 @@ class NotePreprocessor {
     ])
   }
 
-  async _lsAbsPaths(dir)  {
+  async _lsAbsPaths(dir) {
     const relPaths = await readdir(dir, { recursive: true })
     return relPaths.map(p => path.join(dir, p))
   }
@@ -258,7 +259,7 @@ class NotePreprocessor {
       if ("linkSlugs" in note) {
         updatedNotes.set(note.slug, note)
 
-        note.links = this._enhanceLinks( note.linkSlugs, note.slug)
+        note.links = this._enhanceLinks(note.linkSlugs, note.slug)
         delete note.linkSlugs
       }
       if ("backlinkSlugs" in note) {
