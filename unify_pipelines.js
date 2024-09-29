@@ -18,7 +18,6 @@ import retextLatin from 'retext-latin';
 import retextStringify from 'retext-stringify';
 import stripMarkdown from 'strip-markdown';
 import remarkStringify from 'remark-stringify';
-import rehypeHighlight from 'rehype-highlight';
 
 function isURL(str) {
   try {
