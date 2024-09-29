@@ -5,6 +5,9 @@
   export let slug, title, links, backlinks, content, noteRoot, images;
 </script>
 
+<svelte:head>
+    <title>Noteplot | {title} </title> 
+</svelte:head>
 <div class="article-container w-full grid justify-center p-3 sm:p-6">
   <Prose>
     <h1>{title}</h1>
