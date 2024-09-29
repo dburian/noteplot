@@ -5,6 +5,9 @@ export default {
     extend: {
       boxShadow: {
         'hover': '0px -5px 10px 0px rgba(0, 0, 0, 0.5)'
+      },
+      colors: {
+        'invert-white': '#d1d5db'
       }
     },
   },

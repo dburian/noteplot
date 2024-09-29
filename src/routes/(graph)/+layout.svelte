@@ -1,10 +1,10 @@
 <script>
   import { page } from "$app/stores";
-    import Adaptive from "$lib/adaptive/Adaptive.svelte";
-    import MediaQuery from "$lib/adaptive/MediaQuery.svelte";
-    import WithAdaptiveContext from "$lib/adaptive/WithAdaptiveContext.svelte";
-    import Graph from "$lib/graph/Graph.svelte";
-    import GraphInterface from "$lib/graph/GraphInterface.svelte";
+  import Adaptive from "$lib/adaptive/Adaptive.svelte";
+  import MediaQuery from "$lib/adaptive/MediaQuery.svelte";
+  import WithAdaptiveContext from "$lib/adaptive/WithAdaptiveContext.svelte";
+  import Graph from "$lib/graph/Graph.svelte";
+  import GraphInterface from "$lib/graph/GraphInterface.svelte";
   import WithGraphStateContext from "$lib/graph/WithGraphInterfaceState.svelte";
 
   export let data;

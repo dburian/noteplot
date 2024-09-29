@@ -32,4 +32,4 @@
   }
 </script>
 
-<canvas bind:this={canvas} class="touch-none" />
+<canvas bind:this={canvas} class="touch-none bg-white dark:bg-neutral-800" />

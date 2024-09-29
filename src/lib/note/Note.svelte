@@ -11,7 +11,7 @@
 {#key $giState.viewedNote?.slug}
   <Adaptive>
     <div
-      class="overflow-auto h-screen w-full bg-white"
+      class="overflow-auto h-screen w-full bg-white dark:bg-neutral-800 dark:text-white"
       slot="desktop"
     >
       <slot />
@@ -23,3 +23,6 @@
     </MobileNoteContainer>
   </Adaptive>
 {/key}
+
+<style>
+</style>

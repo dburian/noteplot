@@ -1,8 +1,9 @@
 import * as d3 from "d3";
+import { draw } from "svelte/transition";
 
 function dist(p1, p2) {
   return Math.sqrt(
-    (p1.x - p2.x)**2 + (p1.y - p2.y)**2
+    (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2
   )
 }
 
@@ -23,6 +24,8 @@ export class CanvasGraph {
     }
     this.theme = {
       nodeWidth: 10,
+      foreground: '#000000',
+      background: '#ffffff',
     }
     this.constructGrid()
 
@@ -32,11 +35,16 @@ export class CanvasGraph {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
+
     window.addEventListener("resize", this.onResize)
     canvas.addEventListener("click", this.onClick)
     canvas.addEventListener("mousemove", this.onHover)
-    this.onResize()
 
+    const darkModePreference = window.matchMedia("(prefers-color-scheme: dark)");
+    this.setDarkMode(darkModePreference.matches)
+    darkModePreference.addEventListener("change", this.onDarkMode);
+
+    this.onResize()
     this.addZoom()
   }
 
@@ -69,7 +77,7 @@ export class CanvasGraph {
     }
 
     for (const node of this.nodes) {
-      const {col, row} = this.toGridIdxs(node)
+      const { col, row } = this.toGridIdxs(node)
       rows[row][col].push(node)
     }
   }
@@ -81,6 +89,7 @@ export class CanvasGraph {
   }
 
   onZoom = (event) => {
+    //TODO: why not addZoom() {...}?
     this.transform = event.transform
     this.draw()
   }
@@ -100,7 +109,7 @@ export class CanvasGraph {
   }
 
   onClick = (event) => {
-    const node = this.getNode({x: event.clientX, y: event.clientY})
+    const node = this.getNode({ x: event.clientX, y: event.clientY })
 
     if (node) {
       this.onNodeClick(node)
@@ -111,7 +120,7 @@ export class CanvasGraph {
     // Disable hover events on mobile
     if (event.sourceCapabilities.firesTouchEvents) return
 
-    const node = this.getNode({x: event.clientX, y: event.clientY})
+    const node = this.getNode({ x: event.clientX, y: event.clientY })
 
     if (node) {
       this.hoveredNode = node
@@ -121,6 +130,22 @@ export class CanvasGraph {
       this.hoveredNode = null
       document.body.style = "cursor: default;";
       this.draw()
+    }
+  }
+
+  onDarkMode = (event) => {
+    this.setDarkMode(event.matches)
+
+    this.draw()
+  }
+
+  setDarkMode(darkModeOn) {
+    if (darkModeOn) {
+      this.theme.foreground = "#d1d5db"
+      this.theme.background = "#262626"
+    } else {
+      this.theme.background = "#ffffff"
+      this.theme.foreground = "#000000"
     }
   }
 
@@ -248,8 +273,8 @@ export class CanvasGraph {
     const { x, y } = this.toScreenPos(node)
 
     this.ctx.textBaseline = "middle";
-    this.ctx.strokeStyle = 'white';
-    this.ctx.fillStyle = "#000"
+    this.ctx.strokeStyle = this.theme.background;
+    this.ctx.fillStyle = this.theme.foreground;
     this.ctx.lineWidth = 4;
     let fontSize = 12;
     let nW = this.theme.nodeWidth;
@@ -265,15 +290,16 @@ export class CanvasGraph {
   }
 
   drawNode(node) {
-    this.ctx.fillStyle = "#000"
     const { x, y } = this.toScreenPos(node)
     let nW = this.theme.nodeWidth
+    this.ctx.strokeStyle = this.theme.foreground
 
     if (node === this.hoveredNode || node === this.selectedNode) {
       nW *= 2
+      this.ctx.fillStyle = this.theme.foreground
       this.ctx.fillRect(x - nW / 2, y - nW / 2, nW, nW)
     } else {
-      this.ctx.fillStyle = "#fff"
+      this.ctx.fillStyle = this.theme.background
       this.ctx.fillRect(x - nW / 2, y - nW / 2, nW, nW)
       this.ctx.strokeRect(x - nW / 2, y - nW / 2, nW, nW)
     }
@@ -285,7 +311,7 @@ export class CanvasGraph {
     const { x: targetX, y: targetY } = this.toScreenPos(link.target)
 
     this.ctx.beginPath()
-    this.ctx.strokeStyle = '#000';
+    this.ctx.strokeStyle = this.theme.foreground;
     this.ctx.lineWidth = 1
     this.ctx.moveTo(sourceX, sourceY)
     this.ctx.lineTo(targetX, targetY)

@@ -6,18 +6,19 @@ import remarkMath from 'remark-math';
 import rehypeMathjax from 'rehype-mathjax';
 import remarkGfm from 'remark-gfm';
 import remarkRehype from 'remark-rehype';
-import { rehypeShiki } from '@astrojs/markdown-remark'
 import rehypeRaw from 'rehype-raw';
 import rehypeStringify from 'rehype-stringify';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkRetext from 'remark-retext';
 import { inspect } from 'util';
+import rehypeShiki from '@shikijs/rehype';
 import path from 'path';
 import retextLatin from 'retext-latin';
 import retextStringify from 'retext-stringify';
 import stripMarkdown from 'strip-markdown';
 import remarkStringify from 'remark-stringify';
+import rehypeHighlight from 'rehype-highlight';
 
 function isURL(str) {
   try {
@@ -181,11 +182,11 @@ export function createRehypePipeline(preprocessor, noteRoot) {
       }
     })
     .use(rehypeShiki, {
-      langs: [],
-      theme: 'github-light',
-      themes: {},
-      wrap: false,
-      transformers: []
+      themes: {
+        dark: 'github-dark',
+        light: 'github-light'
+      },
+      defaultColor: 'light',
     })
     .use(rehypeRaw)
     .use(rehypeStringify)
@@ -197,8 +198,8 @@ export function createRetextPipeline(preprocessor, noteRoot) {
   const pipeline = createRemarkPipeline(preprocessor, noteRoot)
     .use(stripMarkdown)
     .use(remarkStringify)
-    //.use(remarkRetext, unified().use(retextLatin), {ignore: ['image']})
-    //.use(retextStringify)
+  //.use(remarkRetext, unified().use(retextLatin), {ignore: ['image']})
+  //.use(retextStringify)
 
   return pipeline
 }
