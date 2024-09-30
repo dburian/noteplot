@@ -18,6 +18,7 @@ import retextLatin from 'retext-latin';
 import retextStringify from 'retext-stringify';
 import stripMarkdown from 'strip-markdown';
 import remarkStringify from 'remark-stringify';
+import rehypeFigure from '@microflash/rehype-figure';
 
 function isURL(str) {
   try {
@@ -187,6 +188,7 @@ export function createRehypePipeline(preprocessor, noteRoot) {
       },
       defaultColor: 'light',
     })
+    .use(rehypeFigure)
     .use(rehypeRaw)
     .use(rehypeStringify)
 

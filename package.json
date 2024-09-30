@@ -35,6 +35,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@microflash/rehype-figure": "^2.1.1",
     "@shikijs/rehype": "^1.21.0",
     "@sveltejs/adapter-static": "^3.0.1",
     "@sveltejs/kit": "^2.5.10",
