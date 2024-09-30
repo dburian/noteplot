@@ -204,9 +204,14 @@ export class CanvasGraph {
       for (const node of this.nodes) {
         this.drawNodeLabel(node)
       }
-    } else if (this.hoveredNode || this.selectedNode) {
-      if (this.hoveredNode) this.drawNodeLabel(this.hoveredNode)
-      if (this.selectedNode) this.drawNodeLabel(this.selectedNode)
+    }
+
+    // Redraw selected/hovered nodes so they end up on the top
+    for (const node of [this.selectedNode, this.hoveredNode]) {
+      if (!node) continue
+
+      this.drawNode(node)
+      this.drawNodeLabel(node)
     }
   }
 
