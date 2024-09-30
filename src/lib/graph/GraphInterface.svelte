@@ -18,8 +18,6 @@
         width = "unset";
       }
     }
-
-    console.log({giState: $giState})
   }
 </script>
 

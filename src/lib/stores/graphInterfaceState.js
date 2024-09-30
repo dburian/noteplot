@@ -54,8 +54,6 @@ export function createGraphState(initialState) {
 
       propagateToUrl(oldState, newState)
 
-      console.log({newState})
-
       return newState
     })
   }
