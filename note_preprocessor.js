@@ -52,7 +52,7 @@ function shrinkViewBox(nodes, links) {
 
 export function computeForceSimulation(nodes, links) {
   const simulation = d3.forceSimulation(nodes)
-    .alphaDecay(0.0001)
+    .alphaDecay(0.001)
     .force("link", d3.forceLink(links).strength(0.1))
     .force("charge", d3.forceManyBody().strength(-10).distanceMax(120))
     .force("center", d3.forceCenter().strength(0.5))
