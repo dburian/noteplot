@@ -169,7 +169,7 @@ export function createRehypePipeline(preprocessor, noteRoot) {
     .use(remarkRehype, { allowDangerousHtml: true, passThrough: [] })
     .use(rehypeMathjax, {
       tex: {
-        packages: { '[+]': ['ams'] },
+        packages: { '[+]': ['ams', 'color'] },
         inlineMath: [              // start/end delimiter pairs for in-line math
           ['$', '$'],
           ['\\(', '\\)'],
