@@ -19,6 +19,15 @@ import retextStringify from 'retext-stringify';
 import stripMarkdown from 'strip-markdown';
 import remarkStringify from 'remark-stringify';
 import rehypeFigure from '@microflash/rehype-figure';
+import pino from 'pino';
+import { matter } from 'vfile-matter';
+
+export const logger = pino({
+  transport: {
+    target: 'pino-pretty'
+  },
+  level: 'debug',
+})
 
 function isURL(str) {
   try {
@@ -47,6 +56,13 @@ function addFileData(data) {
     file.data = Object.assign(file.data, data);
     file.data.originalPath = file.history[0]
   };
+}
+
+function addFrontmatter(data) {
+  return (tree, file) => {
+    //Assigns parsed matter to file.data.matter
+    matter(file)
+  }
 }
 
 function collectImgs({ imgUrl, imgSavePath }) {
@@ -139,9 +155,9 @@ function printFile() {
 
 function printTree() {
   return async (tree, file) => {
-    if (file.stem == 'pca') {
+    if (file.stem == 'z_score') {
       logger.debug(file.path)
-      logger.debug(inspect(tree), depth = 100);
+      logger.debug(inspect(tree));
     }
   };
 }
@@ -152,6 +168,7 @@ function createRemarkPipeline(preprocessor, noteRoot) {
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkFrontmatter, ['yaml'])
+    .use(addFrontmatter)
     .use(remarkMath)
     .use(inlineLinks)
     .use(addFileData, { noteRoot })

@@ -1,5 +1,4 @@
 import * as d3 from "d3";
-import { draw } from "svelte/transition";
 
 function dist(p1, p2) {
   return Math.sqrt(
@@ -7,7 +6,17 @@ function dist(p1, p2) {
   )
 }
 
+/**
+  * @typedef {{x_shift: Number, y_shift: Number, type: string}} GlowPixel
+  * @typedef {{source: Node, target: Node}} Link
+  * @typedef {{tags: Array<string>}} FrontMatter
+  * @typedef {{slug: string, title: string, x: Number, y: Number, matter: FrontMatter}} Node */
+
 export class CanvasGraph {
+  /**
+    * @param {Array<Node>} nodes
+    * @param {Array<Link>} links 
+    */
   constructor(nodes, links, viewBox, canvas, onNodeClick) {
     this.nodes = nodes;
     this.links = links;
@@ -26,8 +35,13 @@ export class CanvasGraph {
       nodeWidth: 10,
       foreground: '#000000',
       background: '#ffffff',
+      darkMode: false,
+      glowPixelWidth: 3,
+      glowPixelGap: 0.5,
+      numGlowPixels: 20,
     }
-    this.constructGrid()
+    this.grid = this.constructGrid()
+    this.fillGrid()
 
     this.onNodeClick = onNodeClick;
     this.hoveredNode = null;
@@ -44,8 +58,17 @@ export class CanvasGraph {
     this.setDarkMode(darkModePreference.matches)
     darkModePreference.addEventListener("change", this.onDarkMode);
 
-    this.onResize()
+    // Just to convince LS CanvasGraph has this properties.
+    this.width = 0
+    this.height = 0
+
+    this.updateCanvasSize()
+    this.updatePaintBox()
     this.addZoom()
+
+    this.glow = this.generateGlow()
+
+    this.draw()
   }
 
 
@@ -55,13 +78,24 @@ export class CanvasGraph {
     this.canvas.removeEventListener("mousemove", this.onHover)
   }
 
+  /**
+    *
+    * @returns {{
+    *   rows: Array<Array<Array<Node>>>,
+    *   numRows: Number,
+    *   numCols: Number,
+    *   cellSize: Number
+    * }}
+    */
   constructGrid() {
     const gridSize = Math.min(this.viewBox.width / 5, this.viewBox.height / 5)
     const numRows = Math.ceil(this.viewBox.height / gridSize)
     const numCols = Math.ceil(this.viewBox.width / gridSize)
 
+    /** @type Array<Array<Array<Node>>> */
     const rows = []
     for (const _ of Array(numRows)) {
+      /** @type Array<Array<Node>> */
       const cols = []
       for (const _ of Array(numCols)) {
         cols.push([])
@@ -69,17 +103,69 @@ export class CanvasGraph {
       rows.push(cols)
     }
 
-    this.grid = {
+    return {
       rows: rows,
-      size: gridSize,
+      cellSize: gridSize,
       numCols,
       numRows,
     }
+  }
 
+  fillGrid() {
     for (const node of this.nodes) {
       const { col, row } = this.toGridIdxs(node)
-      rows[row][col].push(node)
+      this.grid.rows[row][col].push(node)
     }
+  }
+
+  /**
+    * Generates glow pixels for each node. Glow is a pixelated 'hue' around
+    * each node signilizing its type.
+    *
+    * @returns {{
+    *   pixels: Map<string, GlowPixel[]>
+    *   hues: Map<string, Number>,
+    * }}
+    */
+  generateGlow() {
+    const types = new Set()
+
+    /**
+      * @type {Map<string, Array<GlowPixel>>}
+      */
+    const pixels = new Map()
+    const pW = this.theme.glowPixelWidth
+
+    for (const node of this.nodes) {
+      const nodeTypes = node.matter.tags || []
+      // No glow for nodes without type
+      if (nodeTypes.length == 0) {
+        continue;
+      }
+      pixels.set(node.slug, [])
+
+      const glowPixesPerType = Math.ceil(this.theme.numGlowPixels / nodeTypes.length)
+      for (const type of nodeTypes) {
+        types.add(type)
+
+        for (const _ of Array(glowPixesPerType)) {
+          const x_shift = Math.floor(sample_normal() * 5)
+          const y_shift = Math.floor(sample_normal() * 5)
+
+          pixels.get(node.slug).push({ x_shift: x_shift, y_shift: y_shift, type })
+        }
+      }
+    }
+
+    const hues = new Map()
+    let lastHue = 0
+    const hueStep = 360 / types.size
+    for (const type of types) {
+      hues.set(type, lastHue)
+      lastHue += hueStep
+    }
+
+    return { pixels, hues }
   }
 
   addZoom() {
@@ -89,25 +175,18 @@ export class CanvasGraph {
   }
 
   onZoom = (event) => {
-    //TODO: why not addZoom() {...}?
     this.transform = event.transform
     this.draw()
   }
 
   onResize = () => {
-    this.width = window.innerWidth;
-    this.height = window.innerHeight;
-
-    this.dpr = window.devicePixelRatio
-    this.canvas.width = this.width * this.dpr;
-    this.canvas.height = this.height * this.dpr;
-    this.canvas.style.width = `${this.width}px`
-    this.canvas.style.height = `${this.height}px`
-
-    this.computePaintBox()
+    this.updateCanvasSize()
+    this.updatePaintBox()
     this.draw()
   }
 
+  /**
+    * @param {UIEvent} event */
   onClick = (event) => {
     const node = this.getNode({ x: event.clientX, y: event.clientY })
 
@@ -116,6 +195,8 @@ export class CanvasGraph {
     }
   }
 
+  /**
+    * @param {AbortSignalEventMap} event */
   onHover = (event) => {
     // Disable hover events on mobile
     if (event.sourceCapabilities.firesTouchEvents) return
@@ -133,39 +214,26 @@ export class CanvasGraph {
     }
   }
 
+  /**
+   * @param {MediaQueryListEvent} event */
   onDarkMode = (event) => {
     this.setDarkMode(event.matches)
 
     this.draw()
   }
 
-  setDarkMode(darkModeOn) {
-    if (darkModeOn) {
-      this.theme.foreground = "#d1d5db"
-      this.theme.background = "#262626"
-    } else {
-      this.theme.background = "#ffffff"
-      this.theme.foreground = "#000000"
-    }
+  updateCanvasSize() {
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+
+    this.dpr = window.devicePixelRatio
+    this.canvas.width = this.width * this.dpr;
+    this.canvas.height = this.height * this.dpr;
+    this.canvas.style.width = `${this.width}px`
+    this.canvas.style.height = `${this.height}px`
   }
 
-  selectNode(slug) {
-    if (!slug) {
-      this.selectedNode = null;
-      this.draw();
-      return
-    }
-
-    for (const node of this.nodes) {
-      if (node.slug === slug) {
-        this.selectedNode = node;
-        this.draw()
-        return
-      }
-    }
-  }
-
-  computePaintBox() {
+  updatePaintBox() {
     const viewBoxAR = this.viewBox.width / this.viewBox.height
     const trueAR = this.width / this.height
 
@@ -186,11 +254,49 @@ export class CanvasGraph {
     this.paintBox = paintBox;
   }
 
+
+  /**
+    * @param {boolean} darkModeOn */
+  setDarkMode(darkModeOn) {
+    if (darkModeOn) {
+      this.theme.foreground = "#d1d5db"
+      this.theme.background = "#262626"
+    } else {
+      this.theme.background = "#ffffff"
+      this.theme.foreground = "#000000"
+    }
+
+    this.theme.darkMode = darkModeOn
+  }
+
+  /**
+    * @param {string} slug */
+  selectNode(slug) {
+    if (!slug) {
+      this.selectedNode = null;
+      this.draw();
+      return
+    }
+
+    for (const node of this.nodes) {
+      if (node.slug === slug) {
+        this.selectedNode = node;
+        this.draw()
+        return
+      }
+    }
+  }
+
+
   draw() {
     this.ctx.resetTransform()
     this.ctx.scale(this.dpr, this.dpr)
 
     this.ctx.clearRect(0, 0, this.width, this.height)
+
+    for (const node of this.nodes) {
+      this.drawNodeGlow(node)
+    }
 
     for (const link of this.links) {
       this.drawLink(link)
@@ -242,6 +348,8 @@ export class CanvasGraph {
     return null
   }
 
+  /**
+    * @param {{x: Number, y: Number}} viewBoxPos */
   toScreenPos(viewBoxPos) {
     const normX = (viewBoxPos.x - this.viewBox.minX) / this.viewBox.width
     const normY = (viewBoxPos.y - this.viewBox.minY) / this.viewBox.height
@@ -254,6 +362,11 @@ export class CanvasGraph {
     }
   }
 
+  /**
+    * Turns screen position into viewbox position.
+    * @param {{x: Number, y: Number}} screenPos
+    *
+    * @returns {{x: Number, y: Number}} */
   toViewBoxPos(screenPos) {
     const screenX = (screenPos.x - this.transform.x) / this.transform.k
     const screenY = (screenPos.y - this.transform.y) / this.transform.k
@@ -267,13 +380,21 @@ export class CanvasGraph {
     return { x: viewBoxX, y: viewBoxY }
   }
 
+  /**
+    * Turns viewbox position into grid indicies.
+    * @param {{x: Number, y: Number}} viewBoxPos
+    *
+    * @returns {{col: Number, row: Number}}
+    */
   toGridIdxs(viewBoxPos) {
     return {
-      col: Math.floor((viewBoxPos.x - this.viewBox.minX) / this.grid.size),
-      row: Math.floor((viewBoxPos.y - this.viewBox.minY) / this.grid.size),
+      col: Math.floor((viewBoxPos.x - this.viewBox.minX) / this.grid.cellSize),
+      row: Math.floor((viewBoxPos.y - this.viewBox.minY) / this.grid.cellSize),
     }
   }
 
+  /**
+    * @param {Node} node */
   drawNodeLabel(node) {
     const { x, y } = this.toScreenPos(node)
 
@@ -294,6 +415,9 @@ export class CanvasGraph {
     this.ctx.fillText(node.title, x + nW, y)
   }
 
+  /**
+    * @param {Node} node
+    */
   drawNode(node) {
     const { x, y } = this.toScreenPos(node)
     let nW = this.theme.nodeWidth
@@ -311,6 +435,8 @@ export class CanvasGraph {
 
   }
 
+  /**
+    * @param {Link} link */
   drawLink(link) {
     const { x: sourceX, y: sourceY } = this.toScreenPos(link.source)
     const { x: targetX, y: targetY } = this.toScreenPos(link.target)
@@ -324,4 +450,43 @@ export class CanvasGraph {
     this.ctx.closePath()
   }
 
+  /**
+    * @param {Node} node
+    */
+  drawNodeGlow(node) {
+    if (!this.glow.pixels.has(node.slug)) {
+      return
+    }
+
+    const { x, y } = this.toScreenPos(node)
+    const gpw = this.theme.glowPixelWidth * this.transform.k
+    const gpg = this.theme.glowPixelGap * this.transform.k
+    const saturation = this.theme.darkMode ? 50 : 30;
+
+    for (const pixel of this.glow.pixels.get(node.slug)) {
+      const hue = this.glow.hues.get(pixel.type)
+      const hslStr = `hsl(${hue}, ${saturation}%, 50%)`
+      const glowColor = d3.color(hslStr)?.formatHex()
+
+      const pixelX = x + (pixel.x_shift * (gpw + gpg))
+      const pixelY = y + (pixel.y_shift * (gpw + gpg))
+
+      this.ctx.fillStyle = glowColor
+      this.ctx.fillRect(pixelX, pixelY, gpw, gpw)
+    }
+  }
+}
+
+
+/**
+  * Sample Normal distribution with unit mean and unit variance using the
+  * Box–Muller transform.
+  *
+  * @returns {Number}
+  */
+function sample_normal() {
+  const u1 = 1 - Math.random()
+  const u2 = 1 - Math.random()
+
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
 }

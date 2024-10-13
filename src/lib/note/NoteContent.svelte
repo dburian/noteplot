@@ -1,12 +1,11 @@
 <script>
-    import Prose from "$lib/Prose.svelte";
+  import Prose from '$lib/Prose.svelte';
 
-
-  export let slug, title, links, backlinks, content, noteRoot, images;
+  export let slug, title, links, backlinks, content, noteRoot, images, matter;
 </script>
 
 <svelte:head>
-    <title>Noteplot | {title} </title> 
+  <title>Noteplot | {title}</title>
 </svelte:head>
 
 <div class="w-full grid justify-center p-3 sm:p-6">
@@ -25,16 +24,23 @@
       {/each}
     </ul>
 
+    <h2>Frontmatter</h2>
+    <ul>
+      {#each Object.keys(matter) as key}
+        <li>{key}: {matter[key]}</li>
+      {/each}
+    </ul>
+
     <hr />
 
     {@html content}
     <style>
-      mjx-container[jax="SVG"] {
+      mjx-container[jax='SVG'] {
         display: inline-block;
         vertical-align: middle;
         overflow: auto;
       }
-      mjx-container[jax="SVG"][display="true"] {
+      mjx-container[jax='SVG'][display='true'] {
         display: grid;
         justify-items: center;
       }

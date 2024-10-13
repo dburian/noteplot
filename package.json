@@ -63,6 +63,7 @@
     "to-vfile": "^8.0.0",
     "unified": "^11.0.4",
     "unist-util-visit": "^5.0.0",
+    "vfile-matter": "^5.0.0",
     "vfile-reporter": "^8.1.1",
     "watcher": "^2.3.1"
   }

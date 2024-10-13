@@ -5,15 +5,9 @@ import reporter from 'vfile-reporter';
 import { readSync } from 'to-vfile';
 import * as d3 from "d3";
 import Watcher from 'watcher';
-import pino from 'pino';
 import { readdir } from 'fs/promises';
-import { createRehypePipeline, createRetextPipeline } from './unify_pipelines.js';
+import { createRehypePipeline, createRetextPipeline, logger } from './unify_pipelines.js';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty'
-  },
-})
 
 function shrinkViewBox(nodes, links) {
   let minY = Number.POSITIVE_INFINITY;
