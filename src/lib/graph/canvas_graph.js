@@ -465,7 +465,7 @@ export class CanvasGraph {
 
     for (const pixel of this.glow.pixels.get(node.slug)) {
       const hue = this.glow.hues.get(pixel.type)
-      const hslStr = `hsl(${hue}, ${saturation}%, 50%)`
+      const hslStr = `hsla(${hue}, ${saturation}%, 50%, 0.4)`
       const glowColor = d3.color(hslStr)?.formatHex()
 
       const pixelX = x + (pixel.x_shift * (gpw + gpg))
