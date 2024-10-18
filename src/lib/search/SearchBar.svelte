@@ -1,9 +1,11 @@
 <script>
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, onMount } from "svelte";
+    import SearchMatchSpans from "./SearchMatchSpans.svelte";
 
   export let debounceTime = 250;
   export let suggestions = []
   let searchString = "";
+  let searchBarElement
 
   const dispatcher = createEventDispatcher()
 
@@ -17,6 +19,10 @@
       'searchString': searchString,
     })
   }
+
+  onMount(() => {
+    searchBarElement.focus()
+  })
 </script>
 
   <div class="border-2 w-full border-black dark:border-invert-white flex text-xl mb-6">
@@ -26,5 +32,6 @@
       placeholder="Search for something..."
       bind:value={searchString}
       on:keydown={debounceSearch}
+      bind:this={searchBarElement}
     />
   </div>
