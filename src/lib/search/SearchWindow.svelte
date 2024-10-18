@@ -34,8 +34,8 @@
     <h2 class="text-3xl text-center my-8">no match</h2>
   {:else}
     <section class="grid">
-      {#each matchedNotes as match (match.note.slug)}
-        <SearchMatch {match} />
+      {#each matchedNotes as match, i (match.note.slug)}
+        <SearchMatch {match} tabIndex={i} />
       {/each}
     </section>
   {/if}
