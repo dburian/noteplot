@@ -145,6 +145,19 @@ function addBacklinks() {
   };
 }
 
+function removeFirstHeader() {
+  return (tree, file) => {
+    if (!('children' in tree)) return
+
+    for (let i = 0; i < tree.children.length; i++) {
+      if (tree.children[i].type === 'heading') {
+        tree.children.splice(i, 1)
+        break;
+      }
+    }
+  };
+}
+
 function printFile() {
   return async (tree, file) => {
     if (file.stem == 'pca') {
@@ -156,7 +169,7 @@ function printFile() {
 function printTree() {
   return async (tree, file) => {
     if (file.stem == 'z_score') {
-      logger.debug(file.path)
+      logger.debug(`Printing tree for ${file.path}`)
       logger.debug(inspect(tree));
     }
   };
@@ -214,7 +227,8 @@ export function createRehypePipeline(preprocessor, noteRoot) {
 
 export function createRetextPipeline(preprocessor, noteRoot) {
   const pipeline = createRemarkPipeline(preprocessor, noteRoot)
-    .use(stripMarkdown)
+    .use(removeFirstHeader)
+    .use(stripMarkdown, { remove: ['math'] })
     .use(remarkStringify)
   //.use(remarkRetext, unified().use(retextLatin), {ignore: ['image']})
   //.use(retextStringify)
