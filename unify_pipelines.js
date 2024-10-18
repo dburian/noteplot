@@ -168,9 +168,9 @@ function printFile() {
 
 function printTree() {
   return async (tree, file) => {
-    if (file.stem == 'z_score') {
+    if (file.stem == 'taylor_series') {
       logger.debug(`Printing tree for ${file.path}`)
-      logger.debug(inspect(tree));
+      logger.debug(inspect(tree, true, 10));
     }
   };
 }
@@ -227,8 +227,9 @@ export function createRehypePipeline(preprocessor, noteRoot) {
 
 export function createRetextPipeline(preprocessor, noteRoot) {
   const pipeline = createRemarkPipeline(preprocessor, noteRoot)
+    .use(printTree)
     .use(removeFirstHeader)
-    .use(stripMarkdown, { remove: ['math'] })
+    .use(stripMarkdown, { remove: ['math', 'inlineMath'] })
     .use(remarkStringify)
   //.use(remarkRetext, unified().use(retextLatin), {ignore: ['image']})
   //.use(retextStringify)
