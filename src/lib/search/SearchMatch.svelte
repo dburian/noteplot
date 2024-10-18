@@ -15,21 +15,16 @@
   on:click={() => giState.update({viewedNote: match.note, search: null})}
   role="link"
 >
-  <h3 class="text-2xl mb-4">
-    {#if match.title.length > 0}
-      <SearchMatchSpans spans={match.title} />
-    {:else}
-      {match.note.title}
-    {/if}
-  </h3>
+  <h3 class="text-2xl mb-4"> {match.note.title} </h3>
+  <h6>
+    {#each match.matchedFields as field}
+      <span>{field}</span>
+    {/each}
+  </h6>
 
   <p>
-    {#if match.content.length > 0}
-      <SearchMatchSpans spans={match.content} />
-    {:else}
-      {#each match.note.content.split('\n').filter(s => s) as paragraph}
-        <span class="mr-4">{paragraph}</span>
-      {/each}
-    {/if}
+    {#each match.note.content.substring(0, 100).split('\n').filter(s => s) as paragraph}
+      <span class="mr-4">{paragraph}</span>
+    {/each}
   </p>
 </div>

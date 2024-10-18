@@ -2,13 +2,12 @@
     import { createEventDispatcher } from "svelte";
 
   export let debounceTime = 250;
+  export let suggestions = []
   let searchString = "";
 
   const dispatcher = createEventDispatcher()
 
   function debounceSearch() {
-    if (searchString.length < 2) return
-
     clearTimeout(this.debounceTimeout)
     this.debounceTimeout = setTimeout(search, debounceTime)
   }

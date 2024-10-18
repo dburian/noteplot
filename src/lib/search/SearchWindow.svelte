@@ -1,14 +1,17 @@
 <script>
   import SearchMatch from "./SearchMatch.svelte";
-  import {NoLibSearchIndex} from "./search_index.js";
+  import {FlexSearchIndex, NoLibSearchIndex} from "./search_index.js";
   import SearchBar from "./SearchBar.svelte";
 
   export let notes;
 
   let searchString = "";
-  let index = new NoLibSearchIndex(notes)
+  let index = new FlexSearchIndex(notes)
 
   let searching = false;
+  /**
+  * @type {Note}
+  */
   let matchedNotes = [];
   /**
   * @param {string} searchString
