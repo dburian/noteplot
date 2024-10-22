@@ -14,10 +14,11 @@ export default {
     }),
     prerender: {
       handleHttpError: 'warn',
+    },
+    paths: {
+      base: "BASE_PATH" in process.env ? process.env.BASE_PATH : '',
+      relative: false,
     }
   },
   preprocess: vitePreprocess(),
-  paths: {
-    base: "BASE_PATH" in process.env ? process.env.BASE_PATH : ''
-  }
 };
