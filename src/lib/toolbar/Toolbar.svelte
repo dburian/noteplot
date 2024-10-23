@@ -14,6 +14,7 @@
   function mousedown() {
     document.body.addEventListener('mousemove', mousemove);
     document.body.addEventListener('mouseup', mouseup);
+    document.body.addEventListener("mouseleave", mouseup);
   }
 
   /**
@@ -85,7 +86,9 @@
       {/if}
     </div>
   </div>
-  <div class="relative left-[-37.5%] mt-4 mx-4">
-    <ToolbarButton bind:button={resizeButton} sizeClasses="w-5 h-5" />
+  </div>
+<div class="absolute">
+  <div class="relative left-[-50%] mt-4">
+    <ToolbarButton bind:button={resizeButton} sizeClasses="w-2 h-2" />
   </div>
 </div>

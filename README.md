@@ -36,7 +36,7 @@ npm run watch:vite
 - [x] content slider animations
 - [] active note to state, hovered note
 - [] nicer meta info for notes
-- [] nicer desktop buttons/toolbar
+- [x] nicer desktop buttons/toolbar
 - [] graph shift with content slider, so that active note is (almost) always visible
 - [] button to switch tag colors on/off
 - [] date graph
