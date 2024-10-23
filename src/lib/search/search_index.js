@@ -135,11 +135,11 @@ export class FlexSearchIndex {
   async search(searchString) {
     if (searchString.length == 0) return []
 
-    const results = await this.index.searchAsync(searchString, 100)
+    const results = await this.index.searchAsync(searchString, { limit: 100, suggest: true, })
     if (results.length == 0) return []
-    /**
-      * @type {Map<Number, string[]>}
-      */
+    console.log({ results })
+
+    /** @type {Map<Number, string[]>} */
     const matchedIds = new Map()
 
     for (const fieldResults of results) {

@@ -1,98 +1,51 @@
-import { goto } from "$app/navigation";
-import { base } from "$app/paths";
-import { writable } from "svelte/store";
+import { goto } from '$app/navigation';
+import { writable } from 'svelte/store';
 
-function buildUrl(state) {
-  let newUrl = `${base}/`
-  if (state.search !== null) {
-    const searchParams = new URLSearchParams()
-    searchParams.set("q", state.search)
-    newUrl += "search?" + searchParams.toString()
-
-    return newUrl
+/**
+ * @param {import('../WithUrlStateContext.svelte').UrlState} urlState
+ * @param {Number} default_width
+ */
+function extractContentWidth(urlState, default_width) {
+  if (urlState.fullContent) {
+    return 1;
+  }
+  if (!urlState.hasContent || urlState.noContent) {
+    return 0;
   }
 
-  if (state.viewedNote && !state.withGraph) {
-    newUrl += "notes/"
-  }
-  if (state.viewedNote) {
-    newUrl += `${state.viewedNote.slug}`
-    if (state.graphFullScreen) {
-      newUrl += "?graphFullScreen"
-    }
-  }
-
-  return newUrl;
+  return default_width;
 }
 
-function propagateToUrl(oldState, newState) {
-  // Change in URL
-  const oldUrl = buildUrl(oldState)
-  const newUrl = buildUrl(newState)
+export function createGraphInterfaceState(initialUrlState) {
+  const { update, subscribe } = writable({
+    contentWidth: extractContentWidth(initialUrlState, 0.3),
+    lastSetContentWidth: 0.3,
+  })
 
-  if (oldUrl !== newUrl) {
-    goto(newUrl)
-  }
-}
+  const largerContent = () => update((values) => ({ ...values, contentWidth: values.contentWidth > 0 ? 1.0 : values.lastSetContentWidth }))
 
-function verifyState(state) {
-  state.withContent = state.viewedNote || state.search !== null
-  state.withGraph = state.withContent ? state.withGraph : true;
+  const smallerContent = () => update((values) => ({ ...values, contentWidth: values.contentWidth < 1.0 ? 0.0 : values.lastSetContentWidth }))
 
-  return state
-}
+  const setContentWidth = (val) => update((values) => ({ ...values, contentWidth: val }))
+  const confirmContentWidth = () => {
+    update((values) => {
+      const cw = values.contentWidth
 
-export function createGraphState(initialState) {
-  const { subscribe, set, update } = writable(verifyState({ ...initialState }))
-
-  const updateWithSideEffects = (stateUpdate) => {
-    update(oldState => {
-      if (typeof stateUpdate === "function") {
-        stateUpdate = stateUpdate(oldState)
+      return {
+        ...values,
+        lastSetContentWidth: cw > 0.0 && cw < 1.0 ? cw : values.lastSetContentWidth,
       }
-      const newState = verifyState({ ...oldState, ...stateUpdate })
-
-      propagateToUrl(oldState, newState)
-
-      return newState
     })
   }
 
-  const close = () => {
-    updateWithSideEffects({
-      viewedNote: null,
-      search: null,
-    })
-  }
-
-  const largerContent = () => {
-    updateWithSideEffects(oldState => ({
-      graphFullScreen: false,
-      withGraph: oldState.graphFullScreen
-    }))
-  }
-
-  const smallerContent = () => {
-    updateWithSideEffects(oldState => ({
-      withGraph: true,
-      graphFullScreen: oldState.withGraph,
-    }))
-  }
-
-  const viewNote = (note) => {
-    updateWithSideEffects({
-      viewedNote: note,
-      search: null,
-    })
-  }
+  const updateUrlState = (urlState) => update((values) => ({ ...values, contentWidth: extractContentWidth(urlState, values.lastSetContentWidth) }))
 
   return {
     subscribe,
-    update: updateWithSideEffects,
-    close,
     largerContent,
     smallerContent,
-    viewNote,
+    setContentWidth,
+    updateUrlState,
+    confirmContentWidth,
   }
-
 }

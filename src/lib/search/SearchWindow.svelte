@@ -24,7 +24,7 @@
 
 </script>
 
-<div class='w-full sm:min-w-[70ch] p-4' >
+<div class='w-full p-4' >
   <SearchBar
     on:search={(event) => searchIndex(event.detail.searchString)}
   />

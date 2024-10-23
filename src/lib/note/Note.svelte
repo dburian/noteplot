@@ -1,14 +1,11 @@
 <script>
 
     import Adaptive from "$lib/adaptive/Adaptive.svelte";
-    import { getContext } from "svelte";
     import MobileNoteContainer from "./MobileNoteContainer.svelte";
-
-    const giState = getContext("graphInterfaceState")
-
+    import { page } from "$app/stores";
 </script>
 
-{#key $giState.viewedNote?.slug}
+{#key $page.data?.note?.slug}
   <Adaptive>
     <div
       class="overflow-auto h-screen w-full bg-white dark:bg-neutral-800 dark:text-white"
@@ -23,6 +20,3 @@
     </MobileNoteContainer>
   </Adaptive>
 {/key}
-
-<style>
-</style>

@@ -15,6 +15,3 @@
     {viewBox}
   />
 </div>
-
-<style>
-</style>

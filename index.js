@@ -29,7 +29,7 @@ async function watch(noteDir, options, command) {
       root: __dirname,
       server: {
         port: opts.port,
-      }
+      },
     })
 
     logger.debug("Starting Vite dev server")

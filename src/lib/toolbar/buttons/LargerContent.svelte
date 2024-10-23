@@ -2,11 +2,7 @@
     import { getContext } from "svelte";
     import ToolbarButton from "../ToolbarButton.svelte";
 
+  const urlState = getContext("urlState")
   const giState = getContext("graphInterfaceState")
 </script>
 
-{#if $giState.withContent && $giState.withGraph}
-  <ToolbarButton on:click={() => giState.largerContent()}>
-    {'<'}
-  </ToolbarButton>
-{/if}

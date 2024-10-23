@@ -1,22 +1,27 @@
 <script>
     import { getContext, onMount } from "svelte";
     import { CanvasGraph } from "./canvas_graph";
+    import { page } from "$app/stores";
+    import { goto } from "$app/navigation";
+    import { base } from "$app/paths";
 
   export let nodes;
   export let links;
   export let viewBox;
 
+  /** @type {HTMLCanvasElement} */
   let canvas;
 
   const giState = getContext("graphInterfaceState")
-  let graph = null
+  /** @type {CanvasGraph} */
+  let graph
   onMount(() => {
     graph = new CanvasGraph(
       nodes,
       links,
       viewBox,
       canvas,
-      (node) => giState.viewNote(node),
+      (node) => goto(`/${node.slug}`),
     )
     graph.draw()
 
@@ -26,8 +31,9 @@
   })
 
   $: {
-    if (graph && graph.selectedNode?.slug !== $giState.viewedNote?.slug) {
-      graph.selectNode($giState.viewedNote?.slug)
+    // TODO: set 'activeNote' on a graph interface state, need to handle search window, ...
+    if (graph && $page.data.note && $page.data.note.slug !== graph.selectedNode?.slug) {
+      graph.selectNode($page.data.note.slug)
     }
   }
 </script>

@@ -3,10 +3,6 @@
     import ToolbarButton from "../ToolbarButton.svelte";
 
   const giState = getContext("graphInterfaceState")
+  const urlState = getContext("urlState")
 </script>
 
-{#if $giState.withContent && !$giState.graphFullScreen}
-  <ToolbarButton on:click={() => giState.smallerContent()}>
-    {'>'}
-  </ToolbarButton>
-{/if}
