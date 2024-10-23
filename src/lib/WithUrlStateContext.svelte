@@ -8,7 +8,6 @@
    * @param {URL} url
    */
   function extractUrlState(url) {
-    console.log(url)
     return {
       fullContent: url.searchParams.get('fullContent') == '',
       noContent: url.searchParams.get('noContent') == '',
@@ -27,8 +26,6 @@
    */
   const urlState = derived(page, ({ url }) => extractUrlState(url));
   setContext('urlState', urlState);
-
-  $:console.log($urlState)
 </script>
 
 <slot />

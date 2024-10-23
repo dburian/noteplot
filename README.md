@@ -21,3 +21,22 @@ Currently there is no npm package. So you need to:
 npm run watch:notes '<path to root note folder>'
 npm run watch:vite
 ```
+
+## TODOs
+
+### Overall
+
+- [] documentation
+- [] typescript (do typing properly)
+- [] svelte 5
+
+### Desktop
+
+- [] shallow routing for content slider searchParams
+- [x] content slider animations
+- [] active note to state, hovered note
+- [] nicer meta info for notes
+- [] nicer desktop buttons/toolbar
+- [] graph shift with content slider, so that active note is (almost) always visible
+- [] button to switch tag colors on/off
+- [] date graph

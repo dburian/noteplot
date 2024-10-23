@@ -137,7 +137,6 @@ export class FlexSearchIndex {
 
     const results = await this.index.searchAsync(searchString, { limit: 100, suggest: true, })
     if (results.length == 0) return []
-    console.log({ results })
 
     /** @type {Map<Number, string[]>} */
     const matchedIds = new Map()
