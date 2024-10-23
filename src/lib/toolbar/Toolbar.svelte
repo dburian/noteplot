@@ -49,7 +49,7 @@
 <div class="absolute">
   <div class="relative left-[-100%] mt-4 mx-4">
     <div class="grid auto-rows-max gap-y-4">
-      {#if !$urlState.noContent}
+      {#if $urlState.hasContent}
         <DesktopToolbarButton on:click={() => goto('/')}>x</DesktopToolbarButton>
       {/if}
       {#if $urlState.hasContent && !$urlState.fullContent}
@@ -57,7 +57,7 @@
           {'<'}
         </DesktopToolbarButton>
       {/if}
-      {#if $urlState.hasContent && !$giState.noContent}
+      {#if $urlState.hasContent && !$urlState.noContent}
         <DesktopToolbarButton on:click={() => giState.smallerContent()}>
           {'>'}
         </DesktopToolbarButton>
