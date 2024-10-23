@@ -3,29 +3,31 @@
   import { goto } from '$app/navigation';
   import { getContext} from 'svelte';
     import ResizeContent from './buttons/ResizeContent.svelte';
+    import { page } from '$app/stores';
 
-  const urlState = getContext('urlState');
-  const giState = getContext('graphInterfaceState');
+  const contentSlider = getContext('contentSliderState');
+
+  $: searchString = $page.url.searchParams.get('q') || null
 
 </script>
 
 <div class="absolute">
   <div class="relative left-[-100%] mt-4 mx-4">
     <div class="grid auto-rows-max gap-y-4">
-      {#if $urlState.hasContent}
+      {#if $contentSlider.hasContent}
         <DesktopToolbarButton on:click={() => goto('/')}>x</DesktopToolbarButton>
       {/if}
-      {#if $urlState.hasContent && !$urlState.fullContent}
-        <DesktopToolbarButton on:click={() => giState.largerContent()}>
+      {#if $contentSlider.hasContent && !$contentSlider.fullContent}
+        <DesktopToolbarButton on:click={() => contentSlider.larger()}>
           {'<'}
         </DesktopToolbarButton>
       {/if}
-      {#if $urlState.hasContent && !$urlState.noContent}
-        <DesktopToolbarButton on:click={() => giState.smallerContent()}>
+      {#if $contentSlider.hasContent && !$contentSlider.noContent}
+        <DesktopToolbarButton on:click={() => contentSlider.smaller()}>
           {'>'}
         </DesktopToolbarButton>
       {/if}
-      {#if $urlState.searchString === null}
+      {#if searchString === null}
         <DesktopToolbarButton on:click={() => goto('/search?q=')}>
           <svg
             width="100%"
@@ -49,6 +51,6 @@
     </div>
   </div>
   </div>
-{#if $urlState.hasContent}
+{#if $contentSlider.hasContent}
   <ResizeContent />
 {/if}

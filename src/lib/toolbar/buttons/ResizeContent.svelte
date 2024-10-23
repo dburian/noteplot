@@ -2,7 +2,7 @@
   import { getContext, onMount } from 'svelte';
     import ToolbarButton from '../ToolbarButton.svelte';
 
-  const giState = getContext('graphInterfaceState');
+  const contentSlider = getContext('contentSliderState');
   /** @type {HTMLButtonElement} */
   let resizeButton;
 
@@ -20,16 +20,16 @@
   function mousemove(ev) {
     const newContentWidth = 1 - ev.clientX / document.body.clientWidth;
     if (newContentWidth < 0.1) {
-      giState.setContentWidth(0);
+      contentSlider.setWidth(0);
     } else if (newContentWidth > 0.9) {
-      giState.setContentWidth(1);
+      contentSlider.setWidth(1);
     } else {
-      giState.setContentWidth(newContentWidth);
+      contentSlider.setWidth(newContentWidth);
     }
   }
 
   function mouseup() {
-    giState.confirmContentWidth();
+    contentSlider.confirmWidth();
     document.body.removeEventListener('mousemove', mousemove);
   }
 
