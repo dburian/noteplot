@@ -17,8 +17,10 @@ export class CanvasGraph {
     * @param {Array<Node>} nodes
     * @param {Array<Link>} links 
     */
-  constructor(nodes, links, viewBox, canvas, onNodeClick) {
-    this.nodes = nodes;
+  constructor(nodes, links, viewBox, canvas, onNodeClick, onNodeHover) {
+    this.nodes = new Map();
+    for (const node of nodes) this.nodes.set(node.slug, node)
+
     this.links = links;
     this.viewBox = {
       minX: viewBox[0],
@@ -44,6 +46,7 @@ export class CanvasGraph {
     this.fillGrid()
 
     this.onNodeClick = onNodeClick;
+    this.onNodeHover = onNodeHover
     this.hoveredNode = null;
 
     this.canvas = canvas
@@ -112,7 +115,7 @@ export class CanvasGraph {
   }
 
   fillGrid() {
-    for (const node of this.nodes) {
+    for (const node of this.nodes.values()) {
       const { col, row } = this.toGridIdxs(node)
       this.grid.rows[row][col].push(node)
     }
@@ -134,9 +137,8 @@ export class CanvasGraph {
       * @type {Map<string, Array<GlowPixel>>}
       */
     const pixels = new Map()
-    const pW = this.theme.glowPixelWidth
 
-    for (const node of this.nodes) {
+    for (const node of this.nodes.values()) {
       const nodeTypes = node.matter.tags || []
       // No glow for nodes without type
       if (nodeTypes.length == 0) {
@@ -212,6 +214,8 @@ export class CanvasGraph {
       document.body.style = "cursor: default;";
       this.draw()
     }
+
+    this.onNodeHover(this.hoveredNode)
   }
 
   /**
@@ -272,19 +276,17 @@ export class CanvasGraph {
   /**
     * @param {string} slug */
   selectNode(slug) {
-    if (!slug) {
-      this.selectedNode = null;
-      this.draw();
-      return
-    }
+    this.selectedNode = slug ? this.nodes.get(slug) : null;
+    this.draw()
+  }
 
-    for (const node of this.nodes) {
-      if (node.slug === slug) {
-        this.selectedNode = node;
-        this.draw()
-        return
-      }
-    }
+  /**
+    * @param {string} slug
+    */
+  hoverNode(slug) {
+    console.log(`graph hovering ${slug}`)
+    this.hoveredNode = slug ? this.nodes.get(slug) : null;
+    this.draw();
   }
 
 
@@ -294,7 +296,7 @@ export class CanvasGraph {
 
     this.ctx.clearRect(0, 0, this.width, this.height)
 
-    for (const node of this.nodes) {
+    for (const node of this.nodes.values()) {
       this.drawNodeGlow(node)
     }
 
@@ -302,12 +304,12 @@ export class CanvasGraph {
       this.drawLink(link)
     }
 
-    for (const node of this.nodes) {
+    for (const node of this.nodes.values()) {
       this.drawNode(node)
     }
 
     if (this.transform.k > 2) {
-      for (const node of this.nodes) {
+      for (const node of this.nodes.values()) {
         this.drawNodeLabel(node)
       }
     }

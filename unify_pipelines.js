@@ -118,11 +118,16 @@ function addLinks() {
     const links = []
 
     visit(tree, 'link', (node) => {
+      // TODO: Add class for outside links.
       if (isURL(node.url)) return SKIP;
 
       const linkDest = path.resolve(file.dirname, node.url);
       const slugLinkDest = toSlug(linkDest, file.data.noteRoot);
       node.url = slugLinkDest;
+
+      //Adding data that will get transformed to hast properties with
+      //remarkRehype. See https://github.com/syntax-tree/mdast-util-to-hast/tree/main?tab=readme-ov-file#fields-on-nodes
+      node.data = { 'hProperties': { 'data-slug': slugLinkDest } }
 
       links.push(slugLinkDest);
 
@@ -145,6 +150,7 @@ function addBacklinks() {
   };
 }
 
+// TODO: Add this to extracting title of a note
 function removeFirstHeader() {
   return (tree, file) => {
     if (!('children' in tree)) return

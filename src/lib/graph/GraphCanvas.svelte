@@ -12,7 +12,7 @@
   /** @type {HTMLCanvasElement} */
   let canvas;
 
-  const giState = getContext("graphInterfaceState")
+  const graphState = getContext('graphState')
   /** @type {CanvasGraph} */
   let graph
   onMount(() => {
@@ -22,6 +22,7 @@
       viewBox,
       canvas,
       (node) => goto(`/${node.slug}`),
+      (node) => graphState.hover(node),
     )
     graph.draw()
 
@@ -31,10 +32,14 @@
   })
 
   $: {
-    // TODO: set 'activeNote' on a graph interface state, need to handle search window, ...
-    if (graph && $page.data.note && $page.data.note.slug !== graph.selectedNode?.slug) {
-      graph.selectNode($page.data.note.slug)
+    if (graph && $graphState.activeNote?.slug !== graph.selectedNode?.slug) {
+      graph.selectNode($graphState.activeNote?.slug)
     }
+
+    if (graph && $graphState.hoveredNote?.slug !== graph.hoveredNode?.slug) {
+      graph.hoverNode($graphState.hoveredNote?.slug)
+    }
+
   }
 </script>
 

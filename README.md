@@ -34,7 +34,7 @@ npm run watch:vite
 
 - [] shallow routing for content slider searchParams
 - [x] content slider animations
-- [] active note to state, hovered note
+- [x] active note to state, hovered note
 - [] nicer meta info for notes
 - [x] nicer desktop buttons/toolbar
 - [] graph shift with content slider, so that active note is (almost) always visible

@@ -1,5 +1,7 @@
 <script>
   import Prose from '$lib/Prose.svelte';
+  import { hasContext } from 'svelte';
+    import WithHoverableLinks from './WithHoverableLinks.svelte';
 
   export let slug, title, links, backlinks, content, noteRoot, images, matter;
 </script>
@@ -33,7 +35,14 @@
 
     <hr />
 
-    {@html content}
+    {#if hasContext('graphState')}
+      <WithHoverableLinks>
+        {@html content}
+      </WithHoverableLinks>
+    {:else}
+      {@html content}
+    {/if}
+
     <style>
       mjx-container[jax='SVG'] {
         display: inline-block;
