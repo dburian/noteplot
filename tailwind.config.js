@@ -27,6 +27,10 @@ const nc = {
     light: colors.zinc[900],
     dark: colors.white,
   },
+  muted: {
+    light: colors.zinc[400],
+    dark: colors.zinc[600],
+  }
 }
 
 /** @type {import('tailwindcss').Config} */
@@ -55,7 +59,7 @@ export default {
             '--tw-prose-links': nc.front.light,
             '--tw-prose-bold': nc.emphasis.light,
             '--tw-prose-counters': colors.zinc[500],
-            '--tw-prose-bullets': colors.zinc[300],
+            '--tw-prose-bullets': nc.muted.light,
             '--tw-prose-hr': colors.zinc[200],
             '--tw-prose-quotes': nc.emphasis.light,
             '--tw-prose-quote-borders': colors.zinc[200],
@@ -65,7 +69,7 @@ export default {
             '--tw-prose-code': nc.emphasis.light,
             '--tw-prose-pre-code': colors.zinc[200],
             '--tw-prose-pre-bg': colors.zinc[800],
-            '--tw-prose-th-borders': colors.zinc[300],
+            '--tw-prose-th-borders': nc.muted.light,
             '--tw-prose-td-borders': colors.zinc[200],
             '--tw-prose-invert-body': nc.front.dark,
             '--tw-prose-invert-headings': nc.emphasis.dark,
@@ -73,7 +77,7 @@ export default {
             '--tw-prose-invert-links': nc.front.dark,
             '--tw-prose-invert-bold': nc.emphasis.dark,
             '--tw-prose-invert-counters': colors.zinc[400],
-            '--tw-prose-invert-bullets': colors.zinc[600],
+            '--tw-prose-invert-bullets': nc.muted.dark,
             '--tw-prose-invert-hr': colors.zinc[700],
             '--tw-prose-invert-quotes': colors.zinc[100],
             '--tw-prose-invert-quote-borders': colors.zinc[700],
@@ -83,7 +87,7 @@ export default {
             '--tw-prose-invert-code': nc.emphasis.dark,
             '--tw-prose-invert-pre-code': colors.zinc[300],
             '--tw-prose-invert-pre-bg': 'rgb(0 0 0 / 50%)',
-            '--tw-prose-invert-th-borders': colors.zinc[600],
+            '--tw-prose-invert-th-borders': nc.muted.dark,
             '--tw-prose-invert-td-borders': colors.zinc[700],
           },
         },

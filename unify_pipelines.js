@@ -21,6 +21,7 @@ import remarkStringify from 'remark-stringify';
 import rehypeFigure from '@microflash/rehype-figure';
 import pino from 'pino';
 import { matter } from 'vfile-matter';
+import toString from 'unist-util-to-string-with-nodes';
 
 export const logger = pino({
   transport: {
@@ -98,7 +99,8 @@ function addSlug() {
 function addTitle() {
   return function(tree, file) {
     visit(tree, 'heading', (node) => {
-      file.data.title = node.children[0].value
+      const { text } = toString(node)
+      file.data.title = text
 
       return EXIT
     })
@@ -150,9 +152,8 @@ function addBacklinks() {
   };
 }
 
-// TODO: Add this to extracting title of a note
 function removeFirstHeader() {
-  return (tree, file) => {
+  return (tree) => {
     if (!('children' in tree)) return
 
     for (let i = 0; i < tree.children.length; i++) {
@@ -233,7 +234,6 @@ export function createRehypePipeline(preprocessor, noteRoot) {
 
 export function createRetextPipeline(preprocessor, noteRoot) {
   const pipeline = createRemarkPipeline(preprocessor, noteRoot)
-    .use(printTree)
     .use(removeFirstHeader)
     .use(stripMarkdown, { remove: ['math', 'inlineMath'] })
     .use(remarkStringify)

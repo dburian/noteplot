@@ -1,7 +1,8 @@
 <script>
   import Prose from '$lib/Prose.svelte';
   import { hasContext } from 'svelte';
-    import WithHoverableLinks from './WithHoverableLinks.svelte';
+  import WithHoverableLinks from './WithHoverableLinks.svelte';
+  import NoteMetaContent from './NoteMetaContent.svelte';
 
   export let slug, title, links, backlinks, content, noteRoot, images, matter;
 </script>
@@ -12,34 +13,14 @@
 
 <div class="w-full grid justify-center p-3 sm:p-6">
   <Prose>
-    <h1>{title}</h1>
-    <h2>Forward links</h2>
-    <ul>
-      {#each links as link}
-        <li><a href={`./${link.slug}`}>{link.title}</a></li>
-      {/each}
-    </ul>
-    <h2>Backward links</h2>
-    <ul>
-      {#each backlinks as link}
-        <li><a href={`./${link.slug}`}>{link.title}</a></li>
-      {/each}
-    </ul>
-
-    <h2>Frontmatter</h2>
-    <ul>
-      {#each Object.keys(matter) as key}
-        <li>{key}: {matter[key]}</li>
-      {/each}
-    </ul>
-
-    <hr />
 
     {#if hasContext('graphState')}
       <WithHoverableLinks>
+        <NoteMetaContent {title} {slug} {links} {backlinks} {noteRoot} {matter} />
         {@html content}
       </WithHoverableLinks>
     {:else}
+      <NoteMetaContent {title} {slug} {links} {backlinks} {noteRoot} {matter} />
       {@html content}
     {/if}
 
