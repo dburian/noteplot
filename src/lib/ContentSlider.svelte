@@ -8,6 +8,9 @@
   import { base } from '$app/paths';
   import { page } from '$app/stores';
 
+  const goldenRatio = (1 + Math.sqrt(5)) / 2;
+  const DEFAULT_CONTENT_WIDTH = 1 - 1 / goldenRatio;
+
   /**
    * @param {URL} url
    * @param {Number} defaultWidth
@@ -32,7 +35,9 @@
    * @param {URL} url
    */
   function createContentSliderState(url) {
-    const { subscribe, update } = writable(extractContentSliderStateFromUrl(url, 0.3));
+    const { subscribe, update } = writable(
+      extractContentSliderStateFromUrl(url, DEFAULT_CONTENT_WIDTH)
+    );
 
     const larger = () => {
       update((values) => {
