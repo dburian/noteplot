@@ -25,7 +25,7 @@
         {/each}
       </ul>
     {/if}
-    {#if tags.length > 0}
+    {#if tags && tags.length > 0}
       <li><strong>tags:</strong> {tags.join(', ')}</li>
     {/if}
     {#each Object.keys(otherMatter) as key}
