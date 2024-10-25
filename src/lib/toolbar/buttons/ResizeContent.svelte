@@ -1,10 +1,8 @@
 <script>
-  import { getContext, onMount } from 'svelte';
-    import ToolbarButton from '../ToolbarButton.svelte';
+  import { getContext} from 'svelte';
+  import ToolbarButton from '../ToolbarButton.svelte';
 
   const contentSlider = getContext('contentSliderState');
-  /** @type {HTMLButtonElement} */
-  let resizeButton;
 
   function mousedown() {
     document.body.addEventListener('mousemove', mousemove);
@@ -32,18 +30,10 @@
     contentSlider.confirmWidth();
     document.body.removeEventListener('mousemove', mousemove);
   }
-
-  onMount(() => {
-    resizeButton.addEventListener('mousedown', mousedown);
-
-    return () => {
-      resizeButton.removeEventListener('mousedown', mousedown);
-    };
-  });
 </script>
 
 <div class="absolute">
   <div class="relative left-[-50%] mt-4">
-    <ToolbarButton bind:button={resizeButton} sizeClasses="w-2 h-2" />
+    <ToolbarButton on:mousedown={mousedown} class="w-2 h-2" />
   </div>
 </div>
