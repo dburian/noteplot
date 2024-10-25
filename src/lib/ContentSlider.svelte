@@ -122,7 +122,7 @@
 </script>
 
 <div
-  class={`sm:fixed sm:top-0 sm:right-0 sm:border-l-black dark:sm:border-l-invert-white ${$sliderState.width > 0 && 'sm:border-l-2'}`}
+  class={`sm:fixed sm:top-0 sm:right-0 sm:border-l-front-light dark:sm:border-l-front-dark ${$sliderState.width > 0 && 'sm:border-l-2'}`}
   style={`width: ${$sliderWidth * 100}vw; max-width: calc(100vw - 4.5rem)`}
 >
   <slot />

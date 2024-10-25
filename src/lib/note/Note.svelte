@@ -8,7 +8,7 @@
 {#key $page.data?.note?.slug}
   <Adaptive>
     <div
-      class="overflow-auto h-screen w-full bg-white dark:bg-neutral-800 dark:text-white"
+      class="overflow-auto h-screen w-full bg-back-light dark:bg-back-dark text-front-light dark:text-front-dark"
       slot="desktop"
     >
       <slot />

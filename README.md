@@ -27,16 +27,19 @@ npm run watch:vite
 ### Overall
 
 - [] documentation
-- [] typescript (do typing properly)
-- [] svelte 5
+- [] typescript (or learn to write better jsdoc)
+- [] svelte 5 (down the line)
+- [] better search engine... [sample list](https://byby.dev/js-search-libraries)
 
 ### Desktop
 
 - [] shallow routing for content slider searchParams
 - [x] content slider animations
 - [x] active note to state, hovered note
+- [x] theming with tailwind
 - [] nicer meta info for notes
 - [x] nicer desktop buttons/toolbar
 - [] graph shift with content slider, so that active note is (almost) always visible
 - [] button to switch tag colors on/off
 - [] date graph
+- [] graph transformations to url params (so go back and forward in history)

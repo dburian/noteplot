@@ -1,4 +1,8 @@
 import * as d3 from "d3";
+/** @type {import('tailwindcss').Config} */
+import tailwindConfig from "virtual:tailwind-config";
+const tailwindColors = tailwindConfig.theme.colors
+
 
 function dist(p1, p2) {
   return Math.sqrt(
@@ -35,8 +39,9 @@ export class CanvasGraph {
     }
     this.theme = {
       nodeWidth: 10,
-      foreground: '#000000',
+      foreground: '#0f172a',
       background: '#ffffff',
+      highlight: "#000",
       darkMode: false,
       glowPixelWidth: 3,
       glowPixelGap: 0.5,
@@ -263,11 +268,13 @@ export class CanvasGraph {
     * @param {boolean} darkModeOn */
   setDarkMode(darkModeOn) {
     if (darkModeOn) {
-      this.theme.foreground = "#d1d5db"
-      this.theme.background = "#262626"
+      this.theme.foreground = tailwindColors.front.dark;
+      this.theme.background = tailwindColors.back.dark;
+      this.theme.highlight = tailwindColors.emphasis.dark;
     } else {
-      this.theme.background = "#ffffff"
-      this.theme.foreground = "#000000"
+      this.theme.foreground = tailwindColors.text.light;
+      this.theme.background = tailwindColors.back.light;
+      this.theme.highlight = tailwindColors.emphasis.light;
     }
 
     this.theme.darkMode = darkModeOn
@@ -410,6 +417,7 @@ export class CanvasGraph {
     if (node === this.hoveredNode || node === this.selectedNode) {
       fontSize *= 1.3
       nW *= 1.8
+      this.ctx.fillStyle = this.theme.highlight
     }
     this.ctx.font = `${fontSize}px sans-serif`;
 
@@ -427,11 +435,16 @@ export class CanvasGraph {
 
     if (node === this.hoveredNode || node === this.selectedNode) {
       nW *= 2
-      this.ctx.fillStyle = this.theme.foreground
+      this.ctx.strokeStyle = this.theme.highlight
+    }
+
+    if (node === this.selectedNode) {
+      this.ctx.fillStyle = this.theme.highlight;
       this.ctx.fillRect(x - nW / 2, y - nW / 2, nW, nW)
     } else {
       this.ctx.fillStyle = this.theme.background
       this.ctx.fillRect(x - nW / 2, y - nW / 2, nW, nW)
+      this.ctx.lineWidth = 1
       this.ctx.strokeRect(x - nW / 2, y - nW / 2, nW, nW)
     }
 
