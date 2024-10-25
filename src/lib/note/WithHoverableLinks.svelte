@@ -38,15 +38,12 @@
     /** @type {NodeListOf<HTMLLinkElement>} */
     const noteLinks = document.querySelectorAll('#note-content a[data-slug]');
     for (const link of noteLinks) {
-      console.log(link.attributes);
       const linkSlug = link.attributes['data-slug'].value;
       if (!contentNoteLinks.has(linkSlug)) {
         contentNoteLinks.set(linkSlug, []);
       }
       contentNoteLinks.get(linkSlug).push(link);
     }
-
-    console.log(contentNoteLinks);
 
     for (const link of noteLinks) {
       registerEvents(link);
@@ -66,7 +63,6 @@
    * @param {{slug: string} | null} hoveredNote
    */
   function reflectHoveredNote(hoveredNote) {
-    console.log(`Reflecting ${hoveredNote?.slug}`);
     if (!hoveredNote) {
       if (!lastHoveredSlug) return;
 
@@ -78,11 +74,8 @@
     }
 
     const links = contentNoteLinks.get(hoveredNote.slug);
-    console.log('finding links');
-    console.log({ links });
     if (!links) return;
 
-    console.log(`Hovering ${links.length} ${hoveredNote.slug} links`);
     for (const link of links) {
       link?.classList.add('hovered-link');
     }

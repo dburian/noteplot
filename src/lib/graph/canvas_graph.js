@@ -291,7 +291,6 @@ export class CanvasGraph {
     * @param {string} slug
     */
   hoverNode(slug) {
-    console.log(`graph hovering ${slug}`)
     this.hoveredNode = slug ? this.nodes.get(slug) : null;
     this.draw();
   }
