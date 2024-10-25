@@ -5,7 +5,8 @@
   export let debounceTime = 250;
   export let suggestions = []
   let searchString = "";
-  let searchBarElement
+  /** @type {HTMLInputElement} */
+  let searchBarElement;
 
   const dispatcher = createEventDispatcher()
 
@@ -25,10 +26,10 @@
   })
 </script>
 
-  <div class="border-2 w-full border-black dark:border-invert-white flex text-xl mb-6">
+  <div class="border-2 w-full border-front-light dark:border-front-dark flex text-xl mb-6">
     <input
       type="text"
-      class="p-1 w-full flex-1 focus-visible:outline-none dark:bg-neutral-800"
+      class="p-1 w-full flex-1 focus-visible:outline-none dark:bg-back-dark"
       placeholder="Search for something..."
       bind:value={searchString}
       on:keydown={debounceSearch}
