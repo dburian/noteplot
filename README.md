@@ -26,10 +26,15 @@ npm run watch:vite
 
 ### Overall
 
-- [] documentation
-- [] typescript (or learn to write better jsdoc)
-- [] svelte 5 (down the line)
-- [] better search engine... [sample list](https://byby.dev/js-search-libraries)
+- [ ] documentation
+- [ ] typescript (or learn to write better jsdoc)
+- [ ] svelte 5 (down the line)
+- [ ] better search engine... [sample list](https://byby.dev/js-search-libraries)
+  - [ ] suggestions
+  - [ ] field search
+  - [ ] reflect results in graph
+- [ ] more targeted updates -- don't go through all notes, just those that
+  changed, updating everything begins to be slow
 
 ### Desktop
 
@@ -38,8 +43,14 @@ npm run watch:vite
 - [x] active note to state, hovered note
 - [x] theming with tailwind
 - [x] nicer meta info for notes
+  - [x] unique links
+  - [x] add reading time with [reading-time](https://www.npmjs.com/package/reading-time)
+  - [ ] add access date and creation date
 - [x] nicer desktop buttons/toolbar
-- [] graph shift with content slider, so that active note is (almost) always visible
-- [] button to switch tag colors on/off + global tags colors
-- [] date graph
-- [] graph transformations to url params (so go back and forward in history)
+- [ ] keyboard shortcuts
+- [ ] graph shift with content slider, so that active note is (almost) always visible
+- [ ] graph controls
+  - [ ] button to switch tag colors on/off + global tags colors
+  - [ ] show connections
+- [ ] date graph
+- [ ] graph transformations to url params (so go back and forward in history)

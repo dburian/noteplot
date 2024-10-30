@@ -22,6 +22,7 @@ import rehypeFigure from '@microflash/rehype-figure';
 import pino from 'pino';
 import { matter } from 'vfile-matter';
 import toString from 'unist-util-to-string-with-nodes';
+import readingTime from 'reading-time';
 
 export const logger = pino({
   transport: {
@@ -117,7 +118,7 @@ function addLinks() {
   const backlinks = this.data().backlinks
 
   return (tree, file) => {
-    const links = []
+    const links = new Set()
 
     visit(tree, 'link', (node) => {
       // TODO: Add class for outside links.
@@ -131,7 +132,7 @@ function addLinks() {
       //remarkRehype. See https://github.com/syntax-tree/mdast-util-to-hast/tree/main?tab=readme-ov-file#fields-on-nodes
       node.data = { 'hProperties': { 'data-slug': slugLinkDest } }
 
-      links.push(slugLinkDest);
+      links.add(slugLinkDest);
 
       if (!backlinks.has(slugLinkDest)) {
         backlinks.set(slugLinkDest, new Set());
@@ -140,7 +141,14 @@ function addLinks() {
       backlinks.get(slugLinkDest).add(file.data.slug);
     });
 
-    file.data.linkSlugs = links;
+    file.data.linkSlugs = [...links];
+  };
+}
+
+function addReadingTime() {
+  return (tree, file) => {
+    const { text } = toString(tree)
+    file.data.readingTime = readingTime(text)
   };
 }
 
@@ -167,8 +175,8 @@ function removeFirstHeader() {
 
 function printFile() {
   return async (tree, file) => {
-    if (file.stem == 'pca') {
-      logger.debug(file);
+    if (file.stem == 'transformer') {
+      logger.debug(file.data.links);
     }
   };
 }
@@ -197,6 +205,7 @@ function createRemarkPipeline(preprocessor, noteRoot) {
     .use(addSlug)
     .use(addLinks)
     .use(addBacklinks)
+    .use(addReadingTime)
 
   return pipeline
 }

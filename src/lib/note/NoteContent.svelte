@@ -4,7 +4,17 @@
   import WithHoverableLinks from './WithHoverableLinks.svelte';
   import NoteMetaContent from './NoteMetaContent.svelte';
 
-  export let slug, title, links, backlinks, content, noteRoot, images, matter;
+  export let slug, title, links, backlinks, content, noteRoot, images, matter, readingTime;
+
+  $: metaProps = {
+    title,
+    slug,
+    links,
+    backlinks,
+    noteRoot,
+    matter,
+    readingTime
+  };
 </script>
 
 <svelte:head>
@@ -13,14 +23,13 @@
 
 <div class="w-full grid justify-center p-3 sm:p-6">
   <Prose>
-
     {#if hasContext('graphState')}
       <WithHoverableLinks>
-        <NoteMetaContent {title} {slug} {links} {backlinks} {noteRoot} {matter} />
+        <NoteMetaContent {...metaProps} />
         {@html content}
       </WithHoverableLinks>
     {:else}
-      <NoteMetaContent {title} {slug} {links} {backlinks} {noteRoot} {matter} />
+      <NoteMetaContent {...metaProps} />
       {@html content}
     {/if}
 

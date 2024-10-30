@@ -1,10 +1,15 @@
 <script>
-  export let slug, title, links, backlinks, noteRoot, matter;
+    import { dev } from "$app/environment";
 
-  export let displayNoteRoot = false;
-  export let displaySlug = false;
+  export let slug, title, links, backlinks, noteRoot, matter, readingTime;
+
+  export let displayNoteRoot = dev;
+  export let displaySlug = dev;
 
   const { tags, ...otherMatter } = matter;
+  const readDate = new Date(readingTime.time)
+  const readMins = readDate.getMinutes()
+  const readSecs = readDate.getSeconds()
 </script>
 
 <section class="border-l-2 border-l-muted-light dark:border-l-muted-dark pl-4 py-1 text-sm mb-10">
@@ -35,7 +40,13 @@
       <li><strong>note root:</strong> <code>{noteRoot}</code></li>
     {/if}
     {#if displaySlug}
-    <li><strong>slug:</strong> <code>{slug}</code></li>
+      <li><strong>slug:</strong> <code>{slug}</code></li>
     {/if}
+    <li><strong>read time:</strong>
+      {#if readMins > 0}
+        {readMins}<small>mins</small>
+      {/if}
+      {readSecs}<small>s</small></li>
+    <li><strong>words:</strong> {readingTime.words}</li>
   </ul>
 </section>
