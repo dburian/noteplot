@@ -10,12 +10,9 @@ import rehypeRaw from 'rehype-raw';
 import rehypeStringify from 'rehype-stringify';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
-import remarkRetext from 'remark-retext';
 import { inspect } from 'util';
 import rehypeShiki from '@shikijs/rehype';
 import path from 'path';
-import retextLatin from 'retext-latin';
-import retextStringify from 'retext-stringify';
 import stripMarkdown from 'strip-markdown';
 import remarkStringify from 'remark-stringify';
 import rehypeFigure from '@microflash/rehype-figure';
@@ -246,8 +243,6 @@ export function createRetextPipeline(preprocessor, noteRoot) {
     .use(removeFirstHeader)
     .use(stripMarkdown, { remove: ['math', 'inlineMath'] })
     .use(remarkStringify)
-  //.use(remarkRetext, unified().use(retextLatin), {ignore: ['image']})
-  //.use(retextStringify)
 
   return pipeline
 }
