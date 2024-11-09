@@ -21,7 +21,7 @@ const nc = {
   },
   back: {
     light: colors.white,
-    dark: colors.zinc[800],
+    dark: colors.zinc[950],
   },
   emphasis: {
     light: colors.zinc[900],
