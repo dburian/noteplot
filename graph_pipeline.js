@@ -122,11 +122,12 @@ export class GraphPipeline {
 
   updatePositions(nodes, links, steps) {
     const { nodes: computedNodes, links: computedLinks, viewBox } = computeForceSimulation(nodes, links, {
-      alphaDecay: 0.001,
+      alphaDecay: 0.0001,
       forces: {
-        link: { fn: d3.forceLink(links), strength: 0.1 },
-        repel: { fn: d3.forceManyBody(), strength: -10, distanceMax: 120 },
-        center: { fn: d3.forceCenter(), strength: 0.5 }
+        link: { fn: d3.forceLink(links), strength: 60, distance: 0.1 },
+        repel: { fn: d3.forceManyBody(), strength: -20, distanceMax: 60, distanceMin: 0 },
+        center: { fn: d3.forceCenter(), strength: 1000 },
+        radial: { fn: d3.forceRadial(0.001, 0, 0), strength: 0.001 },
       },
       maxSteps: steps,
     })
@@ -153,6 +154,8 @@ function computeForceSimulation(nodes, links, config) {
     let force = settings.fn
     if ('force' in settings) force = force.strength(settings.strength)
     if ('distanceMax' in settings) force = force.distanceMax(settings.distanceMax)
+    if ('distanceMin' in settings) force = force.distanceMin(settings.distanceMin)
+    if ('distance' in settings) force = force.distance(settings.distance)
 
     simulation = simulation.force(name, force)
   }
