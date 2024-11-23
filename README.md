@@ -33,7 +33,7 @@ npm run watch:vite
   - [ ] suggestions
   - [ ] field search
   - [ ] reflect results in graph
-- [ ] more targeted updates -- don't go through all notes, just those that
+- [x] more targeted updates -- don't go through all notes, just those that
   changed, updating everything begins to be slow
 
 ### Desktop

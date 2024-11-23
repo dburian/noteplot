@@ -21,7 +21,7 @@ function setupCommonOpts(command) {
   return opts;
 }
 
-async function watch(noteDir, options, command) {
+async function watch(noteRoot, options, command) {
   const opts = setupCommonOpts(command)
 
   if (!opts.onlyNotes) {
@@ -32,7 +32,7 @@ async function watch(noteDir, options, command) {
       },
     })
 
-    logger.debug("Starting Vite dev server")
+    logger.info("Starting Vite dev server")
     await viteServer.listen()
 
     viteServer.printUrls()
@@ -44,10 +44,11 @@ async function watch(noteDir, options, command) {
     savePath: './src/lib/notes/',
     imgSavePath: './static/note_imgs/',
     imgUrl: '/note_imgs/',
-  }, [noteDir])
+    noteRoot,
+  })
 }
 
-async function build(noteDir, options, command) {
+async function build(noteRoot, options, command) {
   const opts = setupCommonOpts(command)
 
   await preprocess({
@@ -55,7 +56,8 @@ async function build(noteDir, options, command) {
     savePath: './src/lib/notes/',
     imgSavePath: './static/note_imgs/',
     imgUrl: `${opts.basePath}/note_imgs/`,
-  }, [noteDir])
+    noteRoot,
+  })
 
   const buildConfig = {}
 
@@ -74,7 +76,7 @@ async function main() {
   prog
     .name("noteplot")
     .description("Visualization tool for your Markdown notes.")
-    .option("--log-level", "Log level to hide/display logs.", "warn")
+    .option("--log-level", "Log level to hide/display logs.", "debug")
 
   prog
     .command("watch")

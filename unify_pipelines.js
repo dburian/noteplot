@@ -37,7 +37,7 @@ function isURL(str) {
 
 }
 
-function toSlug(fullFilePath, sourceRoot, { withExtension } = { withExtension: false }) {
+export function toSlug(fullFilePath, sourceRoot, { withExtension } = { withExtension: false }) {
   let slugPath = path.relative(sourceRoot, fullFilePath);
   if (!withExtension) {
     slugPath = slugPath.slice(0, -path.extname(slugPath).length);
@@ -57,7 +57,7 @@ function addFileData(data) {
   };
 }
 
-function addFrontmatter(data) {
+function addFrontmatter() {
   return (tree, file) => {
     //Assigns parsed matter to file.data.matter
     matter(file)
@@ -65,9 +65,10 @@ function addFrontmatter(data) {
 }
 
 function collectImgs({ imgUrl, imgSavePath }) {
-  return (tree, file) => {
-    const fileImgs = [];
-    visit(tree, 'image', async node => {
+  return async (tree, file) => {
+    const copyPromises = []
+    file.data.images = []
+    visit(tree, 'image', node => {
       if (isURL(node.url)) return SKIP;
 
       const absolutePath = path.resolve(file.dirname, node.url)
@@ -75,13 +76,13 @@ function collectImgs({ imgUrl, imgSavePath }) {
       node.url = path.join(imgUrl, imgSlug)
 
       const destPath = path.join(imgSavePath, imgSlug)
-      await copyFile(absolutePath, destPath)
+      file.data.images.push(destPath)
 
-      fileImgs.push(destPath)
+      copyPromises.push(copyFile(absolutePath, destPath))
       return CONTINUE;
     })
 
-    file.data.images = fileImgs;
+    await Promise.all(copyPromises)
   };
 }
 
@@ -131,6 +132,7 @@ function addLinks() {
 
       links.add(slugLinkDest);
 
+      // TODO: referencedBy would be probably more intuitive than 'backlinks'
       if (!backlinks.has(slugLinkDest)) {
         backlinks.set(slugLinkDest, new Set());
       }
@@ -146,14 +148,6 @@ function addReadingTime() {
   return (tree, file) => {
     const { text } = toString(tree)
     file.data.readingTime = readingTime(text)
-  };
-}
-
-function addBacklinks() {
-  const backlinks = this.data().backlinks
-
-  return (_, file) => {
-    file.data.backlinkSlugs = [...backlinks.get(file.data.slug) || []]
   };
 }
 
@@ -187,28 +181,32 @@ function printTree() {
   };
 }
 
-function createRemarkPipeline(preprocessor, noteRoot) {
-  const pipeline = unified()
-    .data({ backlinks: preprocessor.backlinks })
+function createMinimalRemarkPipeline({ noteRoot }) {
+  return unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkFrontmatter, ['yaml'])
     .use(addFrontmatter)
     .use(remarkMath)
     .use(inlineLinks)
+    // TODO: Maybe add `noteRoot` to overall data, not to each note
     .use(addFileData, { noteRoot })
-    .use(collectImgs, { ...preprocessor.config })
     .use(addTitle)
     .use(addSlug)
+}
+
+function createRemarkPipeline({ backlinks, imgUrl, imgSavePath, noteRoot }) {
+  const pipeline = createMinimalRemarkPipeline({ noteRoot })
+    .data({ backlinks })
+    .use(collectImgs, { imgUrl, imgSavePath })
     .use(addLinks)
-    .use(addBacklinks)
     .use(addReadingTime)
 
   return pipeline
 }
 
-export function createRehypePipeline(preprocessor, noteRoot) {
-  const pipeline = createRemarkPipeline(preprocessor, noteRoot)
+export function createRehypePipeline(config) {
+  const pipeline = createRemarkPipeline(config)
     .use(remarkRehype, { allowDangerousHtml: true, passThrough: [] })
     .use(rehypeMathjax, {
       tex: {
@@ -238,8 +236,8 @@ export function createRehypePipeline(preprocessor, noteRoot) {
   return pipeline
 }
 
-export function createRetextPipeline(preprocessor, noteRoot) {
-  const pipeline = createRemarkPipeline(preprocessor, noteRoot)
+export function createRetextPipeline(config) {
+  const pipeline = createMinimalRemarkPipeline(config)
     .use(removeFirstHeader)
     .use(stripMarkdown, { remove: ['math', 'inlineMath'] })
     .use(remarkStringify)
