@@ -13,12 +13,12 @@
   on:mousedown
   bind:button
   class={`${classNames} ` +
-  `grid content-center border-2 font-bold ` +
+  `grid content-center font-bold ` +
   `sm:text-sm ` +
   // Svg normal and hover
-  `stroke-front-light hover:stroke-back-light `+
+  `stroke-back-light `+
   // Dark svg normal and hover
-  `dark:stroke-front-dark  hover:dark:stroke-back-dark  `}
+  `dark:stroke-back-dark  `}
 >
   <slot />
 </Button>

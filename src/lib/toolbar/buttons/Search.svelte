@@ -1,13 +1,16 @@
 <script>
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import DesktopToolbarButton from '../DesktopToolbarButton.svelte';
+  import ToolbarButton from '../ToolbarButton.svelte';
 
   $: searchString = $page.url.searchParams.get('q') || null;
 </script>
 
 {#if searchString === null}
-  <DesktopToolbarButton on:click={() => goto('/search?q=')}>
+  <ToolbarButton
+    class='w-8 h-8'
+    on:click={() => goto('/search?q=')}
+  >
     <svg
       width="100%"
       height="100%"
@@ -25,5 +28,5 @@
         </clipPath>
       </defs>
     </svg>
-  </DesktopToolbarButton>
+  </ToolbarButton>
 {/if}

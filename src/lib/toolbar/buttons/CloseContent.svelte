@@ -1,8 +1,11 @@
 <script>
-    import { createEventDispatcher, getContext } from "svelte";
-    import ToolbarButton from "../ToolbarButton.svelte";
+  import DesktopToolbarButton from '../DesktopToolbarButton.svelte';
+  import { goto } from '$app/navigation';
+  import { getContext } from 'svelte';
 
-  const urlState = getContext("urlState")
-  const dispatcher = createEventDispatcher()
+  const contentSlider = getContext('contentSliderState');
 </script>
 
+{#if $contentSlider.hasContent}
+  <DesktopToolbarButton on:click={() => goto('/')}>x</DesktopToolbarButton>
+{/if}

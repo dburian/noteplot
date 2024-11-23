@@ -52,5 +52,10 @@ npm run watch:vite
 - [ ] graph controls
   - [ ] button to switch tag colors on/off + global tags colors
   - [ ] show connections
+- [ ] search as a always-on filter
 - [ ] date graph
 - [ ] graph transformations to url params (so go back and forward in history)
+
+### Mobile
+
+- [ ] nice content slider

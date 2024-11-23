@@ -1,6 +1,5 @@
 <script>
-  import { createGraphInterfaceState } from '$lib/stores/graphInterfaceState.js';
-  import { getContext, setContext } from 'svelte';
+  import { setContext } from 'svelte';
   import { afterNavigate, goto } from '$app/navigation';
   import { tweened } from 'svelte/motion';
   import { cubicOut } from 'svelte/easing';
@@ -92,7 +91,10 @@
   afterNavigate((ev) => {
     if (ev.from?.url !== ev.to?.url && ev.to !== null) {
       sliderState.update((values) => {
-        const newValues = extractContentSliderStateFromUrl(ev.to.url, values.lastSetWidth);
+        const newValues = extractContentSliderStateFromUrl(
+          ev.to.url,
+          values.lastSetWidth,
+        );
 
         return { ...newValues };
       });

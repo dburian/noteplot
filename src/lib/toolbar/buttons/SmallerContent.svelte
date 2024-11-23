@@ -1,8 +1,12 @@
 <script>
-    import { getContext } from "svelte";
-    import ToolbarButton from "../ToolbarButton.svelte";
+  import DesktopToolbarButton from '../DesktopToolbarButton.svelte';
+  import { getContext } from 'svelte';
 
-  const giState = getContext("graphInterfaceState")
-  const urlState = getContext("urlState")
+  const contentSlider = getContext('contentSliderState');
 </script>
 
+{#if $contentSlider.hasContent && !$contentSlider.noContent}
+  <DesktopToolbarButton on:click={() => contentSlider.smaller()}>
+    {'>'}
+  </DesktopToolbarButton>
+{/if}
