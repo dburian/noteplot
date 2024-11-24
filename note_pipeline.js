@@ -93,7 +93,6 @@ export class NotePipeline {
 
     const removePromises = []
     if (!isDeepEqual(oldNote.images, note.images)) {
-      console.log(JSON.stringify(oldNote.images), JSON.stringify(note.images))
       const oldImages = oldNote.images.filter(imgPath => !note.images.includes(imgPath))
       for (const imgPath of oldImages) {
         logger.debug(`Removing ${imgPath}`)
