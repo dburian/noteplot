@@ -1,5 +1,5 @@
 import { readSync } from "to-vfile"
-import { createRetextPipeline, toSlug } from "./unify_pipelines.js"
+import { createRetextPipeline, logger, toSlug } from "./unify_pipelines.js"
 import { saveJSON } from "./note_preprocessor.js"
 import path from 'path';
 
@@ -15,7 +15,7 @@ export class SearchIndexPipeline {
   async on(events, previousResults) {
     const indexPromises = []
     for (const { eventType, targetPath } of events) {
-      if (eventType in ['add', 'change']) {
+      if (eventType === 'add' || eventType === 'change') {
         //'content' is changed almost always, therefore, re-indexing makes
         //sense
         indexPromises.push(this.indexNote(targetPath))
@@ -24,7 +24,6 @@ export class SearchIndexPipeline {
         this.unindexNote(slug)
       }
     }
-
     await Promise.all(indexPromises)
 
     // We can rebuild the index as a whole or just incrementally change it:
@@ -43,14 +42,15 @@ export class SearchIndexPipeline {
   }
 
   async indexNote(notePath) {
-    const file = this.retextPipepline(readSync(notePath))
+    const file = await this.retextPipepline.process(readSync(notePath))
 
     const slug = file.data.slug
-    this.index[slug] = {
+    logger.debug(`indexing ${notePath} under slug ${slug}`)
+    this.index.set(slug, {
       slug,
       title: file.data.title,
       content: file.value
-    }
+    })
   }
 
   unindexNote(slug) {
@@ -58,7 +58,7 @@ export class SearchIndexPipeline {
   }
 
   async generateIndex() {
-    const index = new Array(this.index.values())
+    const index = [...this.index.values()]
 
     const indexPath = path.join(this.config.savePath, '__search.json')
     await saveJSON(indexPath, index)
