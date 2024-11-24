@@ -1,24 +1,28 @@
 <script>
   import SearchMatch from "./SearchMatch.svelte";
-  import {FlexSearchIndex, NoLibSearchIndex} from "./search_index.js";
+  import {MiniSearchIndex} from "./search_index.js";
   import SearchBar from "./SearchBar.svelte";
+    import QueryDisplay from "./QueryDisplay.svelte";
 
   export let notes;
 
   let searchString = "";
-  let index = new FlexSearchIndex(notes)
+  /** @type {import('minisearch').Query} */
+  let query;
+  const index = new MiniSearchIndex(notes)
 
   let searching = false;
   /**
-  * @type {Note}
+  * @type {Note[]}
   */
   let matchedNotes = [];
   /**
   * @param {string} searchString
   */
-  async function searchIndex(searchString) {
+  function searchIndex(searchString) {
+    query = index.parseSearchString(searchString)
     searching = true;
-    matchedNotes = await index.search(searchString);
+    matchedNotes = index.search(query);
     searching = false;
   }
 
@@ -28,6 +32,7 @@
   <SearchBar
     on:search={(event) => searchIndex(event.detail.searchString)}
   />
+  <QueryDisplay query={query} />
   {#if searching}
     <h2 class="text-3xl text-center my-8">searching ...</h2>
   {:else if matchedNotes.length === 0 && searchString.length > 2}

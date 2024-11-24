@@ -1,5 +1,6 @@
 <script>
     import { dev } from "$app/environment";
+    import InfoBox from "$lib/components/InfoBox.svelte";
 
   export let slug, title, links, backlinks, noteRoot, matter, readingTime;
 
@@ -12,7 +13,7 @@
   const readSecs = readDate.getSeconds()
 </script>
 
-<section class="border-l-2 border-l-muted-light dark:border-l-muted-dark pl-4 py-1 text-sm mb-10">
+<InfoBox>
   <ul class="list-none p-0">
     {#if links.length > 0}
       <li><strong>references:</strong></li>
@@ -49,4 +50,4 @@
       {readSecs}<small>s</small></li>
     <li><strong>words:</strong> {readingTime.words}</li>
   </ul>
-</section>
+</InfoBox>
