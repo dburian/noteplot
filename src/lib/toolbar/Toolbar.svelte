@@ -4,6 +4,7 @@
   import Search from './buttons/Search.svelte';
   import LargerContent from './buttons/LargerContent.svelte';
   import SmallerContent from './buttons/SmallerContent.svelte';
+    import CloseContent from './buttons/CloseContent.svelte';
 
   const contentSlider = getContext('contentSliderState');
 </script>
@@ -11,6 +12,7 @@
 <div class="absolute">
   <div class="relative left-[-100%] mt-4 mx-4">
     <div class="grid auto-rows-max gap-y-4">
+      <CloseContent />
       <LargerContent />
       <SmallerContent />
       <Search />
