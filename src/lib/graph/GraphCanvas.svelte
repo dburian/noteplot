@@ -1,9 +1,6 @@
 <script>
     import { getContext, onMount } from "svelte";
     import { CanvasGraph } from "./canvas_graph";
-    import { page } from "$app/stores";
-    import { goto } from "$app/navigation";
-    import { base } from "$app/paths";
 
   export let nodes;
   export let links;
@@ -13,6 +10,8 @@
   let canvas;
 
   const graphState = getContext('graphState')
+  const filterState = getContext('filterState')
+
   /** @type {CanvasGraph} */
   let graph
   onMount(() => {
@@ -21,8 +20,8 @@
       links,
       viewBox,
       canvas,
-      (node) => goto(`/${node.slug}`),
-      (node) => graphState.hover(node),
+      graphState,
+      filterState,
     )
     graph.draw()
 
@@ -31,16 +30,6 @@
     }
   })
 
-  $: {
-    if (graph && $graphState.activeNote?.slug !== graph.selectedNode?.slug) {
-      graph.selectNode($graphState.activeNote?.slug)
-    }
-
-    if (graph && $graphState.hoveredNote?.slug !== graph.hoveredNode?.slug) {
-      graph.hoverNode($graphState.hoveredNote?.slug)
-    }
-
-  }
 </script>
 
 <canvas bind:this={canvas} class="touch-none bg-back-ligth dark:bg-back-dark" />

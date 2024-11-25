@@ -1,6 +1,7 @@
 import FlexSearch from "flexsearch";
 import MiniSearch from "minisearch";
 
+
 export class NoLibSearchIndex {
   constructor(haystack, matches_per_note = 100) {
     this.debounceTimeout = null
@@ -161,6 +162,14 @@ export class FlexSearchIndex {
   }
 }
 
+/**
+  * @typedef {{
+    * note: Note,
+    * score: number,
+    * matchedFields: import("minisearch").MatchInfo[],
+  * }} Match
+  */
+
 export class MiniSearchIndex {
   /**
     * @param {Array<Note>} notes
@@ -187,6 +196,7 @@ export class MiniSearchIndex {
 
   /**
     * @param {import("minisearch").Query} query
+    * @returns Match[]
     */
   search(query) {
     const results = this.index.search(query)
