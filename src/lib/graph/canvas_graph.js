@@ -466,7 +466,6 @@ export class CanvasGraph {
     this.filteredLinks = this.links
 
     if (newFilter.results) {
-      console.log("new results")
       this.filteredNodes = new Map()
       this.filteredLinks = new Map()
 
@@ -591,7 +590,7 @@ export class CanvasGraph {
   onClick = (event) => {
     const node = this.getNode({ x: event.clientX, y: event.clientY })
 
-    if (node) {
+    if (node && this.filteredNodes.has(node.slug)) {
       // TODO: Replace by actual `activate` function on graph state
       goto(`/${node.slug}`)
     }
@@ -605,11 +604,11 @@ export class CanvasGraph {
 
     const node = this.getNode({ x: event.clientX, y: event.clientY })
 
-    if (node) {
+    if (node && this.filteredNodes.has(node.slug)) {
       this.hoveredNode = node
       document.body.style = "cursor: pointer;";
       this.draw()
-    } else if (this.hoveredNode !== null) {
+    } else if (!node && this.hoveredNode !== null) {
       this.hoveredNode = null
       document.body.style = "cursor: default;";
       this.draw()
