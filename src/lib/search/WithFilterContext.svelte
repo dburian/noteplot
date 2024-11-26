@@ -13,10 +13,15 @@
       update((values) => ({ ...values, results }));
     };
 
+    const clear = () => {
+      update((values) => ({...values, query: null, results: null}))
+    }
+
     return {
       subscribe,
       setQuery,
       setResults,
+      clear,
       update
     };
   }

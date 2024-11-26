@@ -2,7 +2,7 @@
   /** @type {HTMLButtonElement | null} */
   export let button = null;
   /** @type {string} */
-  let classNames;
+  let classNames = "";
   export { classNames as class};
 </script>
 

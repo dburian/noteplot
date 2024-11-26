@@ -163,12 +163,12 @@ export class FlexSearchIndex {
 }
 
 /**
-  * @typedef {{
-    * note: Note,
-    * score: number,
-    * matchedFields: import("minisearch").MatchInfo[],
-  * }} Match
-  */
+ * @typedef {{
+   * note: Note,
+   * score: number,
+   * matchedFields: import("minisearch").MatchInfo[],
+ * }} Match
+*/
 
 export class MiniSearchIndex {
   /**

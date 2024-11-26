@@ -5,6 +5,7 @@
   import LargerContent from './buttons/LargerContent.svelte';
   import SmallerContent from './buttons/SmallerContent.svelte';
     import CloseContent from './buttons/CloseContent.svelte';
+    import Filter from './buttons/Filter.svelte';
 
   const contentSlider = getContext('contentSliderState');
 </script>
@@ -16,6 +17,7 @@
       <LargerContent />
       <SmallerContent />
       <Search />
+      <Filter />
     </div>
   </div>
   </div>

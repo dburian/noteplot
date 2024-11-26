@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
 
   export let debounceTime = 250;
+  export let placeholder = "Search for something..."
   export let suggestions = [];
   let searchString = '';
 
@@ -30,19 +31,22 @@
 </script>
 
 <div class="border-2 w-full border-front-light dark:border-front-dark flex text-xl mb-6">
-  <div class="p-1 w-full flex-1 relative">
-    <!-- <div class="bg-front-light absolute flex-1"> -->
-    <!--   {searchString} -->
-    <!-- </div> -->
-    <input
-      type="text"
-      class="w-full focus-visible:outline-none dark:bg-back-dark"
-      placeholder="Search for something..."
-      bind:value={searchString}
-      on:keydown={debounceSearch}
-      bind:this={searchBarElement}
-    />
-  </div>
+  <input
+    type="text"
+    class="p-1 flex-1 w-full focus-visible:outline-none dark:bg-back-dark"
+    placeholder={placeholder}
+    bind:value={searchString}
+    on:keydown={debounceSearch}
+    bind:this={searchBarElement}
+  />
+  <button
+    class="select-none p-2 bg-back-light text-front-light dark:bg-back-dark dark:text-front-dark hover:underline"
+    on:click={() => {
+      searchString = '';
+      search();
+    }}>
+    x
+  </button>
 </div>
 <!-- <div> -->
 <!--   <h6>Parsed search</h6> -->
