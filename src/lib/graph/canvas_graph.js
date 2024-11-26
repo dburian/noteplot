@@ -18,7 +18,9 @@ function dist(p1, p2) {
   * @typedef {{slug: string, title: string, x: Number, y: Number, matter: FrontMatter}} Node
   * @typedef {{
     * activeNote: import("$lib/search/search_index").Note,
-    * hoveredNote: import("$lib/search/search_index").Note
+    * hoveredNote: import("$lib/search/search_index").Note,
+    * showConnections: boolean,
+    * showTagsGlow: boolean,
     }} GraphState
   * @typedef {{
     * hover: (node: Node) => null;
@@ -90,10 +92,10 @@ class GraphRenderer {
 
   /**
     * @param {Map<String, Node>} nodes
-    * @param {Map<String, Map<String, Link>>} links
-    * @param {{pixels: Map<String,GlowPixel[]>, hues: Map<String, number>}} glow
+    * @param {Map<String, Map<String, Link>> | null} links
+    * @param {{pixels: Map<String,GlowPixel[]>, hues: Map<String, number>} | null} glow
     * @param {CanvasScreen} screen
-    * @param {{hoveredNode: Node, selectedNode: Node}} state
+    * @param {GraphState} state
     *
     */
   draw(nodes, links, glow, screen, state) {
@@ -104,21 +106,25 @@ class GraphRenderer {
     ctx.clearRect(0, 0, screen.width, screen.height)
 
     /** @param {Node} node */
-    const isHovered = (node) => node.slug == state.hoveredNode?.slug
+    const isHovered = (node) => node.slug == state.hoveredNote?.slug
     /** @param {Node} node */
-    const isSelected = (node) => node.slug == state.selectedNode?.slug
+    const isSelected = (node) => node.slug == state.activeNote?.slug
 
-    const hues = glow.hues
-    for (const node of nodes.values()) {
-      const pixels = glow.pixels.get(node.slug)
-      if (pixels) {
-        this.drawNodeGlow(pixels, hues, node, screen)
+    if (glow) {
+      const hues = glow.hues
+      for (const node of nodes.values()) {
+        const pixels = glow.pixels.get(node.slug)
+        if (pixels) {
+          this.drawNodeGlow(pixels, hues, node, screen)
+        }
       }
     }
 
-    for (const byTarget of links.values()) {
-      for (const link of byTarget.values()) {
-        this.drawLink(link, screen)
+    if (links) {
+      for (const byTarget of links.values()) {
+        for (const link of byTarget.values()) {
+          this.drawLink(link, screen)
+        }
       }
     }
 
@@ -374,6 +380,7 @@ class CanvasScreen {
 }
 
 
+const EMPTY_MAP = new Map()
 
 export class CanvasGraph {
   /**
@@ -414,6 +421,8 @@ export class CanvasGraph {
     this.deferDraw = true
 
     // TODO: Replace by actual values of graphState
+    /** @type {GraphState} */
+    this.graphState;
     this.hoveredNode = null;
     this.selectedNode = null;
     this.graphStateStore = graphStateStore
@@ -442,19 +451,10 @@ export class CanvasGraph {
     * @param {GraphState} newState
   */
   onGraphStateChange = (newState) => {
-    let redraw = false
-    if (this.hoveredNode?.slug !== newState.hoveredNote?.slug) {
-      const slug = newState.hoveredNote?.slug
-      this.hoveredNode = slug ? this.nodes.get(slug) : null;
-      redraw = true;
+    if (this.graphState !== newState) {
+      this.graphState = newState
+      this.draw()
     }
-    if (this.selectedNode?.slug !== newState.activeNote?.slug) {
-      const slug = newState.activeNote?.slug
-      this.selectedNode = slug ? this.nodes.get(slug) : null;
-      redraw = true;
-    }
-
-    if (redraw) this.draw()
   }
 
   /**
@@ -638,13 +638,10 @@ export class CanvasGraph {
 
     this.renderer.draw(
       this.filteredNodes,
-      this.filteredLinks,
-      this.glow,
+      this.graphState.showConnections ? this.filteredLinks : null,
+      this.graphState.showTagsGlow ? this.glow : null,
       this.screen,
-      {
-        selectedNode: this.selectedNode,
-        hoveredNode: this.hoveredNode,
-      }
+      this.graphState,
     )
   }
 

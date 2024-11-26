@@ -12,7 +12,9 @@
   function extractGraphStateFromPageData(pageData) {
     return {
       activeNote: pageData.note || null,
-      hoveredNote: null
+      hoveredNote: null,
+      showConnections: true,
+      showTagsGlow: true
     };
   }
 
@@ -23,7 +25,17 @@
       update((values) => ({ ...values, hoveredNote: note }));
     }
 
-    return { subscribe, update, hover };
+    /** @param {boolean} flag */
+    function showConnections(flag) {
+      update((values) => ({ ...values, showConnections: flag }));
+    }
+
+    /** @param {boolean} flag */
+    function showTagsGlow(flag) {
+      update((values) => ({ ...values, showTagsGlow: flag }));
+    }
+
+    return { subscribe, update, hover, showConnections, showTagsGlow };
   }
 
   const graphState = createGraphState($page.data);

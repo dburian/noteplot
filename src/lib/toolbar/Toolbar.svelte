@@ -6,6 +6,8 @@
   import SmallerContent from './buttons/SmallerContent.svelte';
     import CloseContent from './buttons/CloseContent.svelte';
     import Filter from './buttons/Filter.svelte';
+    import ShowConnections from './buttons/ShowConnections.svelte';
+    import ShowTagsGlow from './buttons/ShowTagsGlow.svelte';
 
   const contentSlider = getContext('contentSliderState');
 </script>
@@ -18,6 +20,8 @@
       <SmallerContent />
       <Search />
       <Filter />
+      <ShowConnections />
+      <ShowTagsGlow />
     </div>
   </div>
   </div>
