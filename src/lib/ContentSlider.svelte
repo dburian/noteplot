@@ -21,7 +21,7 @@
       fullContent: searchParams.get('fullContent') == '',
       noContent: searchParams.get('noContent') == '',
       searchString: searchParams.get('q') || null,
-      hasContent: url.pathname !== (base === '' ? '/' : base),
+      hasContent: url.pathname !== `${base}/`,
       lastUrl: url,
       width: defaultWidth,
       lastSetWidth: defaultWidth
