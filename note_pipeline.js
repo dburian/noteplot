@@ -3,7 +3,7 @@ import { readSync } from "to-vfile"
 import { createRehypePipeline, logger, toSlug } from "./unify_pipelines.js"
 import reporter from "vfile-reporter"
 import { saveJSON } from './note_preprocessor.js';
-import { rm } from 'fs/promises';
+import { mkdir, rm } from 'fs/promises';
 
 export class NotePipeline {
   constructor(config) {
@@ -17,7 +17,16 @@ export class NotePipeline {
     this.notes = new Map()
   }
 
+  async _setupPaths() {
+    await Promise.all([
+      mkdir(this.config.savePath, { recursive: true }),
+      mkdir(this.config.imgSavePath, { recursive: true })
+    ])
+  }
+
   async on(events, previousResult) {
+    await this._setupPaths()
+
     const toDelete = []
     const addPromises = []
     const changePromises = []
