@@ -82,7 +82,7 @@ class GraphRenderer {
       this.theme.background = tailwindColors.back.dark;
       this.theme.highlight = tailwindColors.emphasis.dark;
     } else {
-      this.theme.foreground = tailwindColors.text.light;
+      this.theme.foreground = tailwindColors.front.light;
       this.theme.background = tailwindColors.back.light;
       this.theme.highlight = tailwindColors.emphasis.light;
     }
