@@ -30,14 +30,19 @@ npm run watch:vite
 - [ ] filling in active filter string
 - [ ] keyboard shortcuts
 - [x] colored toolbar buttons w/ on/off + hovered styling
-- [ ] toolbar labels
-- [ ] helpers for tailwind classes
+- [x] toolbar labels
+- [ ] toolbar resize on line, not button
 - [ ] search string to url
 - [ ] filter string to url
 - [ ] mobile version of it all
 
 ### Ideas
 
+- [ ] refactor loading of search index jsons
+  - [ ] lazy load them (perhaps even in `minisearch` index form)
+  - [ ] have global available index
+  - [ ] do not have `/search` or `/filter` in url, only the search params?
+- [ ] helpers for tailwind classes?
 - [ ] documentation
 - [ ] typescript (or learn to write better jsdoc)
 - [ ] svelte 5 (down the line)
