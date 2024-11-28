@@ -15,10 +15,12 @@
    * @param {Number} defaultWidth
    */
   function extractContentSliderStateFromUrl(url, defaultWidth) {
+    const searchParams = typeof window !== 'undefined' ? url.searchParams : new Map();
+
     const state = {
-      fullContent: url.searchParams.get('fullContent') == '',
-      noContent: url.searchParams.get('noContent') == '',
-      searchString: url.searchParams.get('q') || null,
+      fullContent: searchParams.get('fullContent') == '',
+      noContent: searchParams.get('noContent') == '',
+      searchString: searchParams.get('q') || null,
       hasContent: url.pathname !== (base === '' ? '/' : base),
       lastUrl: url,
       width: defaultWidth,
@@ -91,10 +93,7 @@
   afterNavigate((ev) => {
     if (ev.from?.url !== ev.to?.url && ev.to !== null) {
       sliderState.update((values) => {
-        const newValues = extractContentSliderStateFromUrl(
-          ev.to.url,
-          values.lastSetWidth,
-        );
+        const newValues = extractContentSliderStateFromUrl(ev.to.url, values.lastSetWidth);
 
         return { ...newValues };
       });
