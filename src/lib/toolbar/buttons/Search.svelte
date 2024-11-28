@@ -1,14 +1,16 @@
 <script>
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import ToolbarButton from '../ToolbarButton.svelte';
+    import DesktopToolbarButton from '../DesktopToolbarButton.svelte';
 
   $: searchString = $page.url.searchParams.get('q') || null;
 </script>
 
 {#if searchString === null}
-  <ToolbarButton
-    class='w-8 h-8'
+  <DesktopToolbarButton
+    activeColor="bg-green-600 dark:bg-green-500"
+    defaultColor="bg-green-800 dark:bg-green-700"
+    label="Search notes"
     on:click={() => goto('/search?q=')}
   >
     <svg
@@ -28,5 +30,5 @@
         </clipPath>
       </defs>
     </svg>
-  </ToolbarButton>
+  </DesktopToolbarButton>
 {/if}

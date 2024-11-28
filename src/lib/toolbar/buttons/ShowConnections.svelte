@@ -5,6 +5,12 @@
   const graphState = getContext('graphState');
 </script>
 
-<DesktopToolbarButton on:click={() => graphState.showConnections(!$graphState.showConnections)}>
+<DesktopToolbarButton
+  label={`${$graphState.showConnections ? 'Hide' : 'Show'} links`}
+  on={$graphState.showConnections}
+  activeColor="bg-teal-600 dark:bg-teal-500"
+  defaultColor="bg-teal-800 dark:bg-teal-700"
+  on:click={() => graphState.showConnections(!$graphState.showConnections)}
+  >
   -
 </DesktopToolbarButton>

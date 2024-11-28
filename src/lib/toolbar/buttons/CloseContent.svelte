@@ -7,5 +7,11 @@
 </script>
 
 {#if $contentSlider.hasContent}
-  <DesktopToolbarButton on:click={() => goto('/')}>x</DesktopToolbarButton>
+  <DesktopToolbarButton
+    activeColor="bg-red-600 dark:bg-red-500"
+    defaultColor="bg-red-800 dark:bg-red-700"
+    label="Close note"
+    on:click={() => goto('/')}>
+    x
+  </DesktopToolbarButton>
 {/if}

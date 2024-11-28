@@ -24,40 +24,32 @@ npm run watch:vite
 
 ## TODOs
 
-### Overall
+### 1.0
+
+- [ ] suggestions for search bar
+- [ ] filling in active filter string
+- [ ] keyboard shortcuts
+- [x] colored toolbar buttons w/ on/off + hovered styling
+- [ ] toolbar labels
+- [ ] helpers for tailwind classes
+- [ ] search string to url
+- [ ] filter string to url
+- [ ] mobile version of it all
+
+### Ideas
 
 - [ ] documentation
 - [ ] typescript (or learn to write better jsdoc)
 - [ ] svelte 5 (down the line)
-- [x] better search engine... [sample list](https://byby.dev/js-search-libraries)
-  - [ ] suggestions
-  - [x] field search
-  - [x] reflect results in graph
-- [x] more targeted updates -- don't go through all notes, just those that
-  changed, updating everything begins to be slow
-
-### Desktop
-
-- [] shallow routing for content slider searchParams
-- [x] content slider animations
-- [x] active note to state, hovered note
-- [x] theming with tailwind
-- [x] nicer meta info for notes
-  - [x] unique links
-  - [x] add reading time with [reading-time](https://www.npmjs.com/package/reading-time)
-  - [ ] add access date and creation date
-- [x] nicer desktop buttons/toolbar
-- [ ] more colorful buttons in toolbar with on/off styling + hover
-- [ ] keyboard shortcuts
-- [ ] graph shift with content slider, so that active note is (almost) always visible
-- [ ] graph controls
-  - [x] button to switch tag colors on/off + global tags colors
-  - [x] show connections
-  - [ ] activate/deactivate force simulation
-- [x] search as a always-on filter
 - [ ] date graph
 - [ ] graph transformations to url params (so go back and forward in history)
+- [ ] shallow routing for content slider searchParams
+- [ ] add access date and creation date to dates
+- [ ] graph controls
+  - [ ] activate/deactivate force simulation
+- [ ] commandline for full keyboard experience
 
-### Mobile
+#### Desktop
 
-- [ ] nice content slider
+- [ ] graph shift with content slider, so that active note is (almost) always visible
+

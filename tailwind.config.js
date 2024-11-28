@@ -37,8 +37,8 @@ const nc = {
 export default {
   content: ['./src/**/*.{html,js,svelte,ts}'],
   theme: {
-    colors: nc,
     extend: {
+      colors: nc,
       typography: {
         DEFAULT: {
           css: {

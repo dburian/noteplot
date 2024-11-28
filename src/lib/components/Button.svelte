@@ -9,12 +9,14 @@
 <button
   on:click
   on:mousedown
+  on:mouseenter
+  on:mouseleave
   bind:this={button}
-  class={`${classNames} select-none p-2 ` +
+  class={`${classNames} select-none p-2 outline-none` +
   // Normal
-  `bg-front-light text-back-light ` +
+  //`bg-front-light text-back-light ` +
   // Dark normal
-  `dark:bg-front-dark dark:text-back-dark ` +
+  //`dark:bg-front-dark dark:text-back-dark ` +
   // Hover
   //`hover:bg-front-light hover:text-back-light ` +
   // Dark hover

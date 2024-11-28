@@ -6,7 +6,12 @@
 </script>
 
 {#if $contentSlider.hasContent && !$contentSlider.noContent}
-  <DesktopToolbarButton on:click={() => contentSlider.smaller()}>
+  <DesktopToolbarButton
+    activeColor="bg-orange-600 dark:bg-orange-500"
+    defaultColor="bg-orange-800 dark:bg-orange-700"
+    label="Shrink content"
+    on:click={() => contentSlider.smaller()}
+  >
     {'>'}
   </DesktopToolbarButton>
 {/if}
