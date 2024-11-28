@@ -92,8 +92,8 @@ class GraphRenderer {
 
   /**
     * @param {Map<String, Node>} nodes
-    * @param {Map<String, Map<String, Link>> | null} links
-    * @param {{pixels: Map<String,GlowPixel[]>, hues: Map<String, number>} | null} glow
+    * @param {Map<String, Map<String, Link>>} links
+    * @param {{pixels: Map<String,GlowPixel[]>, hues: Map<String, number>}} glow
     * @param {CanvasScreen} screen
     * @param {GraphState} state
     *
@@ -110,7 +110,7 @@ class GraphRenderer {
     /** @param {Node} node */
     const isSelected = (node) => node.slug == state.activeNote?.slug
 
-    if (glow) {
+    if (state.showTagsGlow) {
       const hues = glow.hues
       for (const node of nodes.values()) {
         const pixels = glow.pixels.get(node.slug)
@@ -120,7 +120,7 @@ class GraphRenderer {
       }
     }
 
-    if (links) {
+    if (state.showConnections) {
       for (const byTarget of links.values()) {
         for (const link of byTarget.values()) {
           this.drawLink(link, screen)
@@ -148,9 +148,9 @@ class GraphRenderer {
       }
     }
 
-
     // Redraw selected/hovered nodes so they end up on the top
-    for (const node of [state.selectedNode, state.hoveredNode]) {
+    for (const note of [state.activeNote, state.hoveredNote]) {
+      const node = nodes.get(note?.slug)
       if (!node) continue
 
       this.drawNode(node, screen, isHovered(node), isSelected(node))
@@ -161,8 +161,10 @@ class GraphRenderer {
   /**
     * @param {Node} node
     * @param {CanvasScreen} screen 
+    * @param {boolean} hovered 
+    * @param {boolean} selected 
     */
-  drawNodeLabel(node, screen, hovered = false, selected = false) {
+  drawNodeLabel(node, screen, hovered, selected) {
     const { x, y } = screen.toScreenPos(node)
 
     const ctx = screen.ctx
@@ -420,11 +422,8 @@ export class CanvasGraph {
 
     this.deferDraw = true
 
-    // TODO: Replace by actual values of graphState
     /** @type {GraphState} */
     this.graphState;
-    this.hoveredNode = null;
-    this.selectedNode = null;
     this.graphStateStore = graphStateStore
     this.graphStateUnsubscribe = graphStateStore.subscribe(this.onGraphStateChange)
 
@@ -605,41 +604,21 @@ export class CanvasGraph {
     const node = this.getNode({ x: event.clientX, y: event.clientY })
 
     if (node && this.filteredNodes.has(node.slug)) {
-      this.hoveredNode = node
+      this.graphStateStore.hover(node)
       document.body.style = "cursor: pointer;";
-      this.draw()
-    } else if (!node && this.hoveredNode !== null) {
-      this.hoveredNode = null
+    } else if (!node && this.graphState.hoveredNote !== null) {
+      this.graphStateStore.hover(null)
       document.body.style = "cursor: default;";
-      this.draw()
     }
-
-    this.graphStateStore.hover(this.hoveredNode)
   }
-
-  /**
-    * @param {string} slug */
-  selectNode(slug) {
-    this.selectedNode = slug ? this.nodes.get(slug) : null;
-    this.draw()
-  }
-
-  /**
-    * @param {string} slug
-    */
-  hoverNode(slug) {
-    this.hoveredNode = slug ? this.nodes.get(slug) : null;
-    this.draw();
-  }
-
 
   draw = () => {
     if (this.deferDraw) return
 
     this.renderer.draw(
       this.filteredNodes,
-      this.graphState.showConnections ? this.filteredLinks : null,
-      this.graphState.showTagsGlow ? this.glow : null,
+      this.filteredLinks,
+      this.glow,
       this.screen,
       this.graphState,
     )
