@@ -1,4 +1,5 @@
 import { goto } from "$app/navigation";
+import { base } from "$app/paths";
 import * as d3 from "d3";
 /** @type {import('tailwindcss').Config} */
 import tailwindConfig from "virtual:tailwind-config";
@@ -591,7 +592,7 @@ export class CanvasGraph {
 
     if (node && this.filteredNodes.has(node.slug)) {
       // TODO: Replace by actual `activate` function on graph state
-      goto(`/${node.slug}`)
+      goto(`${base}/${node.slug}`)
     }
   }
 

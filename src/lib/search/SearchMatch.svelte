@@ -1,5 +1,6 @@
 <script>
     import { goto } from '$app/navigation';
+    import { base } from '$app/paths';
 
   export let tabIndex;
   export let maxContentLength = 150;
@@ -21,7 +22,7 @@
   class={`p-2 max-w-prose cursor-pointer mb-9`}
   on:mouseenter={() => (hover = true)}
   on:mouseleave={() => (hover = false)}
-  on:click={() => goto(`/${match.note.slug}`)}
+  on:click={() => goto(`${base}/${match.note.slug}`)}
   role="link"
   on:keydown={() => {}}
   tabindex={tabIndex}

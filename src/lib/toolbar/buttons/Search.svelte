@@ -1,5 +1,6 @@
 <script>
   import { goto } from '$app/navigation';
+    import { base } from '$app/paths';
   import { page } from '$app/stores';
   import DesktopToolbarButton from '../DesktopToolbarButton.svelte';
 
@@ -11,7 +12,7 @@
   defaultColor="bg-green-800 dark:bg-green-700"
   on={searchActive}
   label="Search notes"
-  on:click={() => goto('/search?q=')}
+  on:click={() => goto(`${base}/search?q=`)}
 >
   <svg
     width="100%"

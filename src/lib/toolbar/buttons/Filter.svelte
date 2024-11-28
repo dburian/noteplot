@@ -1,5 +1,6 @@
 <script>
   import { goto } from '$app/navigation';
+    import { base } from '$app/paths';
   import { page } from '$app/stores';
     import DesktopToolbarButton from '../DesktopToolbarButton.svelte';
 
@@ -11,7 +12,7 @@
   defaultColor="bg-emerald-800 dark:bg-emerald-700"
   on={filterActive}
   label="Filter notes"
-  on:click={() => goto('/filter?q=')}
+  on:click={() => goto(`${base}/filter?q=`)}
 >
   <svg
     width="100%"

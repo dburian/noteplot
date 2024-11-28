@@ -1,5 +1,3 @@
-import { goto } from '$app/navigation';
-import { page } from '$app/stores';
 import { writable } from 'svelte/store';
 
 /**
