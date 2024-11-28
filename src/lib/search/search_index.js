@@ -177,7 +177,14 @@ export class MiniSearchIndex {
   constructor(notes) {
     this.index = new MiniSearch({
       idField: 'id',
-      fields: ['content', 'title', 'tags'],
+      fields: ['content', 'title', 'tag'],
+      extractField: (document, fieldName) => {
+        if (fieldName === 'tag') {
+          return document.matter.tags ? document.matter.tags.join(' ') : ''
+        }
+
+        return document[fieldName]
+      }
     })
 
     this.notesById = []

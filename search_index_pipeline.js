@@ -45,11 +45,11 @@ export class SearchIndexPipeline {
     const file = await this.retextPipepline.process(readSync(notePath))
 
     const slug = file.data.slug
-    logger.debug(`indexing ${notePath} under slug ${slug}`)
     this.index.set(slug, {
       slug,
       title: file.data.title,
-      content: file.value
+      content: file.value,
+      matter: { ...file.data.matter },
     })
   }
 

@@ -193,6 +193,7 @@ function createMinimalRemarkPipeline({ noteRoot }) {
     .use(addFileData, { noteRoot })
     .use(addTitle)
     .use(addSlug)
+    .use(addReadingTime)
 }
 
 function createRemarkPipeline({ backlinks, imgUrl, imgSavePath, noteRoot }) {
@@ -200,7 +201,6 @@ function createRemarkPipeline({ backlinks, imgUrl, imgSavePath, noteRoot }) {
     .data({ backlinks })
     .use(collectImgs, { imgUrl, imgSavePath })
     .use(addLinks)
-    .use(addReadingTime)
 
   return pipeline
 }
