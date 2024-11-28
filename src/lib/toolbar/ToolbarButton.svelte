@@ -6,10 +6,7 @@
   /** @type {String} */
   export let defaultColor;
   /** @type {boolean} */
-  export let on = false;
-
-  /** @type {String} */
-  export let label;
+  export let active = false;
 
   /** @type {HTMLButtonElement | null} */
   export let button = null;
@@ -17,20 +14,18 @@
   let classNames;
   export { classNames as class };
 
-  let hover = false
-
 </script>
 
 <Button
   on:click
   on:mousedown
-  on:mouseenter={() => {hover = true}}
-  on:mouseleave={() => {hover = false}}
+  on:mouseenter
+  on:mouseleave
   bind:button
   class={`${classNames} ` +
     `grid content-center font-bold ` +
     `sm:text-sm ` +
-    `${on != hover ? activeColor : defaultColor} ` +
+    `${active ? activeColor : defaultColor} ` +
     `text-back-light stroke-back-light ` +
     `dark:text-back-dark dark:stroke-back-dark  `
   }
