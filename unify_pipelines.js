@@ -209,8 +209,9 @@ export function createRehypePipeline(config) {
   const pipeline = createRemarkPipeline(config)
     .use(remarkRehype, { allowDangerousHtml: true, passThrough: [] })
     .use(rehypeMathjax, {
+      loader: {load: ['[tex]/mathtools']},
       tex: {
-        packages: { '[+]': ['ams', 'color'] },
+        packages: { '[+]': ['ams', 'color', 'mathtools'] },
         inlineMath: [              // start/end delimiter pairs for in-line math
           ['$', '$'],
           ['\\(', '\\)'],
