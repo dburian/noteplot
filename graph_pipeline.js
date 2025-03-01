@@ -89,11 +89,6 @@ export class GraphPipeline {
         nodesWithoutPosition.add(slug)
       }
 
-      if (position && !slugsToUpdate.has(slug)) {
-        position.fx = position.x
-        position.fy = position.y
-      }
-
       nodes.push({
         ...node,
         ...position,
@@ -135,7 +130,6 @@ export class GraphPipeline {
     for (const node of computedNodes) {
       this.positions.set(node.slug, { x: node.x, y: node.y })
     }
-
     this.viewBox = viewBox
 
     return { nodes: computedNodes, links: computedLinks }
