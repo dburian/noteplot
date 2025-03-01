@@ -20,7 +20,7 @@ export class SearchIndexPipeline {
         //sense
         indexPromises.push(this.indexNote(targetPath))
       } else if (eventType == 'unlink') {
-        const slug = toSlug(targetPath)
+        const slug = toSlug(targetPath, this.config.noteRoot)
         this.unindexNote(slug)
       }
     }
