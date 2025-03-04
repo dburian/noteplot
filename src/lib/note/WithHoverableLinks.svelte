@@ -91,7 +91,15 @@
 </div>
 
 <style>
-  #note-content :global(.hovered-link) {
-    color: #fff
+  @media (prefers-color-scheme: dark) {
+    #note-content :global(.hovered-link) {
+      color: #fff;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    #note-content :global(.hovered-link) {
+      color: #000;
+    }
   }
 </style>
