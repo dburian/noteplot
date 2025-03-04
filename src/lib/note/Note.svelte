@@ -1,5 +1,4 @@
 <script>
-
     import Adaptive from "$lib/adaptive/Adaptive.svelte";
     import MobileNoteContainer from "./MobileNoteContainer.svelte";
     import { page } from "$app/stores";

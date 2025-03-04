@@ -164,6 +164,32 @@ function removeFirstHeader() {
   };
 }
 
+function rehypeWrapTextElems() {
+  const wrapWithMaxWidthNode = (node) => {
+    return {
+      type: 'element',
+      tagName: 'div',
+      properties: {
+        className: 'prose-high-level-tag',
+      },
+      children: [node],
+    }
+  }
+
+  return (tree, file) => {
+    const newChildren = []
+    for (const c of tree.children) {
+      if (c.tagName != "mjx-container") {
+        newChildren.push(wrapWithMaxWidthNode(c))
+      } else {
+        newChildren.push(c)
+      }
+    }
+
+    tree.children = newChildren
+  }
+}
+
 function printFile() {
   return async (tree, file) => {
     if (file.stem == 'transformer') {
@@ -176,7 +202,7 @@ function printTree() {
   return async (tree, file) => {
     if (file.stem == 'taylor_series') {
       logger.debug(`Printing tree for ${file.path}`)
-      logger.debug(inspect(tree, true, 10));
+      logger.debug(inspect(tree, true, 4));
     }
   };
 }
@@ -231,6 +257,7 @@ export function createRehypePipeline(config) {
       defaultColor: 'light',
     })
     .use(rehypeFigure)
+    .use(rehypeWrapTextElems)
     .use(rehypeRaw)
     .use(rehypeStringify)
 
