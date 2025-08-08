@@ -37,6 +37,7 @@
   "dependencies": {
     "@microflash/rehype-figure": "^2.1.1",
     "@shikijs/rehype": "^1.21.0",
+    "@shikijs/transformers": "^3.2.1",
     "@sveltejs/adapter-static": "^3.0.1",
     "@sveltejs/kit": "^2.5.10",
     "@sveltejs/vite-plugin-svelte": "^3.1.0",

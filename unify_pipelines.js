@@ -20,6 +20,7 @@ import pino from 'pino';
 import { matter } from 'vfile-matter';
 import toString from 'unist-util-to-string-with-nodes';
 import readingTime from 'reading-time';
+import { transformerNotationHighlight } from '@shikijs/transformers';
 
 export const logger = pino({
   transport: {
@@ -235,7 +236,7 @@ export function createRehypePipeline(config) {
   const pipeline = createRemarkPipeline(config)
     .use(remarkRehype, { allowDangerousHtml: true, passThrough: [] })
     .use(rehypeMathjax, {
-      loader: {load: ['[tex]/mathtools']},
+      loader: { load: ['[tex]/mathtools'] },
       tex: {
         packages: { '[+]': ['ams', 'color', 'mathtools'] },
         inlineMath: [              // start/end delimiter pairs for in-line math
@@ -255,6 +256,7 @@ export function createRehypePipeline(config) {
         light: 'github-light'
       },
       defaultColor: 'light',
+      transformers: [transformerNotationHighlight()]
     })
     .use(rehypeFigure)
     .use(rehypeWrapTextElems)
