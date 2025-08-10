@@ -24,7 +24,7 @@
       <ShowTagsGlow />
     </div>
   </div>
-  </div>
+</div>
 {#if $contentSlider.hasContent}
   <ResizeContent />
 {/if}

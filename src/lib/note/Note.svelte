@@ -5,17 +5,17 @@
 </script>
 
 {#key $page.data?.note?.slug}
-  <Adaptive>
+  <!-- <Adaptive> -->
     <div
       class="overflow-auto h-screen w-full bg-back-light dark:bg-back-dark text-front-light dark:text-front-dark"
-      slot="desktop"
     >
+      <!-- slot="desktop" -->
       <slot />
     </div>
-    <MobileNoteContainer
-      slot="mobile"
-    >
-      <slot  />
-    </MobileNoteContainer>
-  </Adaptive>
+    <!-- <MobileNoteContainer -->
+    <!--   slot="mobile" -->
+    <!-- > -->
+    <!--   <slot  /> -->
+    <!-- </MobileNoteContainer> -->
+  <!-- </Adaptive> -->
 {/key}

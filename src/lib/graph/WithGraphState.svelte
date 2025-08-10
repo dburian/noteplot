@@ -1,13 +1,7 @@
 <script>
-  import Toolbar from '../toolbar/Toolbar.svelte';
-  import GraphContainer from './GraphContainer.svelte';
-  import Content from '$lib/note/Note.svelte';
-  import ContentSlider from '$lib/ContentSlider.svelte';
   import { writable } from 'svelte/store';
   import { page } from '$app/stores';
   import { setContext } from 'svelte';
-
-  export let graphProps;
 
   function extractGraphStateFromPageData(pageData) {
     return {
@@ -47,10 +41,4 @@
   setContext('graphState', graphState);
 </script>
 
-<GraphContainer {...graphProps} />
-<ContentSlider>
-  <Toolbar />
-  <Content>
-    <slot />
-  </Content>
-</ContentSlider>
+<slot />
