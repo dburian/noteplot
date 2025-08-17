@@ -3,9 +3,10 @@
   import { getContext} from 'svelte';
 
   const contentSlider = getContext('contentSliderState');
+  const contentState = getContext('contentState')
 </script>
 
-{#if $contentSlider.hasContent && !$contentSlider.fullContent}
+{#if $contentState.hasContent && !$contentState.onlyContent}
   <DesktopToolbarButton
     activeColor="bg-amber-600 dark:bg-amber-500"
     defaultColor="bg-amber-800 dark:bg-amber-700"

@@ -5,35 +5,39 @@
   import Adaptive from '$lib/adaptive/Adaptive.svelte';
   import WithGraphState from '$lib/graph/WithGraphState.svelte';
   import MobileGraphInterface from '$lib/graph/MobileGraphInterface.svelte';
+    import WithContentState from '$lib/content/WithContentState.svelte';
 
   export let data;
 </script>
 
 <WithAdaptiveContext>
   <WithFilterContext>
+    <!-- TODO: search context -->
     <WithGraphState>
-      <Adaptive>
-        <DesktopGraphInterface
-          graphProps={{
-            nodes: data.nodes,
-            links: data.links,
-            viewBox: data.viewBox
-          }}
-          slot="desktop"
-        >
-          <slot />
-        </DesktopGraphInterface>
-        <MobileGraphInterface
-          graphProps={{
-            nodes: data.nodes,
-            links: data.links,
-            viewBox: data.viewBox
-          }}
-          slot="mobile"
-        >
-          <slot />
-        </MobileGraphInterface>
-      </Adaptive>
+      <WithContentState>
+        <Adaptive>
+          <DesktopGraphInterface
+            graphProps={{
+              nodes: data.nodes,
+              links: data.links,
+              viewBox: data.viewBox
+            }}
+            slot="desktop"
+          >
+            <slot />
+          </DesktopGraphInterface>
+          <MobileGraphInterface
+            graphProps={{
+              nodes: data.nodes,
+              links: data.links,
+              viewBox: data.viewBox
+            }}
+            slot="mobile"
+          >
+            <slot />
+          </MobileGraphInterface>
+        </Adaptive>
+      </WithContentState>
     </WithGraphState>
   </WithFilterContext>
 </WithAdaptiveContext>

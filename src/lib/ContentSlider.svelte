@@ -1,5 +1,5 @@
 <script>
-  import { setContext } from 'svelte';
+  import { getContext, setContext } from 'svelte';
   import { afterNavigate, goto } from '$app/navigation';
   import { tweened } from 'svelte/motion';
   import { cubicOut } from 'svelte/easing';
@@ -14,47 +14,55 @@
    * @param {URL} url
    * @param {Number} defaultWidth
    */
-  function extractContentSliderStateFromUrl(url, defaultWidth) {
+  function extractContentSliderStateFromUrl(url, defaultWidth, contentState) {
     const searchParams = typeof window !== 'undefined' ? url.searchParams : new Map();
 
     const state = {
-      fullContent: searchParams.get('fullContent') == '',
-      noContent: searchParams.get('noContent') == '',
       searchString: searchParams.get('q') || null,
-      hasContent: url.pathname !== `${base}/`,
       lastUrl: url,
       width: defaultWidth,
       lastSetWidth: defaultWidth
     };
 
-    if (state.fullContent) state.width = 1.0;
-    else if (state.noContent || !state.hasContent) state.width = 0.0;
+    if (contentState.onlyContent) state.width = 1.0;
+    else if (contentState.noContent || !contentState.hasContent) state.width = 0.0;
     return state;
   }
 
   /**
    * @param {URL} url
    */
-  function createContentSliderState(url) {
+  function createContentSliderState(url, contentStateInitValues, contentState) {
     const { subscribe, update } = writable(
-      extractContentSliderStateFromUrl(url, DEFAULT_CONTENT_WIDTH)
+      extractContentSliderStateFromUrl(url, DEFAULT_CONTENT_WIDTH, contentStateInitValues)
     );
 
     const larger = () => {
       update((values) => {
-        return {
-          ...values,
-          width: values.width > 0 ? 1.0 : values.lastSetWidth
-        };
+        if (values.width > 0) {
+          contentState.onlyContent();
+          return values;
+        } else {
+          // We need to make sure, that `noContent` is not `true`
+          contentState.reset()
+        }
+
+        return { ...values, width: values.lastSetWidth };
       });
     };
 
     const smaller = () => {
       update((values) => {
-        return {
-          ...values,
-          width: values.width < 1.0 ? 0.0 : values.lastSetWidth
-        };
+        if (values.width < 1.0) {
+          contentState.noContent();
+          return values;
+        } else {
+          // We need to make sure, that `onlyContent` is not `true`
+          contentState.reset()
+        }
+
+
+        return { ...values, width: values.lastSetWidth };
       });
     };
 
@@ -70,6 +78,14 @@
     const confirmWidth = () => {
       update((values) => {
         const w = values.width;
+
+        if (w == 1.0) {
+          contentState.onlyContent();
+        } else if (w == 0.0) {
+          contentState.noContent();
+        } else {
+          contentState.reset();
+        }
 
         return {
           ...values,
@@ -88,33 +104,19 @@
     };
   }
 
-  const sliderState = createContentSliderState($page.url);
-
-  afterNavigate((ev) => {
-    if (ev.from?.url !== ev.to?.url && ev.to !== null) {
-      sliderState.update((values) => {
-        const newValues = extractContentSliderStateFromUrl(ev.to.url, values.lastSetWidth);
-
-        return { ...newValues };
-      });
-    }
-  });
+  const contentState = getContext('contentState');
+  const sliderState = createContentSliderState($page.url, $contentState, contentState);
 
   $: {
-    if (typeof window !== 'undefined') {
-      if ($sliderState.width == 1.0 && !$sliderState.fullContent) {
-        goto('?fullContent', { replaceState: true });
-      } else if ($sliderState.width == 0.0 && !$sliderState.noContent) {
-        goto('?noContent', { replaceState: true });
-      } else if (
-        ($sliderState.width > 0.0 && $sliderState.noContent) ||
-        ($sliderState.width < 1.0 && $sliderState.fullContent)
-      ) {
-        const nextUrl = new URL(window.location.href);
-        nextUrl.searchParams.delete('noContent');
-        nextUrl.searchParams.delete('fullContent');
-        goto(nextUrl, { replaceState: true });
-      }
+    if ($contentState.onlyContent && $sliderState.width != 1.0) {
+      sliderState.setWidth(1.0);
+    } else if (
+      ($contentState.noContent || !$contentState.hasContent) &&
+      $sliderState.width != 0.0
+    ) {
+      sliderState.setWidth(0.0);
+    } else if ($contentState.hasContent && !$contentState.noContent && $sliderState.width == 0.0) {
+      sliderState.larger()
     }
   }
 
