@@ -99,11 +99,11 @@ export class GraphPipeline {
     const links = []
     for (const [fromSlug, targetSlugs] of this.links.entries()) {
       const fromIdx = slugToIdx.get(fromSlug)
-      if (!fromIdx) continue
+      if (fromIdx === undefined) continue
 
       for (const toSlug of targetSlugs) {
         const toIdx = slugToIdx.get(toSlug)
-        if (!toIdx) continue
+        if (toIdx === undefined) continue
 
         links.push({
           source: nodes[fromIdx],
