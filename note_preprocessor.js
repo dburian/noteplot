@@ -93,11 +93,28 @@ class NotesUpdater {
   watch() {
     logger.info("Watching for changes...")
 
-    const ignoreFn = (absPath) => {
+    // `ignore` is handed three different shapes of path, so it cannot assume
+    // any one of them:
+    //   - absolute paths, from `watcher` itself and from `tiny-readdir`
+    //   - paths relative to the watched directory, from Node's own
+    //     `FSWatcher._ignoreMatcher` -- this is how every file event arrives
+    //   - ancestors of `noteRoot`, which `watcher` walks up so it can notice
+    //     the note root itself being created or removed
+    //
+    // Resolving against `noteRoot` normalises the first two shapes. Testing
+    // each segment for a leading dot -- rather than testing the joined
+    // relative path -- keeps the third shape from being rejected for its
+    // leading `..`.
+    const ignoreFn = (targetPath) => {
+      const absPath = path.resolve(this.config.noteRoot, targetPath)
       const relPath = path.relative(this.config.noteRoot, absPath)
 
-      if (/^\./.test(relPath)) {
-        logger.debug(`${absPath} starts with a dot. Ignoring...`)
+      const isHidden = relPath
+        .split(path.sep)
+        .some(segment => segment != '.' && segment != '..' && segment.startsWith('.'))
+
+      if (isHidden) {
+        logger.debug(`${targetPath} is hidden. Ignoring...`)
         return true;
       }
 

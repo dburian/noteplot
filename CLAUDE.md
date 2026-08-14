@@ -78,10 +78,10 @@ npm run preview
 `npm run dev` / `npm run build` run **vite alone** and will fail or serve stale data unless the
 preprocessor has already populated `src/lib/notes/`. Prefer the `index.js` entry points.
 
-> **Watching is currently broken.** The initial scan works, so notes appear on startup, but no
-> subsequent edit, addition, or deletion is ever picked up — every filesystem event is dropped by
-> a faulty ignore predicate. **Restart the preprocessor after editing a note.** See `ISSUES.md`
-> A0 for the mechanism and the fix.
+> **The watcher's `ignore` predicate is subtle.** It is handed three different shapes of path —
+> absolute (from `watcher` and `tiny-readdir`), relative to the watched directory (from Node's own
+> `fs.watch`, which is how every file event arrives), and ancestors of the note root. Any change
+> to it must handle all three; getting this wrong silently drops every event. See `ISSUES.md` A0.
 
 ### Sub-path deploys
 

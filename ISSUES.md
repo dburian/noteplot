@@ -10,18 +10,16 @@ Most findings come from reading the code. A0 and B1 were additionally **reproduc
 the preprocessor against a scratch note collection and inspecting its output. Everything else is
 unverified at runtime — treat line-level details as a starting point, not as a guarantee.
 
-Note that A0 blocks every `change`/`unlink` code path, so A2, A3, A4, A7, A9, and A10 cannot be
-observed at all until it is fixed. They were found by reading.
-
-Status legend: unmarked = open.
+Status legend: unmarked = open; **fixed** = fixed and verified, kept for the record because the
+surrounding text explains the mechanism.
 
 ---
 
 ## A. Build pipeline — correctness
 
-### A0. Watch mode never picks up any change — **reproduced**
+### A0. Watch mode never picks up any change — **fixed**
 
-`note_preprocessor.js`, `NotesUpdater.watch()`. The `ignore` predicate assumes it is always
+`note_preprocessor.js`, `NotesUpdater.watch()`. The `ignore` predicate assumed it was always
 handed an absolute path:
 
 ```js
@@ -29,27 +27,29 @@ const relPath = path.relative(this.config.noteRoot, absPath);
 if (/^\./.test(relPath)) return true; // "starts with a dot"
 ```
 
-`watcher` calls `ignore` with a path **relative to the watched root** for file events (`beta.md`)
-and an absolute path for directories (`/tmp/npnotes/.git`). For the relative case,
-`path.relative(noteRoot, 'beta.md')` resolves `beta.md` against the **process CWD**, producing
-`../../ceph/home/.../beta.md` — which starts with `.` and is therefore ignored.
+`ignore` is in fact called with **three** different shapes of path, confirmed by tracing the
+call sites:
 
-**Every add, change, and unlink event inside the note tree is silently dropped.** Live reload
-does not work at all; the only thing that ever populates `src/lib/notes/` is the `updateAll()`
-scan at startup, which bypasses the watcher. This is why it looks like it works — you get your
+- absolute paths, from `watcher` itself (`watchPath`, `watchDirectories`) and from `tiny-readdir`;
+- paths **relative to the watched directory** (`alpha.md`), from **Node's own**
+  `FSWatcher._ignoreMatcher` — `watcher` forwards the predicate to `fs.watch`'s `ignored`
+  option, and this is how every file event arrives;
+- **ancestors** of `noteRoot` (`/tmp/npnotes`, `/tmp`), which `watcher` walks up so it can
+  notice the note root itself being created or removed.
+
+For the relative shape, `path.relative(noteRoot, 'alpha.md')` resolved `alpha.md` against the
+**process CWD**, producing `../alpha.md` — which starts with `.` and was therefore ignored. The
+ancestor shape produced `..` and was rejected for the same reason.
+
+**Every add, change, and unlink event inside the note tree was silently dropped.** Live reload
+did not work at all; the only thing that ever populated `src/lib/notes/` was the `updateAll()`
+scan at startup, which bypasses the watcher. This is why it looked like it worked — you got your
 notes on launch and nothing after.
 
-Reproduced against a scratch note collection; the log fills with
-`DEBUG: beta.md starts with a dot. Ignoring...` for every edit.
+Fixed by resolving the incoming path against `noteRoot` first, then testing each **segment** for
+a leading dot (skipping `.` and `..`) rather than testing the joined relative path.
 
-Fix: resolve the incoming path against `noteRoot` before making it relative
-(`path.resolve(this.config.noteRoot, p)`), and test the **basename** of each segment for a
-leading dot rather than testing the joined relative path — the current regex also rejects any
-`..` traversal, which is what produces this failure.
-
-Ranked first because it is the highest-impact bug in the repo, and because it **masks A2, A3,
-and A7**: those crash and mis-parse paths cannot currently be reached at all. Expect them to
-start firing the moment this is fixed — fix them in the same pass.
+This bug **masked A2, A3, A7 and A10**: those crash paths could not be reached at all.
 
 ### A1. `isDeepEqual`'s array branch always returns `true`
 
@@ -203,6 +203,17 @@ still moves.
 Fix by setting `fx`/`fy` on nodes that already have a stored position and relaxing only the new
 ones. That also makes the incremental path much cheaper, and makes the 69k-tick full run a
 one-time cost rather than a per-startup one.
+
+### A15. The initial scan does not honour the watcher's ignore rules
+
+_Surfaced by fixing A0._
+
+`note_preprocessor.js` — `updateAll()` walks the tree with `readdir` and filters on `.md` alone,
+while `watch()` additionally skips any path with a dot-prefixed segment. So `notes/.hidden.md` is
+indexed by the startup scan but its later edits are ignored, and a `.git` directory containing
+`.md` files is picked up wholesale on launch.
+
+Extract `watch()`'s `ignoreFn` and apply it in `updateAll()` too.
 
 ---
 
