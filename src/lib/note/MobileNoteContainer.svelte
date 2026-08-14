@@ -79,10 +79,12 @@
 
   $: height = totalHeight(opened, heightOffset);
 
-  const giState = getContext('graphInterfaceState');
+  // Not currently mounted anywhere -- see ISSUES.md B7. Kept as the intended home for the
+  // mobile note view. Migrated off the removed `graphInterfaceState` context.
+  const contentState = getContext('contentState');
 </script>
 
-{#if $giState.withContent}
+{#if $contentState.hasContent && !$contentState.noContent}
   <div
     class={`${scrollEnabled ? 'overflow-auto' : 'overflow-hidden'} fixed bottom-0 ${window && height < window.innerHeight ? 'border-t-2' : ''} border-black dark:border-invert-white bg-white dark:bg-neutral-800 z-10 w-full touch-none`}
     style={`margin-top:-${height}px;height: ${height}px`}

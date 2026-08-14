@@ -4,8 +4,6 @@
   import Search from './buttons/Search.svelte';
   import CloseContent from './buttons/CloseContent.svelte';
 
-  const giState = getContext('graphInterfaceState');
-
   let opened = false;
 
   let originalStyle = '';
