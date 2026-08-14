@@ -17,8 +17,9 @@ site that communicate only through JSON files written to `src/lib/notes/`.
 ```
 index.js                     commander CLI: `watch` | `build`
   └─ note_preprocessor.js    NotesUpdater — walks / watches the note directory,
-                             debounces events (2s), then runs each pipeline in
-                             sequence, threading one result object through them
+                             debounces events (2s), collapses them to one per
+                             path, then runs each pipeline in sequence,
+                             threading one result object through them
        ├─ note_pipeline.js          markdown → HTML  →  src/lib/notes/<slug>.json
        ├─ graph_pipeline.js         d3 force layout  →  src/lib/notes/__graph.json
        └─ search_index_pipeline.js  markdown → text  →  src/lib/notes/__search.json

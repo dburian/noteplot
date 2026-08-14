@@ -140,23 +140,23 @@ then reached `_deleteNote(undefined)`.
 Fixed with a shared `isNote()` helper used by both `updateAll()` and the watcher's event
 handler, plus a guard in `NotePipeline.on` that skips deletes for slugs it knows nothing about.
 
-### A8. The static build can race the preprocessor
+### A8. The static build can race the preprocessor — **fixed**
 
-`note_preprocessor.js`, `flush_events` calls `this.on(events)` without awaiting it, and is
-itself not async. So `updateAll()` — and therefore `preprocess()` — resolves before any pipeline
-has finished writing.
+`note_preprocessor.js`, `flush_events` called `this.on(events)` without awaiting it, and was
+itself not async. So `updateAll()` — and therefore `preprocess()` — resolved before any pipeline
+had finished writing, and `index.js`'s `build()` could start vite before the notes existed.
 
-In `index.js`, `build()` awaits `preprocess()` and then runs vite. **The build can start before
-the notes exist**, shipping a site with missing or stale content. Non-deterministic, and worse
-on cold caches.
+Fixed together with A9: `flush_events` is `async` and awaits `on()`, and `updateAll()` awaits
+`flush_events()`.
 
-Make `flush_events` await, and have `updateAll` return the promise.
+### A9. Saves and deletes escape the pipeline's completion — **fixed**
 
-### A9. Saves and deletes escape the pipeline's completion
+`note_pipeline.js`, `on()` called `this._saveNote(...)` and `this._deleteNote(...)` without
+`await`. Both are async, so writes outlived the function and a rejection became an unhandled
+rejection — which on Node ≥ 15 exits the process. Now collected into `writePromises` and awaited.
 
-`note_pipeline.js`, `on()` calls `this._saveNote(...)` and `this._deleteNote(...)` without
-`await`. Both are async. Writes outlive the function, and rejections become unhandled promise
-rejections. Collect them and `await Promise.all(...)`.
+`flush_events` also wraps `on()` in a `try`/`catch` that logs, because the watcher calls it from
+a timer: one bad note should cost that note, not the watcher.
 
 ### A10. `add()` and `change()` race within one debounce window — **fixed**
 

@@ -113,10 +113,18 @@ class NotesUpdater {
     return [...byPath.values()]
   }
 
-  flush_events = () => {
+  flush_events = async () => {
     const events = this._coalesceEvents(this._events_to_process)
     this._events_to_process = []
-    this.on(events)
+
+    // The watcher calls this from a timer, where a rejection would become an
+    // unhandled rejection and take the whole process down. One bad note should
+    // cost us that note, not the watcher.
+    try {
+      await this.on(events)
+    } catch (error) {
+      logger.error(error, "Failed to process a batch of note changes.")
+    }
   }
 
   async updateAll() {
@@ -134,7 +142,7 @@ class NotesUpdater {
       }
     }
 
-    this.flush_events()
+    await this.flush_events()
   }
 
   watch() {

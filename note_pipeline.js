@@ -51,6 +51,8 @@ export class NotePipeline {
       }
     }
 
+    const writePromises = []
+
     // Deduplicated because two paths can still map to one slug -- see A13.
     // Enriching the same note twice would find `linkSlugs` already deleted.
     for (const slug of new Set(toSave)) {
@@ -62,7 +64,7 @@ export class NotePipeline {
       const slugBacklinks = this.backlinks.get(note.slug) || []
       note.backlinks = this._enrichLinks(slugBacklinks, note.slug)
 
-      this._saveNote(this.notes.get(slug))
+      writePromises.push(this._saveNote(this.notes.get(slug)))
     }
 
     for (const notePath of toDelete) {
@@ -73,8 +75,13 @@ export class NotePipeline {
         continue
       }
 
-      this._deleteNote(note)
+      writePromises.push(this._deleteNote(note))
     }
+
+    // Awaited so that the pipeline does not resolve before its writes land, and
+    // so that a failed write rejects `on()` instead of becoming an unhandled
+    // rejection that takes the process down.
+    await Promise.all(writePromises)
 
     return { ...previousResult, notes: this.notes, changes: diffs }
   }
