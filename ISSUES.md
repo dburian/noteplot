@@ -268,6 +268,23 @@ Fixed at the producer: `viewBox` initialises to `DEFAULT_VIEW_BOX` rather than `
 `MIN_VIEW_BOX_SIZE`. The consumer was hardened independently (see C8), so either half alone is
 enough — which matters because `__graph.json` from an older build may still hold the bad values.
 
+### A18. `build` fails outright on a note collection with no notes
+
+Found while verifying A17, and **pre-existing** — reproduced at commit `5148242`, before any of
+these fixes. With zero notes, the routes' `entries()` returns an empty array, and SvelteKit
+refuses the build:
+
+```
+Error: The following routes were marked as prerenderable, but were not prerendered
+because they were not found while crawling your app:
+  - /(graph)/notes/[slug]
+  - /(graph)/[slug]
+```
+
+Not fixed here because it needs a decision rather than a patch: either drop `prerender = true`
+on those routes in favour of `'auto'`, or make the build tolerate an empty collection some other
+way. A one-note collection builds fine.
+
 ---
 
 ## B. Data flow
