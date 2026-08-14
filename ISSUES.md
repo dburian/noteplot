@@ -158,12 +158,19 @@ Make `flush_events` await, and have `updateAll` return the promise.
 `await`. Both are async. Writes outlive the function, and rejections become unhandled promise
 rejections. Collect them and `await Promise.all(...)`.
 
-### A10. `add()` and `change()` race within one debounce window
+### A10. `add()` and `change()` race within one debounce window — **fixed**
 
-`note_pipeline.js`, `on()` starts every `add` and every `change` promise in the same loop, before
-awaiting either. If a file is created _and_ edited inside one 2s debounce window, both events
-queue, and `change()` reads `oldNote['links']` before `on()` has computed it — `links` is only
-derived from `linkSlugs` later, so this is `undefined.map`.
+`note_pipeline.js`, `on()` started every `add` and every `change` promise in the same loop, before
+awaiting either. A file created _and_ edited inside one 2s debounce window queued both events, and
+`change()` read `oldNote['links']` before `on()` had computed it — `links` is only derived from
+`linkSlugs` later, so this was `undefined.map`.
+
+Fixed in `NotesUpdater._coalesceEvents`, which collapses a window's events down to one per path
+(`unlink` beats everything, `add` beats `change`) — the same collapsing `watcher` does inside its
+own 300ms window, which is why the gap has to exceed 300ms to reproduce. `NotePipeline.change`
+additionally falls back to add-like behaviour for a slug it has never seen, tolerates an
+un-enriched `oldNote`, and `on()` deduplicates `toSave` (two paths can still collide on one slug —
+see A13).
 
 ### A11. Three CLI options silently ignore their arguments
 

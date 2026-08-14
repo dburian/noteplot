@@ -79,8 +79,42 @@ class NotesUpdater {
     return res
   }
 
+  /**
+    * Collapses one debounce window's events down to at most one event per path.
+    *
+    * Without this, a file created and then edited inside a single window
+    * produces both an `add` and a `change`, and `NotePipeline` cannot serve the
+    * `change`: the note it diffs against has not been enriched with `links`
+    * yet. `watcher` does the same collapsing inside its own 300ms window; this
+    * extends it to the (much longer) window we debounce over.
+    *
+    * `unlink` wins over everything -- the file is gone. `add` wins over
+    * `change`, because the pipelines re-read the file from disk anyway, so a
+    * single `add` already carries the latest content.
+    *
+    * @param {Array<{eventType: string, targetPath: string}>} events
+    */
+  _coalesceEvents(events) {
+    const byPath = new Map()
+
+    for (const event of events) {
+      const previous = byPath.get(event.targetPath)
+
+      if (!previous || event.eventType == 'unlink') {
+        byPath.set(event.targetPath, event)
+      } else if (previous.eventType == 'unlink') {
+        // Removed and re-created within one window: the note existed before and
+        // exists now, so what happened to it is a change.
+        byPath.set(event.targetPath, { ...event, eventType: 'change' })
+      }
+      // Otherwise `previous` is the `add`/`change` we want to keep.
+    }
+
+    return [...byPath.values()]
+  }
+
   flush_events = () => {
-    const events = this._events_to_process
+    const events = this._coalesceEvents(this._events_to_process)
     this._events_to_process = []
     this.on(events)
   }

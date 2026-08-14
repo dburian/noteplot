@@ -51,7 +51,9 @@ export class NotePipeline {
       }
     }
 
-    for (const slug of toSave) {
+    // Deduplicated because two paths can still map to one slug -- see A13.
+    // Enriching the same note twice would find `linkSlugs` already deleted.
+    for (const slug of new Set(toSave)) {
       const note = this.notes.get(slug)
 
       note.links = this._enrichLinks(note.linkSlugs, note.slug)
@@ -92,8 +94,19 @@ export class NotePipeline {
     const oldNote = this.notes.get(note.slug)
     this.notes.set(note.slug, note)
 
+    if (typeof oldNote === "undefined") {
+      // A change for a note we have never seen -- there is nothing to diff
+      // against, so report everything as changed and let the downstream
+      // pipelines treat it as an add.
+      logger.debug(`Nothing known about ${note.slug}. Treating the change as an add.`)
+      changeSets.set(note.slug, new Set(['links', 'images', 'title', 'content', 'matter']))
+      return { slug: note.slug, changeSets }
+    }
+
     const diffKeys = new Set()
-    const oldSlugs = new Set(oldNote['links'].map(l => l.slug))
+    // A note that has been through `on()` carries enriched `links`; one whose
+    // flush failed part-way still only carries `linkSlugs`.
+    const oldSlugs = new Set(oldNote.links?.map(l => l.slug) ?? oldNote.linkSlugs ?? [])
     const newSlugs = new Set(note['linkSlugs'])
 
     const linksXor = oldSlugs.union(newSlugs).difference(oldSlugs.intersection(newSlugs))
