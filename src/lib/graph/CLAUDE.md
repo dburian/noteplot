@@ -64,8 +64,12 @@ pixels is a bug (there is one such case — ISSUES.md C7).
 
 Owns `nodes` (`Map<slug, Node>`) and `links` (`Map<sourceSlug, Map<targetSlug, Link>>`), plus
 their filtered counterparts. Subscribes to `graphState` and `filterState`, registers `click` and
-`mousemove` on the canvas, and builds the hit-test grid and the glow data. `destruct()` must
-unsubscribe and unregister everything.
+`pointermove` on the canvas, and builds the hit-test grid and the glow data. `destruct()` must
+unsubscribe and unregister everything — including matching the `pointermove` name exactly, or the
+listener leaks.
+
+`onHover` suppresses itself on touch with `event.pointerType !== 'mouse'`, which is why the
+listener is `pointermove` and not `mousemove` (ISSUES.md C9).
 
 The `deferDraw` flag suppresses drawing during construction, because subscribing to a store fires
 its callback synchronously before the object is fully built.
@@ -96,7 +100,7 @@ several can land in the same frame (ISSUES.md C2):
 
 - d3 zoom (`CanvasScreen.onZoom`) — on every wheel/drag event
 - window resize (`CanvasScreen.onResize`)
-- `graphState` changes (`CanvasGraph.onGraphStateChange`) — including **every mousemove over a
+- `graphState` changes (`CanvasGraph.onGraphStateChange`) — including **every pointermove over a
   node**, because `hover()` always allocates a new state object (ISSUES.md C1)
 - `filterState` changes (`CanvasGraph.onFilterChange`) — twice per query, since `FilterWindow`
   calls `setQuery` then `setResults`

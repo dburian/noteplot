@@ -455,11 +455,14 @@ asymmetry is deliberate and documented in `src/lib/graph/CLAUDE.md`: a node has 
 a pointer outside the graph should hit nothing. See A17 for the far more reachable version of
 this bug.
 
-### C9. `onHover` throws on every mousemove in Firefox
+### C9. `onHover` throws on every mousemove in Firefox — **fixed**
 
 `event.sourceCapabilities.firesTouchEvents` — `sourceCapabilities` is a non-standard Chrome
-property and is `undefined` elsewhere, so this throws before doing anything. Use a `pointermove`
-listener and check `event.pointerType !== 'mouse'`.
+property and is `undefined` elsewhere, so this threw before doing anything and hover highlighting
+simply did not exist outside Chrome.
+
+Now a `pointermove` listener (registered _and_ removed under that name) guarded on the standard
+`event.pointerType !== 'mouse'`, which keeps the original intent of suppressing hover on touch.
 
 ### C10. Cursor changes wipe every other inline body style
 

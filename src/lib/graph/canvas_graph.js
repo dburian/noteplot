@@ -416,7 +416,9 @@ export class CanvasGraph {
     this.fillGrid()
 
     canvas.addEventListener("click", this.onClick)
-    canvas.addEventListener("mousemove", this.onHover)
+    // `pointermove`, not `mousemove`, so `onHover` can tell a real mouse from a
+    // synthesised touch using the standard `pointerType`.
+    canvas.addEventListener("pointermove", this.onHover)
     this.glow = this.generateGlow()
 
     this.deferDraw = true
@@ -439,7 +441,7 @@ export class CanvasGraph {
 
   destruct() {
     this.screen.canvas.removeEventListener("click", this.onClick)
-    this.screen.canvas.removeEventListener("mousemove", this.onHover)
+    this.screen.canvas.removeEventListener("pointermove", this.onHover)
     this.screen.destruct()
     this.graphStateUnsubscribe()
     this.filterUnsubscribe()
@@ -617,10 +619,12 @@ export class CanvasGraph {
   }
 
   /**
-    * @param {AbortSignalEventMap} event */
+    * @param {PointerEvent} event */
   onHover = (event) => {
-    // Disable hover events on mobile
-    if (event.sourceCapabilities.firesTouchEvents) return
+    // Disable hover events on mobile. `pointerType` is standard; the
+    // `sourceCapabilities.firesTouchEvents` this used to read is Chrome-only,
+    // so it threw on every mousemove in Firefox and Safari.
+    if (event.pointerType !== 'mouse') return
 
     const node = this.getNode({ x: event.clientX, y: event.clientY })
 
