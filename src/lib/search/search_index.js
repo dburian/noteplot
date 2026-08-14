@@ -22,7 +22,7 @@ export class MiniSearchIndex {
       fields: ['content', 'title', 'tag'],
       extractField: (document, fieldName) => {
         if (fieldName === 'tag') {
-          return document.matter.tags ? document.matter.tags.join(' ') : ''
+          return document.matter?.tags ? document.matter.tags.join(' ') : ''
         }
 
         return document[fieldName]

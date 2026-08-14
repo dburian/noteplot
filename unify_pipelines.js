@@ -60,8 +60,19 @@ function addFileData(data) {
 
 function addFrontmatter() {
   return (tree, file) => {
-    //Assigns parsed matter to file.data.matter
-    matter(file)
+    // `matter` throws on an empty frontmatter block (`---\n---` hands the YAML
+    // parser `undefined`) and on malformed YAML. Unguarded, one bad note aborts
+    // the whole batch and nothing at all gets written.
+    try {
+      //Assigns parsed matter to file.data.matter
+      matter(file)
+    } catch (error) {
+      logger.warn(`Could not parse the frontmatter of ${file.path}: ${error.message}`)
+    }
+
+    // `matter` is `null` whenever the block parses to nothing -- a comment-only
+    // block, say -- and every consumer indexes into it.
+    file.data.matter = file.data.matter || {}
   }
 }
 

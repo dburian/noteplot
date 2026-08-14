@@ -7,7 +7,11 @@
   export let displayNoteRoot = dev;
   export let displaySlug = dev;
 
-  const { tags, ...otherMatter } = matter;
+  // Reactive and defaulted: `matter` is `{}` for a note with no frontmatter,
+  // and was `null` in anything built before the frontmatter fix.
+  let tags, otherMatter;
+  $: ({ tags, ...otherMatter } = matter ?? {});
+
   const readDate = new Date(readingTime.time)
   const readMins = readDate.getMinutes()
   const readSecs = readDate.getSeconds()

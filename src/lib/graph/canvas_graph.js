@@ -554,7 +554,7 @@ export class CanvasGraph {
     const pixels = new Map()
 
     for (const node of this.nodes.values()) {
-      const nodeTypes = node.matter.tags || []
+      const nodeTypes = node.matter?.tags || []
       // No glow for nodes without type
       if (nodeTypes.length == 0) {
         continue;

@@ -226,6 +226,27 @@ indexed by the startup scan but its later edits are ignored, and a `.git` direct
 
 Extract `watch()`'s `ignoreFn` and apply it in `updateAll()` too.
 
+### A16. One bad frontmatter block took down the whole build — **fixed**
+
+Not in the original analysis; found while checking B11. `unify_pipelines.js`, `addFrontmatter`
+called `matter(file)` bare, and `vfile-matter` is unforgiving in two different ways:
+
+- **It throws.** For an empty block (`---\n---`) it hands the YAML parser `undefined`
+  (`TypeError: Cannot read properties of undefined (reading 'length')`); for malformed YAML it
+  propagates the parse error. Either one rejected the whole pipeline run. Reproduced against a
+  four-note collection where one note had `---\n---`: **nothing at all was written** — not the
+  bad note, not the three good ones, not `__graph.json`, not `__search.json`. Since `build()`
+  then runs vite regardless, that ships an empty site.
+- **It returns `null`.** For a block that parses to nothing (a comment-only
+  `---\n# note\n---`), `file.data.matter` is `null`, not `{}` — and that `null` is serialised
+  into the note JSON and into `__graph.json`. Three consumers indexed straight into it:
+  `NoteMetaContent`'s destructure, `generateGlow`'s `node.matter.tags`, and `search_index.js`'s
+  `document.matter.tags`.
+
+Fixed at the producer — `addFrontmatter` catches, warns with the file path, and normalises
+`matter` to `{}` — plus optional chaining in all three consumers, since JSON from an earlier
+build can still hold `null`.
+
 ---
 
 ## B. Data flow
@@ -320,16 +341,16 @@ flags) and byte-identical `entries()`. The two `+page.svelte` files are identica
 shared helper — the `entries()` duplication in particular means the A12 path fix has to be made
 twice.
 
-### B11. `NoteMetaContent` is non-reactive and timezone-dependent
+### B11. `NoteMetaContent` is non-reactive and timezone-dependent — **half fixed**
 
 `note/NoteMetaContent.svelte`:
 
-- `const { tags, ...otherMatter } = matter` runs once at init, so it will not update if `matter`
-  changes, and it **throws if `matter` is undefined** (a note with no frontmatter). Make it `$:`
-  and default it.
+- ~~`const { tags, ...otherMatter } = matter` runs once at init, so it will not update if
+  `matter` changes, and it **throws** if `matter` is not an object.~~ **Fixed:** the destructure
+  is now reactive and defaults to `{}`. See A16 for where the bad `matter` came from.
 - `new Date(readingTime.time).getMinutes()` reads a duration in milliseconds as a wall-clock
   time. In any timezone with a non-whole-hour offset (`+05:30`, `+09:30`, …) the minutes are
-  wrong. Compute from the millisecond value directly.
+  wrong. Compute from the millisecond value directly. **Still open.**
 
 ### B12. Relative note links
 
