@@ -247,6 +247,27 @@ Fixed at the producer — `addFrontmatter` catches, warns with the file path, an
 `matter` to `{}` — plus optional chaining in all three consumers, since JSON from an earlier
 build can still hold `null`.
 
+### A17. A small collection produced a viewBox the frontend cannot use — **fixed**
+
+Not in the original analysis. `graph_pipeline.js` emitted a degenerate `viewBox` in two cases,
+each of which stopped the graph mounting at all:
+
+- **No notes.** `nodesToUpdate.size > 0` is false, so `updatePositions` never ran and `viewBox`
+  stayed at its initial `null`. `CanvasScreen`'s constructor then did `viewBox[0]` on `null` —
+  `TypeError: Cannot read properties of null (reading '0')`.
+- **One note**, or any collection whose nodes are collinear. `shrinkViewBox` computed
+  `width = maxX - minX = 0`, giving `viewBox: [0, 0, 0, 0]`. `constructGrid` then has
+  `gridSize = 0`, so `numRows` is `NaN` and `Array(NaN)` throws `RangeError: Invalid array
+length`.
+
+Both reproduced by building a zero-note and a one-note collection and feeding the resulting
+`__graph.json` to the grid maths.
+
+Fixed at the producer: `viewBox` initialises to `DEFAULT_VIEW_BOX` rather than `null`,
+`shrinkViewBox` returns that default for an empty node list, and `width`/`height` are floored at
+`MIN_VIEW_BOX_SIZE`. The consumer was hardened independently (see C8), so either half alone is
+enough — which matters because `__graph.json` from an older build may still hold the bad values.
+
 ---
 
 ## B. Data flow
@@ -424,11 +445,15 @@ occupancy (a handful of nodes each) instead of a fixed division.
 `getNode` uses `eps = 10 * this.screen.dpr`, but it compares against `toScreenPos` output, which
 is in **CSS pixels** (the context is already `scale(dpr)`-ed). Drop the `dpr` factor.
 
-### C8. `fillGrid` has no bounds check
+### C8. `fillGrid` has no bounds check — **fixed**
 
-`getNode` carefully checks its row/col against `numRows`/`numCols`; `fillGrid` does not. A node
-landing on the padded viewBox boundary can index past the array and throw during construction.
-Clamp in `toGridIdxs`, or check in both callers.
+`getNode` carefully checked its row/col against `numRows`/`numCols`; `fillGrid` did not. A node
+landing on the padded viewBox boundary could index past the array and throw during construction.
+
+`fillGrid` now clamps through a `clampGridIdx` helper, while `getNode` keeps rejecting — the
+asymmetry is deliberate and documented in `src/lib/graph/CLAUDE.md`: a node has to go somewhere,
+a pointer outside the graph should hit nothing. See A17 for the far more reachable version of
+this bug.
 
 ### C9. `onHover` throws on every mousemove in Firefox
 

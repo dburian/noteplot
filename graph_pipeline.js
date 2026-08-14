@@ -3,6 +3,13 @@ import { toSlug } from "./unify_pipelines.js"
 import path from 'path';
 import * as d3 from "d3";
 
+// A graph with no nodes, or with every node at the same point, has no extent.
+// The frontend divides by the viewBox's dimensions and sizes an array from them,
+// so it must never be handed a zero -- or a `null`, which is what an empty
+// collection used to produce because `updatePositions` never ran.
+const MIN_VIEW_BOX_SIZE = 1
+const DEFAULT_VIEW_BOX = [0, 0, MIN_VIEW_BOX_SIZE, MIN_VIEW_BOX_SIZE]
+
 export class GraphPipeline {
   constructor(config) {
     this.config = config
@@ -10,7 +17,7 @@ export class GraphPipeline {
     this.nodes = new Map()
     this.links = new Map()
     this.positions = new Map()
-    this.viewBox = null
+    this.viewBox = [...DEFAULT_VIEW_BOX]
   }
 
   async on(events, previousResults) {
@@ -171,6 +178,10 @@ function computeForceSimulation(nodes, links, config) {
 }
 
 function shrinkViewBox(nodes, links) {
+  if (nodes.length == 0) {
+    return { nodes, links, viewBox: [...DEFAULT_VIEW_BOX] };
+  }
+
   let minY = Number.POSITIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
   let minX = Number.POSITIVE_INFINITY;
@@ -192,8 +203,9 @@ function shrinkViewBox(nodes, links) {
   }));
 
 
-  const width = maxX - minX;
-  const height = maxY - minY;
+  // Floored: a single node, or a row of collinear ones, collapses an axis to 0.
+  const width = Math.max(maxX - minX, MIN_VIEW_BOX_SIZE);
+  const height = Math.max(maxY - minY, MIN_VIEW_BOX_SIZE);
   const paddingFr = 0.1
   const newViewBox = [
     -width * paddingFr / 2, // min x

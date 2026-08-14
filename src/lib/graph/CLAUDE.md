@@ -36,6 +36,10 @@ straight from the d3 force simulation, translated so the bounding box starts at 
 10% padding added around it. `__graph.json`'s `viewBox` is `[minX, minY, width, height]`, mirroring
 the SVG attribute it is named after. Nothing about this space depends on the browser.
 
+`width` and `height` are always positive: `graph_pipeline.js` floors both at `MIN_VIEW_BOX_SIZE`
+and emits a default box for an empty collection. The frontend divides by them and sizes the
+hit-test grid from them, so a zero would be fatal — see `ISSUES.md` A17.
+
 **2. paintBox space** — CSS pixels. The viewBox is letterboxed into the window while preserving
 aspect ratio, so `paintBox` is `{minX, minY, width, height}` describing where the graph actually
 sits inside the canvas. `updatePaintBox()` recomputes it on resize: whichever axis is relatively
@@ -105,7 +109,11 @@ cell for a node within `eps`. The grid is uniform, built once in `constructGrid(
 `cellSize = min(viewBox.width, viewBox.height) / 5` — i.e. roughly **5×5 cells for the entire
 graph**, regardless of node count (ISSUES.md C6).
 
-`getNode` bounds-checks its indices; `fillGrid` does not (ISSUES.md C8).
+The two callers of `toGridIdxs` treat out-of-grid indices differently, deliberately: `getNode`
+**rejects** them, because a pointer outside the graph should hit nothing, while `fillGrid`
+**clamps** them via `clampGridIdx`, because a node landing on the padded viewBox boundary still
+has to go in a cell. `constructGrid` also floors `cellSize` and the row/column counts, so a
+zero-sized viewBox (one note, or every node at the same point) cannot produce `Array(NaN)`.
 
 Both `onClick` and `onHover` additionally check `filteredNodes.has(slug)`, so filtered-out nodes
 are neither clickable nor hoverable even though they may still be drawn.

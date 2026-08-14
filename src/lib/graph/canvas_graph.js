@@ -261,12 +261,10 @@ class GraphRenderer {
 
 class CanvasScreen {
   constructor(viewBox, canvas, redrawFn) {
-    this.viewBox = {
-      minX: viewBox[0],
-      minY: viewBox[1],
-      width: viewBox[2],
-      height: viewBox[3],
-    }
+    // `graph_pipeline.js` always writes four finite numbers now, but a
+    // `__graph.json` left over from an older build can still hold `null`.
+    const [minX, minY, width, height] = viewBox || [0, 0, 1, 1]
+    this.viewBox = { minX, minY, width, height }
     this.transform = {
       x: 0,
       y: 0,
@@ -506,9 +504,13 @@ export class CanvasGraph {
     */
   constructGrid() {
     const viewBox = this.screen.viewBox
-    const gridSize = Math.min(viewBox.width / 5, viewBox.height / 5)
-    const numRows = Math.ceil(viewBox.height / gridSize)
-    const numCols = Math.ceil(viewBox.width / gridSize)
+    // `|| 1` catches a zero-sized viewBox -- a collection of one note, or one
+    // where every node sits at the same point. Without it `gridSize` is 0, the
+    // row and column counts are NaN, and `Array(NaN)` throws `RangeError:
+    // Invalid array length`, so the graph never mounts at all.
+    const gridSize = Math.min(viewBox.width / 5, viewBox.height / 5) || 1
+    const numRows = Math.max(Math.ceil(viewBox.height / gridSize), 1)
+    const numCols = Math.max(Math.ceil(viewBox.width / gridSize), 1)
 
     /** @type Array<Array<Array<Node>>> */
     const rows = []
@@ -529,10 +531,28 @@ export class CanvasGraph {
     }
   }
 
+  /**
+    * Clamps a grid index into the grid, mapping a non-finite index to 0.
+    *
+    * @param {Number} idx
+    * @param {Number} max
+    */
+  clampGridIdx(idx, max) {
+    if (!Number.isFinite(idx)) return 0
+
+    return Math.min(Math.max(idx, 0), max)
+  }
+
   fillGrid() {
     for (const node of this.nodes.values()) {
       const { col, row } = this.toGridIdxs(node)
-      this.grid.rows[row][col].push(node)
+      // Clamped, unlike in `getNode`: a node sitting exactly on the padded
+      // viewBox boundary rounds to one cell past the end, and it has to be put
+      // somewhere. `getNode` rejects out-of-grid pointer positions instead.
+      const gridRow = this.clampGridIdx(row, this.grid.numRows - 1)
+      const gridCol = this.clampGridIdx(col, this.grid.numCols - 1)
+
+      this.grid.rows[gridRow][gridCol].push(node)
     }
   }
 
