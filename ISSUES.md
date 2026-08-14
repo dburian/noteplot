@@ -73,17 +73,15 @@ Fix: `Array.from({length: a.length}).every(...)`, or just a plain `for` loop.
 Two bugs in one line — `this.backlinks` is a `Map` and was being indexed with `[]`, and `Set` has
 no `.remove()` (it is `.delete()`). Now `this.backlinks.get(link.slug)?.delete(note.slug)`.
 
-### A3. …and then `GraphPipeline` crashes on the same event
+### A3. …and then `GraphPipeline` crashes on the same event — **fixed**
 
-`graph_pipeline.js`: the `unlink` branch calls `this.removeNote(notes.get(slug))`, but
-`NotePipeline._deleteNote` has already removed the note from `notes`, so this is
-`undefined.slug`.
+`graph_pipeline.js`: the `unlink` branch called `this.removeNote(notes.get(slug))`, but
+`NotePipeline._deleteNote` has already removed the note from `notes`, so this was
+`undefined.slug`. `removeNote` now takes the slug directly, which is all it ever needed.
 
-`GraphPipeline.removeNote` only needs the slug — pass it directly instead of the note object.
-
-Note this is **masked by A9**: because `_deleteNote` is not awaited, its closing
-`this.notes.delete(...)` runs after `GraphPipeline.on` has already read the map, so the lookup
-still succeeds. Fixing A9 makes this fire; fix it in the same pass.
+This was **masked by A9**: while `_deleteNote` was not awaited, its closing
+`this.notes.delete(...)` landed after `GraphPipeline.on` had read the map, so the lookup still
+succeeded. It only started firing once A9 was fixed.
 
 ### A4. The whole note's HTML is written into `__graph.json`
 

@@ -36,7 +36,9 @@ export class GraphPipeline {
           }
         }
       } else if (eventType == 'unlink') {
-        this.removeNote(notes.get(slug))
+        // The slug, not the note: `NotePipeline._deleteNote` has already dropped
+        // it from `notes` by the time we get here.
+        this.removeNote(slug)
       }
     }
 
@@ -72,9 +74,9 @@ export class GraphPipeline {
     this.links.set(note.slug, note.links.map(({ slug }) => slug))
   }
 
-  removeNote(note) {
-    this.nodes.delete(note.slug)
-    this.links.delete(note.slug)
+  removeNote(slug) {
+    this.nodes.delete(slug)
+    this.links.delete(slug)
   }
 
   genD3Format(slugsToUpdate) {
