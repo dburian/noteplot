@@ -157,7 +157,7 @@ export class NotePipeline {
   async _deleteNote(note) {
     // Remove backlinks created by `note`
     for (const link of note.links) {
-      this.backlinks[link.slug].remove(note.slug)
+      this.backlinks.get(link.slug)?.delete(note.slug)
     }
 
     const deletePromises = []

@@ -66,13 +66,12 @@ Arrays are therefore never actually compared. Consequences:
 
 Fix: `Array.from({length: a.length}).every(...)`, or just a plain `for` loop.
 
-### A2. Deleting a note crashes the watcher
+### A2. Deleting a note crashes the watcher — **fixed**
 
 `note_pipeline.js`, `_deleteNote`: `this.backlinks[link.slug].remove(note.slug)`.
 
-Two bugs in one line — `this.backlinks` is a `Map` and is being indexed with `[]`, and `Set` has
-no `.remove()` (it is `.delete()`). Should be
-`this.backlinks.get(link.slug)?.delete(note.slug)`.
+Two bugs in one line — `this.backlinks` is a `Map` and was being indexed with `[]`, and `Set` has
+no `.remove()` (it is `.delete()`). Now `this.backlinks.get(link.slug)?.delete(note.slug)`.
 
 ### A3. …and then `GraphPipeline` crashes on the same event
 
@@ -81,6 +80,10 @@ no `.remove()` (it is `.delete()`). Should be
 `undefined.slug`.
 
 `GraphPipeline.removeNote` only needs the slug — pass it directly instead of the note object.
+
+Note this is **masked by A9**: because `_deleteNote` is not awaited, its closing
+`this.notes.delete(...)` runs after `GraphPipeline.on` has already read the map, so the lookup
+still succeeds. Fixing A9 makes this fire; fix it in the same pass.
 
 ### A4. The whole note's HTML is written into `__graph.json`
 
