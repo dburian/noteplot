@@ -129,13 +129,16 @@ The `changeSets` / `diffs` machinery in `change()` exists _for this purpose_. It
 threaded through to `GraphPipeline`, and then dropped on the floor. Finishing it means: prune
 backlinks on change, and extend the save loop to cover `diffs.keys()`.
 
-### A7. The watcher feeds non-Markdown files to the Markdown parser
+### A7. The watcher feeds non-Markdown files to the Markdown parser — **fixed**
 
-`note_preprocessor.js` — `updateAll()` filters on `path.extname(entry.name) == '.md'`, but
-`watch()` does not filter at all. Saving an image into the note tree therefore produces an `add`
-event that `NotePipeline` hands straight to the rehype pipeline.
+`note_preprocessor.js` — `updateAll()` filtered on `path.extname(entry.name) == '.md'`, but
+`watch()` did not filter at all. Saving an image into the note tree produced an `add` event that
+`NotePipeline` handed straight to the rehype pipeline. In practice a PNG's bytes contain `$`, so
+MathJax tried to parse them as TeX and threw from inside `mathjax-full`; the matching `unlink`
+then reached `_deleteNote(undefined)`.
 
-Apply the same `.md` filter in the watcher's event handler.
+Fixed with a shared `isNote()` helper used by both `updateAll()` and the watcher's event
+handler, plus a guard in `NotePipeline.on` that skips deletes for slugs it knows nothing about.
 
 ### A8. The static build can race the preprocessor
 

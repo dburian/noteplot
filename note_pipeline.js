@@ -65,7 +65,13 @@ export class NotePipeline {
 
     for (const notePath of toDelete) {
       const slug = toSlug(notePath, this.config.noteRoot)
-      this._deleteNote(this.notes.get(slug))
+      const note = this.notes.get(slug)
+      if (typeof note === "undefined") {
+        logger.debug(`Nothing known about ${slug}. Nothing to delete.`)
+        continue
+      }
+
+      this._deleteNote(note)
     }
 
     return { ...previousResult, notes: this.notes, changes: diffs }

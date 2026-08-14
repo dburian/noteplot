@@ -9,6 +9,19 @@ import { NotePipeline } from './note_pipeline.js';
 import { GraphPipeline } from './graph_pipeline.js';
 import { SearchIndexPipeline } from './search_index_pipeline.js';
 
+const NOTE_EXTENSION = '.md'
+
+/**
+  * Only Markdown files are notes. Everything else in the note tree -- images,
+  * editor swap files, whatever else the user keeps next to their notes -- must
+  * never reach the Markdown pipelines.
+  *
+  * @param {string} targetPath
+  */
+function isNote(targetPath) {
+  return path.extname(targetPath) == NOTE_EXTENSION
+}
+
 export function saveJSON(path, object) {
   logger.info(`Writing out ${path}.`)
   return writeFile(
@@ -79,7 +92,7 @@ class NotesUpdater {
     })
 
     for (const entry of dirEntries) {
-      if (entry.isFile() && path.extname(entry.name) == '.md') {
+      if (entry.isFile() && isNote(entry.name)) {
         this._events_to_process.push({
           eventType: 'add',
           targetPath: path.join(entry.path || entry.parentPath, entry.name)
@@ -131,6 +144,10 @@ class NotesUpdater {
 
     watcher.on("all", (eventType, targetPath) => {
       if (!actionableEvents.has(eventType)) return
+      if (!isNote(targetPath)) {
+        logger.debug(`${targetPath} is not a note. Ignoring...`)
+        return
+      }
       logger.debug(`Event ${eventType} fired on ${targetPath}`)
 
       this._events_to_process.push({ eventType, targetPath })
