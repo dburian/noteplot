@@ -83,9 +83,12 @@ The two `entries()` implementations are duplicated verbatim (ISSUES.md B10).
 
 ## Slugs and route collisions
 
-Slugs come from `toSlug` in `unify_pipelines.js` — see the root `CLAUDE.md`. Because notes are
-served from the root path, **a note whose slug is `search` or `filter` is shadowed by those
-routes** and becomes unreachable. There is no guard against this.
+Slugs come from `toSlug` in `unify_pipelines.js` — see the root `CLAUDE.md` for the encoding. They
+are **escaped and therefore opaque**: `-` separates path components and `~` escapes a literal `-`,
+so never split a slug on `-` to recover a path. Pass `params.slug` through as the key it is.
+
+Because notes are served from the root path, **a note whose slug is `search` or `filter` is
+shadowed by those routes** and becomes unreachable. There is no guard against this.
 
 ## Link conventions
 

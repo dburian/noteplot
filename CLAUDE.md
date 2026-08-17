@@ -153,10 +153,24 @@ This is easy to break by accident. If canvas colours go wrong, check this plugin
 
 ## Slugs
 
-`toSlug(fullPath, noteRoot)` in `unify_pipelines.js` turns a file path into a URL slug: strip the
-extension, replace `-` with `_`, then replace path separators with `-`. So
-`notes/math/taylor_series.md` → `math-taylor_series`. Slugs are the primary key everywhere — in
-filenames, graph nodes, links, backlinks, search records, and URLs.
+`toSlug(fullPath, noteRoot)` in `unify_pipelines.js` turns a file path into a URL slug. Slugs are
+the primary key everywhere — in filenames, graph nodes, links, backlinks, search records, and URLs
+— so the encoding has to be **injective**: strip the extension, then replace `~` with `~~`, then
+`-` with `~-`, then `path.sep` with `-`. So `-` is the separator stand-in, `~` escapes it, and `_`
+is left untouched.
+
+| path                    | slug                 |
+| ----------------------- | -------------------- |
+| `math/taylor_series.md` | `math-taylor_series` |
+| `dir/note.md`           | `dir-note`           |
+| `dir-note.md`           | `dir~-note`          |
+| `a_b.md`                | `a_b`                |
+| `a-b.md`                | `a~-b`               |
+
+Because `~` always starts a two-character token and a lone `-` is always a separator, no two paths
+can produce the same slug. **Slugs are opaque** — nothing in the codebase reverse-parses one, and
+nothing should. Doubling the delimiter (`-` → `--`) looks equivalent but is ambiguous at component
+boundaries; see `ISSUES.md` A13.
 
 ## Known issues
 

@@ -44,9 +44,12 @@ export function toSlug(fullFilePath, sourceRoot, { withExtension } = { withExten
     slugPath = slugPath.slice(0, -path.extname(slugPath).length);
   }
 
-  // To make the slugs of sourceRoot/dir/note.md and sourceRoot/dir-note.md
-  // distinct.
-  slugPath = slugPath.replaceAll('-', '_')
+  // `-` stands in for the path separator, so a literal `-` -- and the `~` that
+  // escapes it -- has to be escaped, otherwise sourceRoot/dir/note.md and
+  // sourceRoot/dir-note.md collide. `~` first, so the `~` the second pass
+  // introduces is left alone. Injective: `~` always starts a two-character
+  // token and a lone `-` is always a separator.
+  slugPath = slugPath.replaceAll('~', '~~').replaceAll('-', '~-')
 
   return slugPath.replaceAll(path.sep, '-')
 }

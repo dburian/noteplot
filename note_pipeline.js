@@ -53,8 +53,9 @@ export class NotePipeline {
 
     const writePromises = []
 
-    // Deduplicated because two paths can still map to one slug -- see A13.
-    // Enriching the same note twice would find `linkSlugs` already deleted.
+    // `toSlug` is injective and `_coalesceEvents` emits one event per path, so
+    // a slug should not appear twice. Deduplicated anyway as a guard: enriching
+    // the same note twice would find `linkSlugs` already deleted.
     for (const slug of new Set(toSave)) {
       const note = this.notes.get(slug)
 

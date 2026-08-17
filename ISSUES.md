@@ -167,8 +167,8 @@ Fixed in `NotesUpdater._coalesceEvents`, which collapses a window's events down 
 (`unlink` beats everything, `add` beats `change`) — the same collapsing `watcher` does inside its
 own 300ms window, which is why the gap has to exceed 300ms to reproduce. `NotePipeline.change`
 additionally falls back to add-like behaviour for a slug it has never seen, tolerates an
-un-enriched `oldNote`, and `on()` deduplicates `toSave` (two paths can still collide on one slug —
-see A13).
+un-enriched `oldNote`, and `on()` deduplicates `toSave` — which, since A13 made `toSlug` injective,
+is a guard rather than a workaround.
 
 ### A11. Three CLI options silently ignore their arguments
 
@@ -195,12 +195,29 @@ routes' `entries()`, which does `readdir('src/lib/notes')`.
 
 Resolve both against `__dirname`. Blocks distributing this as an npm package at all.
 
-### A13. `toSlug` collides on `-` versus `_`
+### A13. `toSlug` collided on `-` versus `_` — **fixed**
 
-`unify_pipelines.js`: the slug function replaces `-` with `_` and then path separators with `-`.
-The comment says this keeps `dir/note.md` and `dir-note.md` distinct — and it does. But it
-introduces a different collision: **`a-b.md` and `a_b.md` both become `a_b`**. Two notes, one
-JSON file, one URL; the second silently overwrites the first.
+`unify_pipelines.js`: the slug function replaced `-` with `_` and then path separators with `-`.
+The comment said this keeps `dir/note.md` and `dir-note.md` distinct — and it did. But it
+introduced a different collision: **`a-b.md` and `a_b.md` both became `a_b`**. Two notes, one
+JSON file, one URL; the second silently overwrote the first.
+
+Fixed by escaping the delimiter instead of destroying it — `~` → `~~`, then `-` → `~-`, then
+`path.sep` → `-`, with `_` left untouched so the common case (`math/taylor_series.md` →
+`math-taylor_series`) is unchanged. `~` is escaped first so the `~` the second pass introduces is
+not escaped again.
+
+The obvious cheaper scheme — double the delimiter, `-` → `--` — was **rejected because it is not
+injective**. Doubling is ambiguous at component boundaries: `d-/x.md` gives `d--` + `-` + `x` and
+`d/-x.md` gives `d` + `-` + `--x`, both `d---x`. With an escape character there is no ambiguity:
+`~` always starts a two-character token and a lone `-` is always a separator, so no two source
+paths can share a slug.
+
+Slugs are therefore **opaque** — never split one on `-` to recover a path.
+
+Existing URLs for any note with a `-` or `~` in its name changed. `src/lib/notes/` and
+`static/note_imgs/` had to be wiped once: nothing prunes a file whose slug no longer exists, and a
+stale `<old-slug>.json` is still picked up by `entries()` and prerendered.
 
 ### A14. Node positions drift on every edit
 
