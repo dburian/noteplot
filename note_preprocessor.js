@@ -127,6 +127,46 @@ class NotesUpdater {
     }
   }
 
+  /**
+    * Whether a path inside the note tree is one we refuse to look at.
+    *
+    * Used both as `watcher`'s `ignore` predicate and by `updateAll()`, so that
+    * the startup scan and the watcher agree on what a note is. They did not:
+    * the scan filtered on the extension alone, so `.hidden.md` was indexed once
+    * and never updated again, and a `.git` directory full of `.md` files was
+    * picked up wholesale.
+    *
+    * As `watcher`'s predicate this is handed three different shapes of path, so
+    * it cannot assume any one of them:
+    *   - absolute paths, from `watcher` itself and from `tiny-readdir`
+    *   - paths relative to the watched directory, from Node's own
+    *     `FSWatcher._ignoreMatcher` -- this is how every file event arrives
+    *   - ancestors of `noteRoot`, which `watcher` walks up so it can notice
+    *     the note root itself being created or removed
+    *
+    * Resolving against `noteRoot` normalises the first two shapes. Testing
+    * each segment for a leading dot -- rather than testing the joined
+    * relative path -- keeps the third shape from being rejected for its
+    * leading `..`.
+    *
+    * @param {string} targetPath
+    */
+  _isIgnored(targetPath) {
+    const absPath = path.resolve(this.config.noteRoot, targetPath)
+    const relPath = path.relative(this.config.noteRoot, absPath)
+
+    const isHidden = relPath
+      .split(path.sep)
+      .some(segment => segment != '.' && segment != '..' && segment.startsWith('.'))
+
+    if (isHidden) {
+      logger.debug(`${targetPath} is hidden. Ignoring...`)
+      return true;
+    }
+
+    return false;
+  }
+
   async updateAll() {
     const dirEntries = await readdir(this.config.noteRoot, {
       withFileTypes: true,
@@ -134,12 +174,16 @@ class NotesUpdater {
     })
 
     for (const entry of dirEntries) {
-      if (entry.isFile() && isNote(entry.name)) {
-        this._events_to_process.push({
-          eventType: 'add',
-          targetPath: path.join(entry.path || entry.parentPath, entry.name)
-        })
-      }
+      if (!entry.isFile() || !isNote(entry.name)) continue
+
+      // The joined path, not `entry.name`: every segment has to be tested, or a
+      // note inside a hidden directory slips through. `readdir` still descends
+      // into `.git` -- `recursive: true` gives no way to prune a directory --
+      // so this filters the walk rather than avoiding it.
+      const targetPath = path.join(entry.path || entry.parentPath, entry.name)
+      if (this._isIgnored(targetPath)) continue
+
+      this._events_to_process.push({ eventType: 'add', targetPath })
     }
 
     await this.flush_events()
@@ -148,35 +192,11 @@ class NotesUpdater {
   watch() {
     logger.info("Watching for changes...")
 
-    // `ignore` is handed three different shapes of path, so it cannot assume
-    // any one of them:
-    //   - absolute paths, from `watcher` itself and from `tiny-readdir`
-    //   - paths relative to the watched directory, from Node's own
-    //     `FSWatcher._ignoreMatcher` -- this is how every file event arrives
-    //   - ancestors of `noteRoot`, which `watcher` walks up so it can notice
-    //     the note root itself being created or removed
-    //
-    // Resolving against `noteRoot` normalises the first two shapes. Testing
-    // each segment for a leading dot -- rather than testing the joined
-    // relative path -- keeps the third shape from being rejected for its
-    // leading `..`.
-    const ignoreFn = (targetPath) => {
-      const absPath = path.resolve(this.config.noteRoot, targetPath)
-      const relPath = path.relative(this.config.noteRoot, absPath)
-
-      const isHidden = relPath
-        .split(path.sep)
-        .some(segment => segment != '.' && segment != '..' && segment.startsWith('.'))
-
-      if (isHidden) {
-        logger.debug(`${targetPath} is hidden. Ignoring...`)
-        return true;
-      }
-
-      return false;
-    }
-
-    const watcher = new Watcher(this.config.noteRoot, { recursive: true, ignoreInitial: true, ignore: ignoreFn })
+    const watcher = new Watcher(this.config.noteRoot, {
+      recursive: true,
+      ignoreInitial: true,
+      ignore: (targetPath) => this._isIgnored(targetPath)
+    })
 
     const actionableEvents = new Set([
       'add', // new note

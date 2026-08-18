@@ -79,10 +79,12 @@ npm run preview
 `npm run dev` / `npm run build` run **vite alone** and will fail or serve stale data unless the
 preprocessor has already populated `src/lib/notes/`. Prefer the `index.js` entry points.
 
-> **The watcher's `ignore` predicate is subtle.** It is handed three different shapes of path —
-> absolute (from `watcher` and `tiny-readdir`), relative to the watched directory (from Node's own
-> `fs.watch`, which is how every file event arrives), and ancestors of the note root. Any change
-> to it must handle all three; getting this wrong silently drops every event. See `ISSUES.md` A0.
+> **The watcher's `ignore` predicate is subtle.** `NotesUpdater._isIgnored` is handed three
+> different shapes of path — absolute (from `watcher` and `tiny-readdir`), relative to the watched
+> directory (from Node's own `fs.watch`, which is how every file event arrives), and ancestors of
+> the note root. Any change to it must handle all three; getting this wrong silently drops every
+> event. See `ISSUES.md` A0. It is also the filter `updateAll()` applies during the startup scan,
+> so the scan and the watcher cannot disagree about what a note is (`ISSUES.md` A15).
 
 ### Sub-path deploys
 

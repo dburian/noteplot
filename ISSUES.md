@@ -241,16 +241,23 @@ Fix by setting `fx`/`fy` on nodes that already have a stored position and relaxi
 ones. That also makes the incremental path much cheaper, and makes the 69k-tick full run a
 one-time cost rather than a per-startup one.
 
-### A15. The initial scan does not honour the watcher's ignore rules
+### A15. The initial scan did not honour the watcher's ignore rules — **fixed**
 
 _Surfaced by fixing A0._
 
-`note_preprocessor.js` — `updateAll()` walks the tree with `readdir` and filters on `.md` alone,
-while `watch()` additionally skips any path with a dot-prefixed segment. So `notes/.hidden.md` is
-indexed by the startup scan but its later edits are ignored, and a `.git` directory containing
-`.md` files is picked up wholesale on launch.
+`note_preprocessor.js` — `updateAll()` walked the tree with `readdir` and filtered on `.md` alone,
+while `watch()` additionally skipped any path with a dot-prefixed segment. So `notes/.hidden.md`
+was indexed by the startup scan but its later edits ignored, and a `.git` directory containing
+`.md` files was picked up wholesale on launch.
 
-Extract `watch()`'s `ignoreFn` and apply it in `updateAll()` too.
+Fixed by extracting `watch()`'s `ignoreFn` into `NotesUpdater._isIgnored`, which is now both
+`watcher`'s `ignore` predicate and a filter in `updateAll()`. `updateAll()` tests the **joined**
+path rather than `entry.name`, so a note inside a hidden directory is caught too.
+
+`readdir` still descends into `.git`; `recursive: true` offers no way to prune a directory, so this
+filters the walk rather than avoiding it. The three-path-shapes comment from A0 moved with the
+predicate — it still applies, because `watcher` is still the caller that supplies the awkward
+shapes.
 
 ### A16. One bad frontmatter block took down the whole build — **fixed**
 
