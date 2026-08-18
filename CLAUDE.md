@@ -60,7 +60,10 @@ Both directories are gitignored and are created on demand by `NotePipeline._setu
 ## Running it
 
 Every command needs a **note directory** — the root of your Markdown collection. It is not
-stored anywhere; you pass it on each invocation.
+stored anywhere; you pass it on each invocation. It is resolved against **your** working
+directory, and everything after that (vite's config, the generated JSON, the copied images)
+belongs to the package — `index.js` `chdir`s into it, because SvelteKit resolves its own config
+from the CWD and gives no way to override that. So the commands below work from anywhere.
 
 ```bash
 npm install
@@ -94,7 +97,15 @@ preprocessor has already populated `src/lib/notes/`. Prefer the `index.js` entry
 BASE_PATH=/noteplot node index.js build <note-dir>
 ```
 
-The `--base-path` CLI flag exists but is currently broken — see `ISSUES.md` (A11). Anything in
+`--base-path` does the same thing, and also prefixes the image URLs the preprocessor writes into
+each note's HTML:
+
+```bash
+node index.js build <note-dir> --base-path /noteplot
+```
+
+It works by setting `BASE_PATH` for `svelte.config.js` to read. Do **not** pass vite's own `base`
+instead — SvelteKit enforces `base` and `root` and overrides whatever vite was given. Anything in
 the frontend that builds a URL must prefix it with `base` from `$app/paths`.
 
 ### Checks

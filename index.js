@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import path from "node:path";
 import pino from "pino";
 import { createServer, build as viteBuild } from "vite";
 import { preprocess } from "./note_preprocessor.js";
@@ -13,20 +14,47 @@ const logger = pino({
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
-function setupCommonOpts(command) {
+// The site lives in this package, not in whatever directory the user happens to
+// be standing in, so every path we hand the preprocessor is resolved against the
+// package root.
+const SAVE_PATH = path.join(__dirname, 'src/lib/notes/')
+const IMG_SAVE_PATH = path.join(__dirname, 'static/note_imgs/')
+
+const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']
+
+/**
+  * Reads the options, resolves the note directory, and puts us in the package.
+  *
+  * The order is the point. `noteRoot` comes from the user, so it has to be
+  * resolved against **their** CWD; everything afterwards -- vite's config,
+  * SvelteKit's `svelte.config.js` and `kit.files.*`, the preprocessor's output
+  * -- belongs to the package. SvelteKit resolves its own config from
+  * `process.cwd()` and offers no way to override that, so `chdir` is the only
+  * way `noteplot` can be run from another directory at all (ISSUES.md A12).
+  */
+function setupCommonOpts(noteRoot, command) {
   const opts = command.optsWithGlobals()
 
-  logger.level = opts.logLevel
+  if (LOG_LEVELS.includes(opts.logLevel)) {
+    logger.level = opts.logLevel
+  } else {
+    logger.warn(`Unknown log level '${opts.logLevel}'. Keeping '${logger.level}'. Known levels: ${LOG_LEVELS.join(', ')}.`)
+  }
 
-  return opts;
+  const absNoteRoot = path.resolve(noteRoot)
+  process.chdir(__dirname)
+
+  return { opts, noteRoot: absNoteRoot };
 }
 
-async function watch(noteRoot, options, command) {
-  const opts = setupCommonOpts(command)
+async function watch(noteRootArg, options, command) {
+  const { opts, noteRoot } = setupCommonOpts(noteRootArg, command)
 
   if (!opts.onlyNotes) {
+    // No `root`: SvelteKit enforces `root: process.cwd()` and warns about any
+    // value we pass, so `setupCommonOpts`'s `chdir` is the only way to point
+    // vite at the package.
     const viteServer = await createServer({
-      root: __dirname,
       server: {
         port: opts.port,
       },
@@ -41,33 +69,33 @@ async function watch(noteRoot, options, command) {
 
   await preprocess({
     watch: true,
-    savePath: './src/lib/notes/',
-    imgSavePath: './static/note_imgs/',
+    savePath: SAVE_PATH,
+    imgSavePath: IMG_SAVE_PATH,
     imgUrl: '/note_imgs/',
     noteRoot,
   })
 }
 
-async function build(noteRoot, options, command) {
-  const opts = setupCommonOpts(command)
+async function build(noteRootArg, options, command) {
+  const { opts, noteRoot } = setupCommonOpts(noteRootArg, command)
 
   await preprocess({
     watch: false,
-    savePath: './src/lib/notes/',
-    imgSavePath: './static/note_imgs/',
+    savePath: SAVE_PATH,
+    imgSavePath: IMG_SAVE_PATH,
     imgUrl: `${opts.basePath}/note_imgs/`,
     noteRoot,
   })
 
-  const buildConfig = {}
-
   if (opts.basePath) {
-    buildConfig.base = opts.basePath
-    //Just in case, overwrite the environment var (as one would expect).
+    // `svelte.config.js` reads this, and it is the only channel that works:
+    // vite's own `base` is in SvelteKit's `enforced_config`, so passing it here
+    // would be overridden and warned about. `root` is enforced the same way --
+    // see the note in `watch`.
     process.env.BASE_PATH = opts.basePath
   }
 
-  viteBuild(buildConfig)
+  await viteBuild()
 }
 
 async function main() {
@@ -76,21 +104,21 @@ async function main() {
   prog
     .name("noteplot")
     .description("Visualization tool for your Markdown notes.")
-    .option("--log-level", "Log level to hide/display logs.", "debug")
+    .option("--log-level <level>", `Log level to hide/display logs. One of ${LOG_LEVELS.join(', ')}.`, "debug")
 
   prog
     .command("watch")
     .description("Runs local server and watches for changes.")
     .argument("<note-dir>", "Root directory containing all notes and images.")
-    .option("-p, --port", "Port to host the server on.", 5173)
+    .option("-p, --port <port>", "Port to host the server on.", (value) => parseInt(value, 10), 5173)
     .option("--only-notes", "Only pre-process markdown files", false)
     .action(watch)
 
   prog
     .command("build")
     .description("Builds a static site.")
-    .argument("<note-dir", "Root directory containing all notes and images.")
-    .option("--base-path", "Base path of the built site. Defaults to reading from $BASE_PATH environment variable.", "BASE_PATH" in process.env ? process.env.BASE_PATH : "")
+    .argument("<note-dir>", "Root directory containing all notes and images.")
+    .option("--base-path <path>", "Base path of the built site. Defaults to reading from $BASE_PATH environment variable.", "BASE_PATH" in process.env ? process.env.BASE_PATH : "")
     .action(build)
 
 

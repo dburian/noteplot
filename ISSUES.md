@@ -179,9 +179,9 @@ additionally falls back to add-like behaviour for a slug it has never seen, tole
 un-enriched `oldNote`, and `on()` deduplicates `toSave` — which, since A13 made `toSlug` injective,
 is a guard rather than a workaround.
 
-### A11. Three CLI options silently ignore their arguments
+### A11. Three CLI options silently ignored their arguments — **fixed**
 
-`index.js` — commander options are declared with no value placeholder:
+`index.js` — commander options were declared with no value placeholder:
 
 ```js
 .option("--log-level", "...", "debug")
@@ -189,20 +189,40 @@ is a guard rather than a workaround.
 .option("--base-path", "...", ...)
 ```
 
-Without `<value>` in the flag string, commander treats these as **booleans**. `--port 8080`
-parses `8080` as a stray argument and the port stays at the default; same for `--base-path` and
-`--log-level`. Add placeholders: `"-p, --port <port>"`. (`--only-notes` is correctly a boolean.)
+Without `<value>` in the flag string, commander treats these as **booleans**. `--port 8080` parsed
+`8080` as a stray argument and the port stayed at the default; same for `--base-path` and
+`--log-level`. (`--only-notes` is correctly a boolean.)
 
-Until this is fixed, use the `BASE_PATH` environment variable for sub-path builds.
+Fixed by adding placeholders. `--port` also gained `parseInt` as an arg parser, since commander
+hands over a string and the default was a number, and `--log-level` is now validated against pino's
+levels — assigning an unknown one to `logger.level` throws.
 
-### A12. Preprocessor paths are relative to CWD, not the package
+Three neighbouring bugs went with it: `build`'s `.argument("<note-dir")` was missing its closing
+`>`, `viteBuild(...)` was not awaited so `build()` resolved before vite finished, and the
+`buildConfig.base` passed to vite was dead code — `base` and `root` are both in the SvelteKit vite
+plugin's `enforced_config`, so vite's values are overridden and warned about. `process.env.BASE_PATH`,
+which `svelte.config.js` reads, is the only channel that works; `root` is handled by the `chdir` in
+A12.
 
-`index.js` passes `'./src/lib/notes/'` and `'./static/note_imgs/'` to `preprocess()`. Vite is
-correctly rooted at `__dirname`, but these are not — so the declared `bin: noteplot` entry point
-writes notes into whatever directory the user happens to be standing in. Same problem in the
-routes' `entries()`, which does `readdir('src/lib/notes')`.
+### A12. Preprocessor paths were relative to CWD, not the package — **half fixed**
 
-Resolve both against `__dirname`. Blocks distributing this as an npm package at all.
+`index.js` passed `'./src/lib/notes/'` and `'./static/note_imgs/'` to `preprocess()`, so the
+declared `bin: noteplot` entry point wrote notes into whatever directory the user happened to be
+standing in. The routes' `entries()` had the same problem — `readdir('src/lib/notes')`.
+
+**Fixed for the preprocessor and for vite.** The two output paths now resolve against `__dirname`,
+and `setupCommonOpts` resolves the note directory against the user's CWD and then calls
+`process.chdir(__dirname)`.
+
+The `chdir` is not laziness, it is the only available lever: SvelteKit's `load_config` resolves
+`svelte.config.js` and every `kit.files.*` against `process.cwd()`
+(`src/core/config/index.js`), and its vite plugin **enforces** `root: process.cwd()`, overriding
+and warning about any `root` we pass to `createServer`/`viteBuild`. So `root: __dirname` was never
+doing anything, and without the `chdir` a build from another directory could not find
+`svelte.config.js` at all. Resolving the note directory *before* the `chdir` is what keeps a
+relative `<note-dir>` meaning what the user typed.
+
+Still open: the routes' `entries()`, which works today only because the CWD is now the package.
 
 ### A13. `toSlug` collided on `-` versus `_` — **fixed**
 
