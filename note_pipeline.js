@@ -127,12 +127,15 @@ export class NotePipeline {
       }
     }
 
+    // `force` because the file may already be gone: a second note can reference
+    // the same image and have removed it first (ISSUES.md A19), or the user may
+    // have deleted it by hand. Without it an ENOENT rejects the whole batch.
     const removePromises = []
     if (!isDeepEqual(oldNote.images, note.images)) {
       const oldImages = oldNote.images.filter(imgPath => !note.images.includes(imgPath))
       for (const imgPath of oldImages) {
         logger.debug(`Removing ${imgPath}`)
-        removePromises.push(rm(imgPath))
+        removePromises.push(rm(imgPath, { force: true }))
       }
 
       diffKeys.add('images')
@@ -143,6 +146,11 @@ export class NotePipeline {
         diffKeys.add(key)
       }
     }
+
+    // Awaited, so a failed removal rejects `change()` instead of escaping as an
+    // unhandled rejection -- the A9 failure mode. Unreachable until the array
+    // branch of `isDeepEqual` above started comparing anything.
+    await Promise.all(removePromises)
 
     changeSets.set(note.slug, diffKeys)
     return {
@@ -191,11 +199,12 @@ export class NotePipeline {
 
     // Delete note itself
     const noteSavePath = this.notePath(note)
-    deletePromises.push(rm(noteSavePath))
+    deletePromises.push(rm(noteSavePath, { force: true }))
 
-    // Delete images
+    // Delete images. `force` for the same reason as in `change()`: a shared
+    // image may already be gone (ISSUES.md A19).
     for (const imgPath of note.images) {
-      deletePromises.push(rm(imgPath))
+      deletePromises.push(rm(imgPath, { force: true }))
     }
 
     await Promise.all(deletePromises)
@@ -221,8 +230,20 @@ export function isDeepEqual(a, b) {
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length != b.length) return false
 
-    return (new Array(a.length)).every((_, i) => isDeepEqual(a[i], b[i]))
+    // A plain loop, not `new Array(a.length).every(...)`: that array is sparse,
+    // `.every` skips holes, so the callback never ran and any two arrays of the
+    // same length compared equal.
+    for (let i = 0; i < a.length; i++) {
+      if (!isDeepEqual(a[i], b[i])) return false
+    }
+
+    return true
   }
+
+  // `typeof null == 'object'`, so this has to come before the object branch --
+  // `Object.getOwnPropertyNames(null)` throws. A frontmatter key with an empty
+  // value (`key:`) parses to `null`, so it is reachable from a note.
+  if (a === null || b === null) return a === b
 
   if (typeof a == 'object' || typeof b == 'object') {
     if (typeof a != 'object' || typeof b != 'object') return false

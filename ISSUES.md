@@ -51,20 +51,29 @@ a leading dot (skipping `.` and `..`) rather than testing the joined relative pa
 
 This bug **masked A2, A3, A7 and A10**: those crash paths could not be reached at all.
 
-### A1. `isDeepEqual`'s array branch always returns `true`
+### A1. `isDeepEqual`'s array branch always returned `true` — **fixed**
 
 `note_pipeline.js` — `new Array(a.length).every(...)` iterates a **sparse** array, and `.every`
-skips holes, so the callback never runs.
+skips holes, so the callback never ran.
 
-Arrays are therefore never actually compared. Consequences:
+Arrays were therefore never actually compared. Consequences:
 
-- `images` never enters `diffKeys`, so **images removed from a note are never deleted** from
+- `images` never entered `diffKeys`, so **images removed from a note were never deleted** from
   `static/note_imgs/`.
 - The object branch compares key _sets_ with `isDeepEqual(aKeys, bKeys)` — also arrays — so an
-  added or removed frontmatter key goes undetected. (Values are still compared, because the loop
+  added or removed frontmatter key went undetected. (Values were still compared, because the loop
   over `aKeys` runs regardless.)
 
-Fix: `Array.from({length: a.length}).every(...)`, or just a plain `for` loop.
+Fixed with a plain `for` loop. A `null` guard was added above the object branch at the same time:
+`typeof null == 'object'`, so `Object.getOwnPropertyNames(null)` throws, and a frontmatter key with
+an empty value (`key:`) parses to `null`. That was reachable before this fix too, through the
+value loop.
+
+Fixing the comparison **unmasked a floating rejection** — the same shape as A9. `change()` pushed
+`rm(imgPath)` into a `removePromises` array it never awaited; the array was always empty only
+because this comparison never reported a difference. `change()` now awaits them, and every `rm` in
+the pipeline passes `{force: true}`, so a file that is already gone cannot reject the batch. See
+A19 for why that happens.
 
 ### A2. Deleting a note crashes the watcher — **fixed**
 
@@ -301,6 +310,23 @@ because they were not found while crawling your app:
 Not fixed here because it needs a decision rather than a patch: either drop `prerender = true`
 on those routes in favour of `'auto'`, or make the build tolerate an empty collection some other
 way. A one-note collection builds fine.
+
+### A19. Two notes embedding the same image fight over one file
+
+_Surfaced by fixing A1, which is what made the removal path run at all._
+
+`unify_pipelines.js`, `collectImgs` derives an image's destination from the **image's own** path
+(`toSlug(absolutePath, noteRoot, {withExtension: true})`), so `img.png` referenced by two notes is
+copied to one file in `static/note_imgs/` and appears in **both** notes' `images` arrays.
+
+Deleting either note, or editing either note to drop the image, therefore removes the file the
+other note still points at — a broken image with no error anywhere. The remaining note only gets
+it back when it is next re-parsed.
+
+`{force: true}` on the `rm` calls (see A1) keeps this from crashing the pipeline, which is all that
+has been done. A real fix needs per-image reference counting in `NotePipeline` — an
+`image → Set<slug>` map alongside `backlinks`, with the `rm` deferred until the last referrer drops
+it. The same map would let a restart notice orphaned images, which nothing currently prunes.
 
 ---
 
