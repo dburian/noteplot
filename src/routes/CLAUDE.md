@@ -36,10 +36,11 @@ a _static_ import, so the entire graph is inlined into the JS bundle and loaded 
 
 ### The `[slug]` / `notes/[slug]` split is currently inert
 
-The two routes are byte-for-byte identical except that `load` returns `withGraph: true` versus
-`withGraph: false`. **Nothing reads `withGraph` or `graphFullScreen`** — grep confirms they are
-write-only. The intended distinction (`notes/[slug]` shows the note without the graph) is
-therefore not implemented, and both URLs currently behave the same.
+Both routes call the same `loadNote` / `noteEntries` (see below) and differ only in the flags
+`load` returns: `withGraph: true` versus `withGraph: false`. **Nothing reads `withGraph` or
+`graphFullScreen`** — grep confirms they are write-only. The intended distinction
+(`notes/[slug]` shows the note without the graph) is therefore not implemented, and both URLs
+currently behave the same.
 
 The distinction matters most on **mobile**, where there is not enough room to show a graph and a
 note at once. Note that a second, _working_ mechanism for the same concept already exists: the
@@ -49,37 +50,43 @@ Tracked as B7 in `ISSUES.md`.
 
 ## Data loading
 
-Note pages load their JSON with a dynamic import keyed on the slug:
+Both note routes are three lines over `src/lib/notes_route.js`, which owns the one glob of the
+generated JSON:
 
 ```js
-const note = (await import(`$lib/notes/${params.slug}.json`)).default;
+const noteModules = import.meta.glob('$lib/notes/*.json'); // slug -> lazy loader
+export async function loadNote(slug); //  error(404) on a miss
+export function noteEntries(); //         [{slug}, ...] for prerendering
 ```
 
-Vite turns this into a glob over `src/lib/notes/*.json`, so each note becomes its own chunk —
-this is the one place the corpus is _not_ eagerly bundled. A missing slug throws and is caught
-into `error(404, ...)`.
+The glob is **not eager**: it compiles to an object of `() => import(...)` thunks, so each note is
+still its own chunk and a page fetches only the note it is showing. That is not a change — Vite's
+`dynamic-import-vars` plugin already compiled the previous slug-keyed dynamic import into exactly
+this object. The difference is that the map now lives in one shared chunk instead of being
+duplicated into both route chunks, and a missing slug 404s from a `Map` miss rather than from a
+caught import rejection.
 
-`search/+page.js` and `filter/+page.js` both statically import `__search.json`, which contains
-the **plaintext of every note**. That whole payload ships with the bundle (ISSUES.md B2).
+The corpus is not eagerly bundled here — but `search/+page.js` and `filter/+page.js` do statically
+import `__search.json`, the **plaintext of every note**, and that whole payload ships with the
+bundle (ISSUES.md B2).
 
 ## Prerender enumeration
 
-Both `[slug]` and `notes/[slug]` export an `entries()` that reads the preprocessor's output
-directory off disk to enumerate pages:
+`noteEntries()` enumerates the pages to prerender from the same glob, so nothing reads a directory
+at runtime and nothing depends on the process CWD.
 
-```js
-const noteJsons = await readdir('src/lib/notes')
-return noteJsons.filter(n => !n.startsWith("__")).map(...)
-```
+Two things worth knowing:
 
-Two consequences worth knowing:
+- The routes are still **coupled to the preprocessor's output path** — `$lib/notes/*.json` is
+  written into the glob pattern — but only in that one module, and Vite resolves it relative to the
+  package rather than to wherever the build was started.
+- The `__`-prefix convention is what keeps `__graph.json` and `__search.json` from being treated as
+  notes; `notes_route.js` is now the single place it is enforced. Do not name a generated file
+  without that prefix.
 
-- The routes are **coupled to the preprocessor's output path**, and to it being relative to the
-  process CWD. Running the build from another directory breaks it (ISSUES.md A12).
-- The `__`-prefix convention is what keeps `__graph.json` and `__search.json` from being treated
-  as notes. Do not name a generated file without that prefix.
-
-The two `entries()` implementations are duplicated verbatim (ISSUES.md B10).
+In dev, Vite re-evaluates the glob when a file appears, so a note added while the watcher is
+running is reachable without restarting vite. Verified by hand — worth re-checking if this module
+changes.
 
 ## Slugs and route collisions
 

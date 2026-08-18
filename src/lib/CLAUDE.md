@@ -87,6 +87,14 @@ destroys and rebuilds the whole subtree. Anything relying on `onMount` inside a 
 
 ## Directories
 
+### `notes_route.js`
+
+The only module at the top of `$lib` that is not a component. It holds the one
+`import.meta.glob('$lib/notes/*.json')` over the preprocessor's output and exports `loadNote(slug)`
+and `noteEntries()`, which both `[slug]` routes use — see `src/routes/CLAUDE.md`. Keep the glob
+here rather than in a route: having it in one place is what stops the two routes drifting apart
+again, and it is where the `__`-prefix convention for generated files is enforced.
+
 ### `note/`
 
 Renders a loaded note JSON. `NoteContent.svelte` takes the note's fields as props and

@@ -1,25 +1,11 @@
-import { error } from '@sveltejs/kit';
+import { loadNote, noteEntries } from '$lib/notes_route.js';
 
 export async function load({ params }) {
-  try {
-    const note = (await import(`$lib/notes/${params.slug}.json`)).default
-
-    return {
-      note,
-      withGraph: true,
-      graphFullScreen: false,
-    }
-  } catch {
-    return error(404, {message: `Note ${params.slug} not found.`})
+  return {
+    note: await loadNote(params.slug),
+    withGraph: true,
+    graphFullScreen: false,
   }
-
 }
 
-
-export async function entries() {
-  const readdir = (await import('fs/promises')).readdir;
-  const noteJsons = await readdir('src/lib/notes')
-
-  return noteJsons.filter(jsonName => !jsonName.startsWith("__")).map(jsonName => { return { slug: jsonName.replace(".json", "") } });
-}
-
+export const entries = noteEntries;

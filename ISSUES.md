@@ -204,7 +204,7 @@ plugin's `enforced_config`, so vite's values are overridden and warned about. `p
 which `svelte.config.js` reads, is the only channel that works; `root` is handled by the `chdir` in
 A12.
 
-### A12. Preprocessor paths were relative to CWD, not the package — **half fixed**
+### A12. Preprocessor paths were relative to CWD, not the package — **fixed**
 
 `index.js` passed `'./src/lib/notes/'` and `'./static/note_imgs/'` to `preprocess()`, so the
 declared `bin: noteplot` entry point wrote notes into whatever directory the user happened to be
@@ -222,7 +222,9 @@ doing anything, and without the `chdir` a build from another directory could not
 `svelte.config.js` at all. Resolving the note directory *before* the `chdir` is what keeps a
 relative `<note-dir>` meaning what the user typed.
 
-Still open: the routes' `entries()`, which works today only because the CWD is now the package.
+The routes' half went with B10: `src/lib/notes_route.js` enumerates notes from
+`import.meta.glob('$lib/notes/*.json')`, which Vite resolves against the package at build time, so
+no route reads a directory at runtime.
 
 ### A13. `toSlug` collided on `-` versus `_` — **fixed**
 
@@ -453,12 +455,17 @@ reference, which is always true. Compare `newUrl.href !== page.url.href`.
 `graph/WithGraphState.svelte` puts `pageData.note` — full rendered HTML included — into the
 store, while every consumer reads only `.slug`. Store the slug, or a `{slug, title}` pair.
 
-### B10. Duplicated route code
+### B10. Duplicated route code — **fixed**
 
-`[slug]/+page.js` and `notes/[slug]/+page.js` have byte-identical `load` bodies (modulo the dead
-flags) and byte-identical `entries()`. The two `+page.svelte` files are identical too. Extract a
-shared helper — the `entries()` duplication in particular means the A12 path fix has to be made
-twice.
+`[slug]/+page.js` and `notes/[slug]/+page.js` had byte-identical `load` bodies (modulo the dead
+flags) and byte-identical `entries()`, so the A12 path fix would have had to be made twice.
+
+Both now call `loadNote` / `noteEntries` from `src/lib/notes_route.js` and keep only their own
+`withGraph` / `graphFullScreen` return values, which are still dead — that is B7, deliberately
+untouched.
+
+The two `+page.svelte` files stay separate: SvelteKit requires one per route. They are byte-identical
+and each is a single `<NoteContent {...data.note} />`, so there is nothing left to share.
 
 ### B11. `NoteMetaContent` is non-reactive and timezone-dependent — **half fixed**
 
