@@ -82,6 +82,10 @@ npm run preview
 `npm run dev` / `npm run build` run **vite alone** and will fail or serve stale data unless the
 preprocessor has already populated `src/lib/notes/`. Prefer the `index.js` entry points.
 
+`build` refuses a collection with no Markdown files in it — both `[slug]` routes are prerendered
+from what the preprocessor wrote, so vite would otherwise fail with a confusing message about
+uncrawled routes (`ISSUES.md` A18). `watch` accepts an empty directory and waits.
+
 > **The watcher's `ignore` predicate is subtle.** `NotesUpdater._isIgnored` is handed three
 > different shapes of path — absolute (from `watcher` and `tiny-readdir`), relative to the watched
 > directory (from Node's own `fs.watch`, which is how every file event arrives), and ancestors of

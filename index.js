@@ -67,25 +67,40 @@ async function watch(noteRootArg, options, command) {
     viteServer.bindCLIShortcuts({ print: true })
   }
 
-  await preprocess({
+  const noteCount = await preprocess({
     watch: true,
     savePath: SAVE_PATH,
     imgSavePath: IMG_SAVE_PATH,
     imgUrl: '/note_imgs/',
     noteRoot,
   })
+
+  // Only a warning here: notes may appear later, and the watcher picks them up.
+  if (noteCount == 0) {
+    logger.warn(`No Markdown files found under ${noteRoot}. Waiting for notes to appear.`)
+  }
 }
 
 async function build(noteRootArg, options, command) {
   const { opts, noteRoot } = setupCommonOpts(noteRootArg, command)
 
-  await preprocess({
+  const noteCount = await preprocess({
     watch: false,
     savePath: SAVE_PATH,
     imgSavePath: IMG_SAVE_PATH,
     imgUrl: `${opts.basePath}/note_imgs/`,
     noteRoot,
   })
+
+  // Both `[slug]` routes are prerendered from the notes on disk and
+  // `adapter-static` runs with `strict: true`, so with nothing to prerender vite
+  // fails deep inside the build with a message about uncrawled routes. Say it
+  // here instead, where we know why (ISSUES.md A18).
+  if (noteCount == 0) {
+    logger.error(`No Markdown files found under ${noteRoot} -- nothing to build. If the collection is not empty, the log above says why its notes were skipped.`)
+    process.exitCode = 1
+    return
+  }
 
   if (opts.basePath) {
     // `svelte.config.js` reads this, and it is the only channel that works:

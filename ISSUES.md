@@ -321,11 +321,11 @@ Fixed at the producer: `viewBox` initialises to `DEFAULT_VIEW_BOX` rather than `
 `MIN_VIEW_BOX_SIZE`. The consumer was hardened independently (see C8), so either half alone is
 enough — which matters because `__graph.json` from an older build may still hold the bad values.
 
-### A18. `build` fails outright on a note collection with no notes
+### A18. `build` failed outright on a note collection with no notes — **fixed**
 
 Found while verifying A17, and **pre-existing** — reproduced at commit `5148242`, before any of
 these fixes. With zero notes, the routes' `entries()` returns an empty array, and SvelteKit
-refuses the build:
+refused the build:
 
 ```
 Error: The following routes were marked as prerenderable, but were not prerendered
@@ -334,9 +334,20 @@ because they were not found while crawling your app:
   - /(graph)/[slug]
 ```
 
-Not fixed here because it needs a decision rather than a patch: either drop `prerender = true`
-on those routes in favour of `'auto'`, or make the build tolerate an empty collection some other
-way. A one-note collection builds fine.
+Resolved by **failing fast** rather than teaching the build to tolerate zero notes: `preprocess()`
+now returns the note count, and `index.js`'s `build()` logs `No Markdown files found under
+<note-dir> — nothing to build.`, sets a non-zero exit code, and returns before calling vite.
+
+The alternative — `prerender = 'auto'` on the two `[slug]` routes — was rejected: this is a static
+site with `strict: true`, so a build that produces no note pages is a mistake worth reporting, and
+weakening the prerender guarantee to make that mistake quiet would cost the one check that catches
+an unprerenderable route.
+
+`watch` only warns, since notes may appear later, and the watcher picks them up.
+
+Note that the pipelines have already run by the time the count is known, so a build pointed at the
+wrong directory still overwrites `__graph.json` and `__search.json` with empty ones. The
+per-note JSON of the previous collection survives, because nothing prunes it (see A13).
 
 ### A19. Two notes embedding the same image fight over one file
 

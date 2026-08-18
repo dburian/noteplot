@@ -33,6 +33,10 @@ export function saveJSON(path, object) {
 
 
 /**
+  * Runs every pipeline over the note tree once, then optionally keeps watching.
+  *
+  * Returns the number of notes that made it through, which `index.js` uses to
+  * refuse a build of an empty collection (ISSUES.md A18).
   *
   * @param {{
       * watch: boolean,
@@ -41,16 +45,19 @@ export function saveJSON(path, object) {
       * imgUrl: string,
       * noteRoot: string
     * }} config
+  * @returns {Promise<number>}
   */
 export async function preprocess(config) {
   const { watch, ...updaterConfig } = config
   const updater = new NotesUpdater(updaterConfig)
 
-  await updater.updateAll()
+  const noteCount = await updater.updateAll()
 
   if (watch) {
     updater.watch()
   }
+
+  return noteCount
 }
 
 
@@ -121,9 +128,10 @@ class NotesUpdater {
     // unhandled rejection and take the whole process down. One bad note should
     // cost us that note, not the watcher.
     try {
-      await this.on(events)
+      return await this.on(events)
     } catch (error) {
       logger.error(error, "Failed to process a batch of note changes.")
+      return null
     }
   }
 
@@ -186,7 +194,11 @@ class NotesUpdater {
       this._events_to_process.push({ eventType: 'add', targetPath })
     }
 
-    await this.flush_events()
+    // `NotePipeline` is the only pipeline that produces anything, and its
+    // `notes` map is threaded through to the last one, so the final result is
+    // where the note count already lives.
+    const result = await this.flush_events()
+    return result?.notes?.size ?? 0
   }
 
   watch() {
