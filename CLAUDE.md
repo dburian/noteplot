@@ -51,7 +51,7 @@ one page per note. See `src/routes/CLAUDE.md` and `src/lib/CLAUDE.md`.
 | Path                          | Contents                                                                       |
 | ----------------------------- | ------------------------------------------------------------------------------ |
 | `src/lib/notes/<slug>.json`   | one per note: HTML content, title, links, backlinks, frontmatter, reading time |
-| `src/lib/notes/__graph.json`  | `{viewBox, nodes, links}` — precomputed node positions                         |
+| `src/lib/notes/__graph.json`  | `{viewBox, nodes, links}` — node positions; links are `{source, target}` slugs |
 | `src/lib/notes/__search.json` | array of `{slug, title, content, matter}` plaintext records                    |
 | `static/note_imgs/`           | images copied out of the note directory                                        |
 
@@ -159,7 +159,7 @@ This is easy to break by accident. If canvas colours go wrong, check this plugin
 | `index.js`                 | CLI entry point (`bin: noteplot`)                                      |
 | `note_preprocessor.js`     | watcher, debouncing, pipeline orchestration, `saveJSON`                |
 | `note_pipeline.js`         | per-note JSON, link/backlink enrichment, change diffing, `isDeepEqual` |
-| `graph_pipeline.js`        | d3 force simulation, viewBox fitting                                   |
+| `graph_pipeline.js`        | d3 force simulation, position pinning, viewBox fitting                 |
 | `search_index_pipeline.js` | plaintext search index                                                 |
 | `unify_pipelines.js`       | shared remark/rehype plugins, `toSlug`, the shared `logger`            |
 | `src/routes/`              | pages and data loading — see `src/routes/CLAUDE.md`                    |

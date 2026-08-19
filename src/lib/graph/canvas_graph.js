@@ -15,6 +15,7 @@ function dist(p1, p2) {
 /**
   * @typedef {{x_shift: Number, y_shift: Number, type: string}} GlowPixel
   * @typedef {{source: Node, target: Node}} Link
+  * @typedef {{source: string, target: string}} SerialisedLink
   * @typedef {{tags: Array<string>}} FrontMatter
   * @typedef {{slug: string, title: string, x: Number, y: Number, matter: FrontMatter}} Node
   * @typedef {{
@@ -386,7 +387,7 @@ const EMPTY_MAP = new Map()
 export class CanvasGraph {
   /**
     * @param {Array<Node>} nodes
-    * @param {Array<Link>} links
+    * @param {Array<Link|SerialisedLink>} links
     * @param {GraphStateStore} graphStateStore
     * @param {FilterStateStore} filterStore
     *
@@ -402,11 +403,25 @@ export class CanvasGraph {
     this.nodes = new Map();
     this.links = new Map()
     for (const node of nodes) this.nodes.set(node.slug, node)
+
+    // `__graph.json` carries a link as a pair of slugs. A file from a build
+    // before that change holds embedded node objects instead, and rejecting it
+    // outright would be fatal -- the same reasoning as the A17 fix -- so both
+    // shapes resolve through `nodes`. Either way the endpoints end up as
+    // references into `nodes`, so a node and its links cannot disagree.
+    /** @param {Node|string} endpoint */
+    const resolve = (endpoint) =>
+      this.nodes.get(typeof endpoint === 'string' ? endpoint : endpoint?.slug)
+
     for (const link of links) {
-      if (!this.links.has(link.source.slug)) {
-        this.links.set(link.source.slug, new Map())
+      const source = resolve(link.source)
+      const target = resolve(link.target)
+      if (!source || !target) continue
+
+      if (!this.links.has(source.slug)) {
+        this.links.set(source.slug, new Map())
       }
-      this.links.get(link.source.slug).set(link.target.slug, link)
+      this.links.get(source.slug).set(target.slug, { source, target })
     }
 
     this.renderer = new GraphRenderer(this.draw)

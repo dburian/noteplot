@@ -40,6 +40,15 @@ the SVG attribute it is named after. Nothing about this space depends on the bro
 and emits a default box for an empty collection. The frontend divides by them and sizes the
 hit-test grid from them, so a zero would be fatal — see `ISSUES.md` A17.
 
+Within a running watch session this space is **stable**. `graph_pipeline.js` keeps the positions it
+has computed in memory and pins every node that has one (`fx`/`fy`) whenever the simulation re-runs,
+so only new nodes relax; the pins are stripped before serialising, which is why nothing in
+`__graph.json` mentions them. Positions are deliberately **not** persisted, so restarting the
+preprocessor re-lays the whole graph from scratch — intended, not a regression (`ISSUES.md` A14).
+The one caveat: a new node landing left of or above the existing extent shifts every coordinate by
+the same amount, because the bounding box is always re-originated. Nodes never move _relative to
+each other_.
+
 **2. paintBox space** — CSS pixels. The viewBox is letterboxed into the window while preserving
 aspect ratio, so `paintBox` is `{minX, minY, width, height}` describing where the graph actually
 sits inside the canvas. `updatePaintBox()` recomputes it on resize: whichever axis is relatively
@@ -67,6 +76,12 @@ their filtered counterparts. Subscribes to `graphState` and `filterState`, regis
 `pointermove` on the canvas, and builds the hit-test grid and the glow data. `destruct()` must
 unsubscribe and unregister everything — including matching the `pointermove` name exactly, or the
 listener leaks.
+
+`__graph.json` stores a link as a pair of **slugs**, so the constructor resolves both endpoints
+against `nodes` and stores `{source, target}` node _references_ — so a node and its links cannot
+disagree. A link whose endpoints are missing is skipped, and a link from a build before the
+`ISSUES.md` B1 fix, which carries embedded node objects instead of slugs, resolves through the same
+path.
 
 `onHover` suppresses itself on touch with `event.pointerType !== 'mouse'`, which is why the
 listener is `pointermove` and not `mousemove` (ISSUES.md C9).

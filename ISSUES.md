@@ -92,7 +92,7 @@ This was **masked by A9**: while `_deleteNote` was not awaited, its closing
 `this.notes.delete(...)` landed after `GraphPipeline.on` had read the map, so the lookup still
 succeeded. It only started firing once A9 was fixed.
 
-### A4. The whole note's HTML is written into `__graph.json`
+### A4. The whole note's HTML was written into `__graph.json` — **fixed**
 
 `graph_pipeline.js`, the `change` branch:
 
@@ -102,13 +102,16 @@ for (const key of changedKeys) {
 }
 ```
 
-`changedKeys` almost always contains `content`, so the note's **entire rendered HTML** gets
-copied onto the graph node — and `__graph.json` is loaded by every page. `toNode()` deliberately
-keeps only `title`, `slug`, and `matter`; this loop bypasses it. Copy only the keys a node has.
+`changedKeys` almost always contains `content`, so the note's **entire rendered HTML** was copied
+onto the graph node — and `__graph.json` is loaded by every page. `toNode()` deliberately keeps only
+`title`, `slug`, and `matter`; this loop bypassed it.
 
-Compounds with B1.
+Fixed by copying only the keys the node actually has (`if (key in node)`), so `title` and `matter`
+still update and everything else is skipped. `toNode` stays the single definition of a node's shape.
 
-### A5. Every force strength is silently ignored
+Compounded with B1, and was fixed alongside it.
+
+### A5. Every force strength was silently ignored — **fixed**
 
 `graph_pipeline.js`, `computeForceSimulation`:
 
@@ -116,9 +119,20 @@ Compounds with B1.
 if ('force' in settings) force = force.strength(settings.strength);
 ```
 
-The key is `strength`, not `force`, so the condition is never true. All four tuned constants
-(link `60`, repel `-20`, center `1000`, radial `0.001`) are inert and the layout you see is d3's
-defaults. Expect the graph to change shape noticeably when this is fixed — retune afterwards.
+The key is `strength`, not `force`, so the condition was never true. All four tuned constants (link
+`60`, repel `-20`, center `1000`, radial `0.001`) were inert and the layout was d3's defaults.
+
+**Fixing the key alone would have been worse than the bug.** `strength` on `forceLink`,
+`forceCenter` and `forceRadial` is a per-tick multiplier, so a value above 1 overshoots and
+amplifies. Measured against d3 directly, `link: 60` and `center: 1000` each drive the simulation to
+`NaN` on their own within ~100 ticks — which would have written a `NaN` viewBox, and the graph would
+not have mounted at all. (`forceManyBody`'s `-20` is a charge, not a multiplier, and is fine.)
+
+So the two out-of-range constants came into range in the same commit — link and center strength `1`
+— and a comment now records the `<= 1` rule for whoever retunes them next. On a 60-node/89-link
+corpus at the full 69,075 ticks the layout tightens mildly and keeps its character: extent 108×114
+against 131×137 before, median nearest-neighbour spacing 0.082 of graph width against 0.086. The
+constants are now genuinely in effect, so they can be retuned by eye.
 
 ### A6. Backlinks are never pruned, and neighbours are never re-saved
 
@@ -250,18 +264,34 @@ Existing URLs for any note with a `-` or `~` in its name changed. `src/lib/notes
 `static/note_imgs/` had to be wiped once: nothing prunes a file whose slug no longer exists, and a
 stale `<old-slug>.json` is still picked up by `entries()` and prerendered.
 
-### A14. Node positions drift on every edit
+### A14. Node positions drifted on every edit — **fixed**
 
-_Confirmed with the author: positions should be stable._
+_Confirmed with the author: positions should be stable within a session, and a restart should re-lay
+the graph from scratch._
 
-`graph_pipeline.js`, `updatePositions` re-runs the simulation over **all** nodes with none of
-them pinned. On a full build that is `log(alphaMin) / log(1 - alphaDecay)` ≈ **69,000 ticks**
-(with `alphaDecay: 0.0001`); on an incremental change it is 100 ticks, but every existing node
-still moves.
+`graph_pipeline.js`, `updatePositions` re-ran the simulation over **all** nodes with none of them
+pinned. On a full build that is `log(alphaMin) / log(1 - alphaDecay)` ≈ **69,000 ticks** (with
+`alphaDecay: 0.0001`); on an incremental change it is 100 ticks, but every existing node still
+moved.
 
-Fix by setting `fx`/`fy` on nodes that already have a stored position and relaxing only the new
-ones. That also makes the incremental path much cheaper, and makes the 69k-tick full run a
-one-time cost rather than a per-startup one.
+Fixed in `genD3Format`: a node that already has an entry in `this.positions` is emitted with
+`fx`/`fy` as well as `x`/`y`, so d3 holds it in place and only new nodes relax. The pins are
+stripped on the way out (see B1) and never reach the frontend.
+
+Positions are deliberately **not persisted**. `this.positions` only ever lives in memory, so on a
+fresh process nothing is pinned and the full ~69k-tick relaxation runs exactly as before; only
+within a running watch session does the graph stay put. The branch choosing between the full and
+the 100-tick run therefore now tests `nodesWithoutPosition` rather than `positionsToUpdate`: the
+two are identical on a cold start, but the old test would have spent the full 69k ticks on an
+entirely pinned graph whenever every note changed at once in a live session.
+
+`removeNote` also drops the slug from `this.positions`, so the map cannot grow for the lifetime of
+the session. The trade-off is that deleting a note and re-adding it relaxes it as a new node instead
+of returning it to where it was.
+
+What pinning does **not** buy: `this.positions` stores coordinates *after* `shrinkViewBox`'s
+translation, so a new node landing left of or above the existing extent still shifts every node by
+the same amount. Nodes do not move relative to each other, which is what stability means here.
 
 ### A15. The initial scan did not honour the watcher's ignore rules — **fixed**
 
@@ -372,24 +402,34 @@ it. The same map would let a restart notice orphaned images, which nothing curre
 
 ## B. Data flow
 
-### B1. `__graph.json` embeds a full copy of every node, twice per link
+### B1. `__graph.json` embedded a full copy of every node, twice per link — **fixed**
 
-`graph_pipeline.js`, `shrinkViewBox`'s `moveNode` returns **copies**, and links are then rebuilt
-as `{source: copy, target: copy}`. The serialised file therefore contains roughly
+`graph_pipeline.js`, `shrinkViewBox`'s `moveNode` returned **copies**, and links were then rebuilt
+as `{source: copy, target: copy}`. The serialised file therefore contained roughly
 `2 × (number of links)` complete node objects on top of the real `nodes` array — each carrying
-`matter`, and (via A4) the note's entire HTML.
+`matter`, and (via A4) the note's entire HTML. Each node also carried d3's `vx`/`vy` velocities,
+meaningless once the layout is frozen.
 
-Confirmed against a scratch collection: with 3 notes and 4 links, `__graph.json` contains 3 real
+Confirmed against a scratch collection: with 3 notes and 4 links, `__graph.json` contained 3 real
 nodes plus 8 embedded copies of them.
 
-Each node also carries d3's `vx`/`vy` simulation velocities, which are meaningless once the
-layout is frozen and should be stripped on the way out.
+Fixed on both sides:
 
-Serialise links as `{source: slug, target: slug}` and rehydrate them to node references in
-`CanvasGraph`'s constructor, which already builds a `slug → node` map.
+- **Producer.** `shrinkViewBox` now translates nodes **in place** — they are rebuilt by
+  `genD3Format` on every run, and the links already point at those same objects — and `on()`
+  serialises links as `{source: slug, target: slug}` and nodes through `toSerialisableNode`, which
+  drops `index`, `vx`/`vy`, and A14's `fx`/`fy`. That is a blocklist of what the simulation adds, so
+  `toNode` stays the single definition of a node's shape.
+- **Consumer.** `CanvasGraph`'s constructor already builds the `slug → node` map before the link
+  loop, so each endpoint resolves through it. It accepts **both** shapes: a `__graph.json` from an
+  older build still holds embedded node objects, and rejecting it outright would be fatal — the same
+  reasoning as the A17 fix.
 
-Also note the client-side consequence today: because link endpoints are copies rather than
-references into `nodes`, moving a node would not move its links.
+This also fixes the latent client-side bug noted here before: link endpoints are now real references
+into `nodes`, so a node and its links cannot disagree.
+
+Measured on a 7-note, 2-link scratch collection: 2010 bytes → 843. The saving grows with both link
+count and note size.
 
 ### B2. The entire corpus is inlined into the JS bundle
 
