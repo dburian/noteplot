@@ -40,34 +40,37 @@ export class NotePipeline {
       }
     }
 
+    // Neighbours whose own JSON has to be rewritten even though their file did
+    // not change: their `links`/`backlinks` embed a slug and a title that has
+    // just moved underneath them (ISSUES.md A6, A20). Kept out of `diffs`,
+    // which means "what changed inside this note" to `GraphPipeline` -- a
+    // `links` entry there would send the node down the re-layout path.
+    const resave = new Set()
+
     const diffs = new Map()
     const toSave = await Promise.all(addPromises)
-    for (const { slug, changeSets } of await Promise.all(changePromises)) {
+    for (const slug of toSave) {
+      // Notes that already link here resolved to the `Unknown` placeholder
+      // while this one did not exist. Now they resolve to a real title.
+      for (const source of this.backlinks.get(slug) ?? []) resave.add(source)
+    }
+
+    for (const { slug, changeSets, resave: changeResave } of await Promise.all(changePromises)) {
       toSave.push(slug)
 
-      for (const [slug, diff] of changeSets.entries()) {
-        const oldDiff = diffs.get(slug) || new Set()
-        diffs.set(slug, diff.union(oldDiff))
+      for (const neighbour of changeResave) resave.add(neighbour)
+
+      for (const [changedSlug, diff] of changeSets.entries()) {
+        const oldDiff = diffs.get(changedSlug) || new Set()
+        diffs.set(changedSlug, diff.union(oldDiff))
       }
     }
 
-    const writePromises = []
-
-    // `toSlug` is injective and `_coalesceEvents` emits one event per path, so
-    // a slug should not appear twice. Deduplicated anyway as a guard: enriching
-    // the same note twice would find `linkSlugs` already deleted.
-    for (const slug of new Set(toSave)) {
-      const note = this.notes.get(slug)
-
-      note.links = this._enrichLinks(note.linkSlugs, note.slug)
-      delete note.linkSlugs
-
-      const slugBacklinks = this.backlinks.get(note.slug) || []
-      note.backlinks = this._enrichLinks(slugBacklinks, note.slug)
-
-      writePromises.push(this._saveNote(this.notes.get(slug)))
-    }
-
+    // Deletes run before the saves, not alongside them: `_deleteNote` prunes
+    // the `backlinks` map and drops the note from `this.notes`, and the save
+    // loop has to see both -- otherwise a neighbour is rewritten carrying a
+    // backlink to a note that is on its way out.
+    const deletePromises = []
     for (const notePath of toDelete) {
       const slug = toSlug(notePath, this.config.noteRoot)
       const note = this.notes.get(slug)
@@ -76,7 +79,30 @@ export class NotePipeline {
         continue
       }
 
-      writePromises.push(this._deleteNote(note))
+      deletePromises.push(this._deleteNote(note))
+    }
+
+    // Awaited before the save loop, and separately from it, for the ordering
+    // above. A failed delete rejects `on()` rather than escaping as an
+    // unhandled rejection (the A9 failure mode).
+    for (const affected of await Promise.all(deletePromises)) {
+      for (const slug of affected) resave.add(slug)
+    }
+
+    const writePromises = []
+
+    // `toSlug` is injective and `_coalesceEvents` emits one event per path, so
+    // a slug appears at most once in `toSave`. The Set is here for the overlap
+    // between it and the neighbours in `diffs`/`resave`, which is ordinary
+    // rather than a guard -- a note is often both edited and a neighbour of
+    // another edit.
+    for (const slug of new Set([...toSave, ...diffs.keys(), ...resave])) {
+      const note = this.notes.get(slug)
+      // A neighbour that was itself deleted in this same batch.
+      if (typeof note === "undefined") continue
+
+      this._enrichNote(note)
+      writePromises.push(this._saveNote(note))
     }
 
     // Awaited so that the pipeline does not resolve before its writes land, and
@@ -108,14 +134,21 @@ export class NotePipeline {
       // pipelines treat it as an add.
       logger.debug(`Nothing known about ${note.slug}. Treating the change as an add.`)
       changeSets.set(note.slug, new Set(['links', 'images', 'title', 'content', 'matter']))
-      return { slug: note.slug, changeSets }
+      // Treated as an add down to the neighbours: anything already linking here
+      // was resolving to the `Unknown` placeholder.
+      return {
+        slug: note.slug,
+        changeSets,
+        resave: new Set(this.backlinks.get(note.slug) ?? []),
+      }
     }
 
     const diffKeys = new Set()
-    // A note that has been through `on()` carries enriched `links`; one whose
-    // flush failed part-way still only carries `linkSlugs`.
-    const oldSlugs = new Set(oldNote.links?.map(l => l.slug) ?? oldNote.linkSlugs ?? [])
-    const newSlugs = new Set(note['linkSlugs'])
+    // Neighbours to rewrite because of this change. See `on()`.
+    const resave = new Set()
+
+    const oldSlugs = new Set(this._linkSlugsOf(oldNote))
+    const newSlugs = new Set(this._linkSlugsOf(note))
 
     const linksXor = oldSlugs.union(newSlugs).difference(oldSlugs.intersection(newSlugs))
     if (linksXor.size > 0) {
@@ -124,6 +157,14 @@ export class NotePipeline {
       for (const slug of linksXor) {
         if (changeSets.has(slug)) changeSets.get(slug).add('backlinks')
         else changeSets.set(slug, new Set(['backlinks']))
+      }
+
+      // `addLinks` only ever adds, so a link this version dropped would leave a
+      // backlink on its target forever (ISSUES.md A6). `_rehype` ran above, so
+      // the new links are already in the map and old-minus-new is exactly the
+      // set that no longer has anything justifying it.
+      for (const slug of oldSlugs.difference(newSlugs)) {
+        this.backlinks.get(slug)?.delete(note.slug)
       }
     }
 
@@ -152,11 +193,49 @@ export class NotePipeline {
     // branch of `isDeepEqual` above started comparing anything.
     await Promise.all(removePromises)
 
+    // Both sides of every edge cache this note's title -- its sources in their
+    // `links`, its targets in their `backlinks` -- so a renamed heading goes
+    // stale in every neighbour's JSON (ISSUES.md A20).
+    if (diffKeys.has('title')) {
+      for (const source of this.backlinks.get(note.slug) ?? []) resave.add(source)
+      for (const target of newSlugs) resave.add(target)
+    }
+
     changeSets.set(note.slug, diffKeys)
     return {
       slug: note.slug,
       changeSets,
+      resave,
     }
+  }
+
+  /**
+    * The slugs `note` links to, from whichever shape it currently carries.
+    *
+    * A note that has been through `on()`'s save loop carries enriched `links`
+    * and no `linkSlugs`; one that has only been parsed carries `linkSlugs`; one
+    * whose flush failed part-way can carry neither.
+    *
+    * @param {{links?: {slug: string}[], linkSlugs?: string[]}} note
+    * @returns {string[]}
+    */
+  _linkSlugsOf(note) {
+    return note.links?.map(l => l.slug) ?? note.linkSlugs ?? []
+  }
+
+  /**
+    * Resolve `note`'s link and backlink slugs into `{slug, title}` pairs.
+    *
+    * Idempotent, unlike the inline version this replaced: a neighbour re-saved
+    * because someone else's edit moved its backlinks has already been enriched
+    * once and must survive being enriched again. Same tolerance as `change()`
+    * (the A10 fix).
+    */
+  _enrichNote(note) {
+    note.links = this._enrichLinks(this._linkSlugsOf(note), note.slug)
+    delete note.linkSlugs
+
+    note.backlinks = this._enrichLinks(this.backlinks.get(note.slug) ?? [], note.slug)
   }
 
   _enrichLinks(linkSlugs, noteSlug) {
@@ -190,9 +269,15 @@ export class NotePipeline {
   }
 
   async _deleteNote(note) {
+    // Neighbours on both sides hold a copy of this note that is about to be
+    // wrong: its sources keep a link that no longer resolves, its targets keep
+    // a backlink from a note that is gone. Returned so `on()` rewrites them.
+    const affected = new Set(this.backlinks.get(note.slug) ?? [])
+
     // Remove backlinks created by `note`
-    for (const link of note.links) {
-      this.backlinks.get(link.slug)?.delete(note.slug)
+    for (const slug of this._linkSlugsOf(note)) {
+      this.backlinks.get(slug)?.delete(note.slug)
+      affected.add(slug)
     }
 
     const deletePromises = []
@@ -209,8 +294,12 @@ export class NotePipeline {
 
     await Promise.all(deletePromises)
 
-    // Delete record of the note
+    // Delete record of the note. `this.backlinks.get(note.slug)` is deliberately
+    // kept: it describes links that still exist in other notes, so it is
+    // correct again the moment this note comes back.
     this.notes.delete(note.slug)
+
+    return affected
   }
 
   async _rehype(targetPath) {

@@ -134,7 +134,7 @@ corpus at the full 69,075 ticks the layout tightens mildly and keeps its charact
 against 131×137 before, median nearest-neighbour spacing 0.082 of graph width against 0.086. The
 constants are now genuinely in effect, so they can be retuned by eye.
 
-### A6. Backlinks are never pruned, and neighbours are never re-saved
+### A6. Backlinks are never pruned, and neighbours are never re-saved — **fixed**
 
 _Intended design, never finished — confirmed with the author._
 
@@ -146,9 +146,26 @@ Two halves of the same gap:
   slugs accumulated in `diffs` — precisely the neighbours whose `backlinks` need refreshing — are
   never written out.
 
-The `changeSets` / `diffs` machinery in `change()` exists _for this purpose_. It is computed,
-threaded through to `GraphPipeline`, and then dropped on the floor. Finishing it means: prune
-backlinks on change, and extend the save loop to cover `diffs.keys()`.
+The `changeSets` / `diffs` machinery in `change()` exists _for this purpose_. It was computed,
+threaded through to `GraphPipeline`, and then dropped on the floor.
+
+Finished in four pieces:
+
+- `change()` prunes `oldSlugs \ newSlugs` from the backlinks map. `_rehype` has already inserted
+  the new version's links by then, so old-minus-new is exactly the set nothing justifies any more.
+- `_enrichNote(note)` replaces the inline enrichment in the save loop and is **idempotent** — a
+  neighbour re-saved because of someone else's edit has already been enriched once. It reads its
+  link slugs through a shared `_linkSlugsOf(note)` (`note.links ?? note.linkSlugs ?? []`), the same
+  tolerance the A10 fix added to `change()`; `_deleteNote` uses it too, where an unguarded
+  `note.links` would have thrown for a note deleted before its first successful save.
+- The save loop iterates `toSave ∪ diffs.keys() ∪ resave`, skipping slugs no longer in
+  `this.notes`. `resave` is a separate set of neighbours to rewrite, fed by deletes, by adds (whose
+  sources were resolving to the `Unknown` placeholder) and by A20. It is kept **out** of `diffs`
+  deliberately: `changes` means "what changed inside this note" to `GraphPipeline`, and a `links`
+  entry there would re-lay the node for a neighbour's edit.
+- Deletes moved **before** the save loop. They prune the backlinks map and drop the note from
+  `this.notes`, and the save loop has to see both. `this.backlinks.get(deletedSlug)` is
+  deliberately kept — it describes links that still exist in other notes.
 
 ### A7. The watcher feeds non-Markdown files to the Markdown parser — **fixed**
 
@@ -397,6 +414,20 @@ it back when it is next re-parsed.
 has been done. A real fix needs per-image reference counting in `NotePipeline` — an
 `image → Set<slug>` map alongside `backlinks`, with the `rm` deferred until the last referrer drops
 it. The same map would let a restart notice orphaned images, which nothing currently prunes.
+
+### A20. Every neighbour caches a note's title — **fixed**
+
+_Found while fixing A6, which is what made re-saving a neighbour possible at all._
+
+`note_pipeline.js`, `_enrichLinks` resolves a link slug to `{slug, title}` — a **snapshot** of the
+target's title, written into the source's `links` and into the target's `backlinks`. Nothing
+refreshed it, so renaming a note's first heading left every note on either side of every one of its
+edges displaying the old title until the next restart. The same "correct only because a restart
+rebuilds everything" failure as A6.
+
+`change()` already diffs `title`. When that key is in `diffKeys` the note's backlink sources (whose
+`links` name it) and its link targets (whose `backlinks` name it) go into A6's `resave` set, so both
+directions are rewritten in the same batch.
 
 ---
 

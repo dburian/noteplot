@@ -33,6 +33,13 @@ return value to the next. Only `NotePipeline` produces anything new (`{notes, ch
 other two read it and return it unchanged. **Order matters** — `GraphPipeline` and
 `SearchIndexPipeline` both depend on `NotePipeline` having run first.
 
+`changes` is a `slug → Set<changed key>` map, and it is not only an output: `NotePipeline` reads it
+back to decide which **neighbours** to rewrite. A note's JSON embeds `{slug, title}` for each of its
+links and backlinks, so one edit can invalidate files that did not change — the targets a link was
+removed from, the sources of a deleted note, and, when a title changes, both sides of every edge.
+`on()` therefore writes `toSave ∪ diffs.keys() ∪ resave`, not just the notes whose files moved
+(`ISSUES.md` A6, A20). `GraphPipeline` iterates `events`, so the extra entries never reach it.
+
 `unify_pipelines.js` exports two pipeline builders:
 
 - `createRehypePipeline` — the full markdown → HTML path (MathJax, Shiki, figures, image
