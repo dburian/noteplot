@@ -4,7 +4,7 @@
   import { page } from '$app/stores';
     import DesktopToolbarButton from '../DesktopToolbarButton.svelte';
 
-  $: filterActive = $page.url.pathname == '/filter'
+  $: filterActive = $page.url.pathname == `${base}/filter`
 </script>
 
 <DesktopToolbarButton

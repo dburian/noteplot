@@ -18,9 +18,10 @@ function dist(p1, p2) {
   * @typedef {{source: string, target: string}} SerialisedLink
   * @typedef {{tags: Array<string>}} FrontMatter
   * @typedef {{slug: string, title: string, x: Number, y: Number, matter: FrontMatter}} Node
+  * @typedef {{slug: string, title?: string}} NoteRef
   * @typedef {{
-    * activeNote: import("$lib/search/search_index").Note,
-    * hoveredNote: import("$lib/search/search_index").Note,
+    * activeNote: NoteRef | null,
+    * hoveredNote: NoteRef | null,
     * showConnections: boolean,
     * showTagsGlow: boolean,
     }} GraphState
@@ -152,7 +153,8 @@ class GraphRenderer {
 
     // Redraw selected/hovered nodes so they end up on the top
     for (const note of [state.activeNote, state.hoveredNote]) {
-      const node = nodes.get(note?.slug)
+      if (!note) continue
+      const node = nodes.get(note.slug)
       if (!node) continue
 
       this.drawNode(node, screen, isHovered(node), isSelected(node))

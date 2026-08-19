@@ -12,6 +12,29 @@ import MiniSearch from "minisearch";
  * }} Match
 */
 
+/**
+ * Memoised on the `notes` reference, which is stable: both `search/+page.js` and
+ * `filter/+page.js` hand out the same array from the one `__search.json`
+ * module. Without this, opening either pane re-indexed the whole corpus
+ * (ISSUES.md B3). Callers must `await index.ready()` before `search()`
+ * (ISSUES.md B4) — the index is built asynchronously.
+ *
+ * @type {{notes: Array<Note>, index: MiniSearchIndex} | null}
+ */
+let sharedIndex = null;
+
+/**
+ * @param {Array<Note>} notes
+ * @returns {MiniSearchIndex}
+ */
+export function getSearchIndex(notes) {
+  if (sharedIndex?.notes !== notes) {
+    sharedIndex = { notes, index: new MiniSearchIndex(notes) };
+  }
+
+  return sharedIndex.index;
+}
+
 export class MiniSearchIndex {
   /**
     * @param {Array<Note>} notes

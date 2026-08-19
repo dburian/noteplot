@@ -3,9 +3,20 @@
   import { page } from '$app/stores';
   import { setContext } from 'svelte';
 
+  /**
+   * Only the slug and the title are ever read off the active note. Keeping the
+   * whole note would put its rendered HTML in the store (ISSUES.md B9).
+   *
+   * @param {{slug: string, title: string} | null | undefined} note
+   * @returns {{slug: string, title: string} | null}
+   */
+  function toNoteRef(note) {
+    return note ? { slug: note.slug, title: note.title } : null;
+  }
+
   function extractGraphStateFromPageData(pageData) {
     return {
-      activeNote: pageData.note || null,
+      activeNote: toNoteRef(pageData.note),
       hoveredNote: null,
       showConnections: true,
       showTagsGlow: true
@@ -35,7 +46,7 @@
   const graphState = createGraphState($page.data);
 
   $: if ($graphState.activeNote?.slug != $page.data.note?.slug) {
-    graphState.update((values) => ({ ...values, activeNote: $page.data.note || null }));
+    graphState.update((values) => ({ ...values, activeNote: toNoteRef($page.data.note) }));
   }
 
   setContext('graphState', graphState);

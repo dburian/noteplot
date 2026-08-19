@@ -1,11 +1,11 @@
-import searchNotes from "$lib/notes/__search.json";
-
-export function load() {
-
+// Dynamic import so the full plaintext of every note ships only to visitors who
+// open search or filter, instead of being inlined into the bundle (ISSUES.md B2).
+export async function load() {
+  const searchNotes = await import('$lib/notes/__search.json');
 
   return {
     withGraph: true,
     search: '',
-    searchNotes,
-  }
+    searchNotes: searchNotes.default
+  };
 }

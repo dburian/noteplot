@@ -1,6 +1,6 @@
 <script>
   import SearchMatch from "./SearchMatch.svelte";
-  import {MiniSearchIndex} from "./search_index.js";
+  import {getSearchIndex} from "./search_index.js";
   import SearchBar from "./SearchBar.svelte";
     import QueryDisplay from "./QueryDisplay.svelte";
     import { getContext } from "svelte";
@@ -10,7 +10,7 @@
   /** @type {import('minisearch').Query} */
   let query;
 
-  const index = new MiniSearchIndex(notes)
+  const index = getSearchIndex(notes)
   let searching = false;
 
   const filterContext = getContext('filterState')
@@ -18,7 +18,7 @@
   /**
   * @param {string} searchString
   */
-  function searchIndex(searchString) {
+  async function searchIndex(searchString) {
     if (searchString === '') {
       filterContext.clear()
       query = null
@@ -28,6 +28,8 @@
     query = index.parseSearchString(searchString)
     filterContext.setQuery(query)
     searching = true;
+    // See ISSUES.md B4: the index builds asynchronously.
+    await index.ready()
     filterContext.setResults(index.search(query));
     searching = false;
   }
@@ -41,7 +43,9 @@
     on:search={(event) => searchIndex(event.detail.searchString)}
   />
   <QueryDisplay query={query} />
-  {#if $filterContext.results !== null && $filterContext.results.length === 0}
+  {#if searching}
+    <h2 class="text-3xl text-center my-8">searching ...</h2>
+  {:else if $filterContext.results !== null && $filterContext.results.length === 0}
     <h2 class="text-3xl text-center my-8">no match</h2>
   {:else if $filterContext.results !== null}
     <section class="grid">

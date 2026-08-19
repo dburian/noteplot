@@ -9,7 +9,9 @@
     import ShowConnections from './buttons/ShowConnections.svelte';
     import ShowTagsGlow from './buttons/ShowTagsGlow.svelte';
 
-  const contentSlider = getContext('contentSliderState');
+  // `hasContent` lives on `contentState`, not on the slider store — guarding on
+  // the slider meant the handle never rendered (ISSUES.md B5).
+  const contentState = getContext('contentState');
 </script>
 
 <div class="absolute">
@@ -25,6 +27,6 @@
     </div>
   </div>
 </div>
-{#if $contentSlider.hasContent}
+{#if $contentState.hasContent}
   <ResizeContent />
 {/if}

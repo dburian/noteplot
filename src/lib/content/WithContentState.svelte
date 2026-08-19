@@ -33,7 +33,9 @@
           newUrl.searchParams.delete('onlyContent', '');
         }
 
-        if (newUrl != page.url) {
+        // `URL` objects compare by reference, so this used to be always true
+        // and `replaceState` fired on every update (ISSUES.md B8).
+        if (newUrl.href !== page.url.href) {
           replaceState(newUrl, {});
         }
 

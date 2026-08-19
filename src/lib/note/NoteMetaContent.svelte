@@ -1,5 +1,6 @@
 <script>
     import { dev } from "$app/environment";
+    import { base } from "$app/paths";
     import InfoBox from "$lib/components/InfoBox.svelte";
 
   export let slug, title, links, backlinks, noteRoot, matter, readingTime;
@@ -12,9 +13,12 @@
   let tags, otherMatter;
   $: ({ tags, ...otherMatter } = matter ?? {});
 
-  const readDate = new Date(readingTime.time)
-  const readMins = readDate.getMinutes()
-  const readSecs = readDate.getSeconds()
+  // `readingTime.time` is a duration in milliseconds. Reading it back through
+  // `new Date(...).getMinutes()` was a wall-clock read, and so wrong in any
+  // timezone whose offset is not a whole number of hours (ISSUES.md B11).
+  let readMins, readSecs;
+  $: readMins = Math.floor(readingTime.time / 60000);
+  $: readSecs = Math.round((readingTime.time % 60000) / 1000);
 </script>
 
 <InfoBox>
@@ -23,7 +27,7 @@
       <li><strong>references:</strong></li>
       <ul>
         {#each links as link}
-          <li><a href={`./${link.slug}`} data-slug={link.slug}>{link.title}</a></li>
+          <li><a href={`${base}/${link.slug}`} data-slug={link.slug}>{link.title}</a></li>
         {/each}
       </ul>
     {/if}
@@ -31,7 +35,7 @@
       <li><strong>is referenced by:</strong></li>
       <ul>
         {#each backlinks as link}
-          <li><a href={`./${link.slug}`} data-slug={link.slug}>{link.title}</a></li>
+          <li><a href={`${base}/${link.slug}`} data-slug={link.slug}>{link.title}</a></li>
         {/each}
       </ul>
     {/if}

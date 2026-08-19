@@ -12,7 +12,7 @@ cannot be prerendered fails the build.
 +layout.svelte                 imports app.css, renders <slot/>. Nothing else.
 +error.svelte                  status + message, link back to the index
 
-(graph)/+layout.js             statically imports __graph.json, `prerender = true`
+(graph)/+layout.js             dynamically imports __graph.json, `prerender = true`
 (graph)/+layout.svelte         stacks the five context providers, then splits
                                desktop / mobile via <Adaptive>
 ```
@@ -21,8 +21,10 @@ The `(graph)` group exists so every page inside it renders **on top of a live gr
 The page's own content goes into the layout's `<slot/>`, which lands inside the content pane
 (desktop) or the full-screen note overlay (mobile). See `src/lib/CLAUDE.md` for the providers.
 
-`(graph)/+layout.js` does `import graph from '$lib/notes/__graph.json'` at module scope. That is
-a _static_ import, so the entire graph is inlined into the JS bundle and loaded on every page.
+`(graph)/+layout.js` does `await import('$lib/notes/__graph.json')` **inside `load`**. It must stay
+a dynamic import: a static one is inlined into the JS bundle by Vite, so the entire graph would load
+with every page (ISSUES.md B2). `load` runs at build time for the prerender and in the browser on
+navigation either way, so nothing else changes.
 
 ## Route table
 
@@ -66,9 +68,11 @@ this object. The difference is that the map now lives in one shared chunk instea
 duplicated into both route chunks, and a missing slug 404s from a `Map` miss rather than from a
 caught import rejection.
 
-The corpus is not eagerly bundled here — but `search/+page.js` and `filter/+page.js` do statically
-import `__search.json`, the **plaintext of every note**, and that whole payload ships with the
-bundle (ISSUES.md B2).
+`search/+page.js` and `filter/+page.js` load `__search.json` — the **plaintext of every note** —
+the same way, with `await import()` inside `load`. So that payload is fetched only by visitors who
+open the search or filter pane. Both hand the array straight through as `data.searchNotes`, without
+copying it: `getSearchIndex` in `src/lib/search/search_index.js` memoises the built index on that
+array's identity, and a spread would defeat it.
 
 ## Prerender enumeration
 
@@ -107,6 +111,6 @@ import { base } from '$app/paths';
 goto(`${base}/${slug}`);
 ```
 
-Two places currently get this wrong: `NoteMetaContent` uses relative `./${slug}` hrefs (B12),
-and the Search/Filter toolbar buttons compare `$page.url.pathname` against a base-less literal
-(B6).
+Both halves of this hold now: `NoteMetaContent`'s reference/backlink hrefs are `` `${base}/${slug}` ``
+(was a relative `./${slug}`, B12), and the Search/Filter toolbar buttons compare
+`$page.url.pathname` against `` `${base}/search` `` / `` `${base}/filter` `` (B6).

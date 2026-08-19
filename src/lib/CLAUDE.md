@@ -31,11 +31,15 @@ hand-rolled — they expose `subscribe` plus named action methods rather than a 
 | `contentState`       | `content/WithContentState.svelte`     | `{hasContent, onlyContent, noContent}`                     | `ContentSlider`, `MobileGraphInterface`, `MobileToolbar`, `LargerContent`, `SmallerContent`             |
 | `contentSliderState` | `ContentSlider.svelte`                | `{searchString, lastUrl, width, lastSetWidth}`             | `DesktopToolbar`, `LargerContent`, `SmallerContent`, `ResizeContent`                                    |
 
+`graphState`'s two notes are `{slug, title}` refs, not whole notes — the store used to hold the
+note's rendered HTML, and nothing ever read it (ISSUES.md B9).
+
 **Context keys are strings, and a typo fails silently.** `getContext` on an unknown key returns
-`undefined`, and `{#if $store.foo}` on an undefined store just renders nothing. There is already
-one live instance of this: `DesktopToolbar.svelte` guards on `$contentSlider.hasContent`, but
-`hasContent` belongs to `contentState`, so the resize handle never renders (ISSUES.md B5). When
-adding a consumer, verify the key against the table above.
+`undefined`, and `{#if $store.foo}` on an undefined store just renders nothing. That cost the
+resize handle: `DesktopToolbar.svelte` guarded on `$contentSlider.hasContent`, but `hasContent`
+belongs to `contentState`, so `ResizeContent` never mounted. It now reads `contentState` (ISSUES.md
+B5), and no live instance of the mistake is left. When adding a consumer, verify the key against the
+table above.
 
 A sixth key, `graphInterfaceState`, was removed — it had no provider left. If you find it in old
 branches or commits, it maps onto `contentState` plus `contentSliderState`.
@@ -114,6 +118,11 @@ home for the mobile note view described in `ISSUES.md` B7.
 over the `content`, `title`, and `tag` fields, and `parseSearchString` implements a small query
 language: bare terms, quoted phrases, and `field:term` prefixes, all combined with `AND`.
 
+**Do not construct it directly — call `getSearchIndex(notes)`.** It memoises one instance on the
+`notes` array's identity, so search and filter share the built index instead of re-indexing the
+corpus on every mount (ISSUES.md B3). The array is the one `__search.json` module object both
+routes pass through untouched, so the memo holds; copy or spread it and it does not.
+
 Two windows, **deliberately separate** because they do different jobs:
 
 - `SearchWindow.svelte` — keeps results in a local variable. Finding a note and jumping to it;
@@ -121,8 +130,10 @@ Two windows, **deliberately separate** because they do different jobs:
 - `FilterWindow.svelte` — writes results into `filterState`, which `GraphCanvas` reads to
   restrict the visible nodes and links.
 
-Both construct their own `MiniSearchIndex` on mount, and both call `search()` without awaiting
-the index's async construction (ISSUES.md B3, B4).
+Both share the memoised index, and both `await index.ready()` before `search()` — construction is
+`addAllAsync`, so a query typed straight after the pane opens would otherwise run against a
+half-built index (ISSUES.md B3, B4). Their `searching` flag is what drives the "searching ..."
+branch during that await.
 
 ### `toolbar/`
 

@@ -462,47 +462,57 @@ into `nodes`, so a node and its links cannot disagree.
 Measured on a 7-note, 2-link scratch collection: 2010 bytes → 843. The saving grows with both link
 count and note size.
 
-### B2. The entire corpus is inlined into the JS bundle
+### B2. The entire corpus is inlined into the JS bundle — **fixed**
 
-- `(graph)/+layout.js` statically imports `__graph.json` — every page.
-- `search/+page.js` and `filter/+page.js` statically import `__search.json`, which is the **full
-  plaintext of every note**.
+`(graph)/+layout.js` statically imported `__graph.json` on every page, and `search/+page.js` /
+`filter/+page.js` statically imported `__search.json`, the **full plaintext of every note**. Static
+JSON imports are inlined by Vite, so there was no lazy loading and no caching separate from the
+bundle.
 
-Static JSON imports are inlined by Vite, so there is no lazy loading and no caching separate
-from the bundle. At hundreds of notes this is the single biggest payload win available. Use a
-dynamic `import()` inside `load`, or move the files to `static/` and `fetch` them.
+All three are now `await import(...)` **inside `load`**, which Vite emits as its own chunk.
+Prerendering is unaffected — `load` runs at build time and in the browser either way — and
+`__search.json` now ships only to visitors who open search or filter.
 
-Already a README TODO ("refactor loading of search index jsons").
+Closes the README TODO ("refactor loading of search index jsons").
 
-### B3. The search index is rebuilt on every mount
+### B3. The search index is rebuilt on every mount — **fixed**
 
-`SearchWindow.svelte` and `FilterWindow.svelte` each do `new MiniSearchIndex(notes)` at component
-scope — so the whole corpus is re-indexed every time the pane is opened. Hoist to a
-module-level lazily-initialised singleton in `search_index.js`.
+`SearchWindow.svelte` and `FilterWindow.svelte` each did `new MiniSearchIndex(notes)` at component
+scope, so the whole corpus was re-indexed every time either pane opened.
 
-### B4. Queries race the index construction
+`search_index.js` now exports `getSearchIndex(notes)`, which memoises one instance on the `notes`
+reference and hands the same index to both windows. The reference is stable because both routes pass
+the `__search.json` module array straight through — a spread anywhere along that path silently
+reintroduces the re-indexing.
+
+### B4. Queries race the index construction — **fixed**
 
 `MiniSearchIndex`'s constructor kicks off `addAllAsync` and stores the promise as
-`costructionPromise` (sic), exposed via `ready()`. **Neither window awaits it** before calling
-`search()`. The first query after opening the pane can run against a partially built index and
-silently return nothing or too little.
+`costructionPromise` (sic), exposed via `ready()`. Neither window awaited it before calling
+`search()`, so the first query after opening a pane could run against a partially built index and
+silently return nothing.
 
-Either await `ready()`, or use the synchronous `addAll`.
+Both `searchIndex` functions are now `async` and `await index.ready()` first. `addAllAsync` is kept
+deliberately — indexing off the main thread beats a synchronous `addAll` that would freeze the pane
+— and each window's existing `searching` flag now drives a "searching ..." branch for the wait.
 
-### B5. The drag-to-resize handle never renders
+### B5. The drag-to-resize handle never renders — **fixed**
 
-`toolbar/DesktopToolbar.svelte`: `{#if $contentSlider.hasContent}`. `hasContent` lives on
-`contentState`, not on the slider store, so the expression is always `undefined` and
-`ResizeContent` is never mounted.
+`toolbar/DesktopToolbar.svelte` guarded on `{#if $contentSlider.hasContent}`, but `hasContent` lives
+on `contentState`, not on the slider store, so the expression was always `undefined` and
+`ResizeContent` never mounted. A textbook stringly-typed-context failure — see the context table in
+`src/lib/CLAUDE.md`.
 
-A textbook stringly-typed-context failure — see the context table in `src/lib/CLAUDE.md`.
+`DesktopToolbar` now gets `contentState` from context (the slider store was fetched for nothing
+else) and guards on that. `ResizeContent` itself still uses `contentSliderState`, which is correct:
+it sets the width.
 
-### B6. Toolbar active-state ignores `base`
+### B6. Toolbar active-state ignores `base` — **fixed**
 
-`toolbar/buttons/Search.svelte` and `Filter.svelte` compare
-`$page.url.pathname == '/search'` against a base-less literal. On any sub-path deploy the
-highlight never lights up. Compare against `` `${base}/search` ``. Missed by the "use base
-paths" commit.
+`toolbar/buttons/Search.svelte` and `Filter.svelte` compared `$page.url.pathname` against the
+base-less literals `'/search'` / `'/filter'`, so on a sub-path deploy the highlight never lit up.
+Missed by the "use base paths" commit; both now compare against `` `${base}/search` `` /
+`` `${base}/filter` ``, which is what their own `goto` already built.
 
 ### B7. Two competing mechanisms for "show the note without the graph"
 
@@ -516,15 +526,21 @@ alongside it. Pick one: the smaller change is to delete both flags and have `/no
 `contentState` with `onlyContent`, so route and search param express the same state through one
 code path.
 
-### B8. `replaceState` fires on every content-state update
+**Left open deliberately.** Which of the two mechanisms wins is a design call, not a bug fix, so the
+B-series pass around it (B2–B13) left both flags exactly where they were.
 
-`content/WithContentState.svelte`: `if (newUrl != page.url)` compares two `URL` **objects** by
-reference, which is always true. Compare `newUrl.href !== page.url.href`.
+### B8. `replaceState` fires on every content-state update — **fixed**
 
-### B9. `graphState.activeNote` holds the entire note
+`content/WithContentState.svelte` did `if (newUrl != page.url)`, comparing two `URL` **objects** by
+reference, which is always true. Now `newUrl.href !== page.url.href`, so the history entry is only
+rewritten when the URL actually changed.
 
-`graph/WithGraphState.svelte` puts `pageData.note` — full rendered HTML included — into the
-store, while every consumer reads only `.slug`. Store the slug, or a `{slug, title}` pair.
+### B9. `graphState.activeNote` holds the entire note — **fixed**
+
+`graph/WithGraphState.svelte` put `pageData.note` — full rendered HTML included — into the store,
+while every consumer reads only `.slug`. A `toNoteRef` helper now narrows it to `{slug, title}` in
+both the initialiser and the `$page.data.note` reactive block, and `canvas_graph.js`'s `GraphState`
+typedef describes both notes as that `NoteRef` shape rather than a full search-index `Note`.
 
 ### B10. Duplicated route code — **fixed**
 
@@ -538,34 +554,33 @@ untouched.
 The two `+page.svelte` files stay separate: SvelteKit requires one per route. They are byte-identical
 and each is a single `<NoteContent {...data.note} />`, so there is nothing left to share.
 
-### B11. `NoteMetaContent` is non-reactive and timezone-dependent — **half fixed**
+### B11. `NoteMetaContent` is non-reactive and timezone-dependent — **fixed**
 
 `note/NoteMetaContent.svelte`:
 
 - ~~`const { tags, ...otherMatter } = matter` runs once at init, so it will not update if
   `matter` changes, and it **throws** if `matter` is not an object.~~ **Fixed:** the destructure
   is now reactive and defaults to `{}`. See A16 for where the bad `matter` came from.
-- `new Date(readingTime.time).getMinutes()` reads a duration in milliseconds as a wall-clock
+- ~~`new Date(readingTime.time).getMinutes()` reads a duration in milliseconds as a wall-clock
   time. In any timezone with a non-whole-hour offset (`+05:30`, `+09:30`, …) the minutes are
-  wrong. Compute from the millisecond value directly. **Still open.**
+  wrong.~~ **Fixed:** computed from the millisecond value — `Math.floor(time / 60000)` and
+  `Math.round((time % 60000) / 1000)` — and reactive, like the `matter` destructure above it.
 
-### B12. Relative note links
+### B12. Relative note links — **fixed**
 
-`NoteMetaContent` renders `href={`./${link.slug}`}`. Relative resolution means the same link
-points somewhere different from `/x` than from `/notes/x`, and it breaks under a base path. Use
-`` `${base}/${link.slug}` ``.
+`NoteMetaContent` rendered `href={`./${link.slug}`}` for both references and backlinks. Relative
+resolution meant the same link pointed somewhere different from `/x` than from `/notes/x`, and it
+broke under a base path. Both are now `` `${base}/${link.slug}` ``.
 
-### B13. `WithHoverableLinks` never cleans up
+### B13. `WithHoverableLinks` never cleans up — **fixed**
 
-`note/WithHoverableLinks.svelte`:
+`note/WithHoverableLinks.svelte` had two independent faults: `unregisterEvents` called
+`addEventListener` instead of `removeEventListener`, so it added a second listener rather than
+removing the first; and it would not have mattered, because the cleanup closure was a bare
+`() => {...};` statement **never returned** from `onMount`.
 
-- `unregisterEvents` calls `addEventListener` instead of `removeEventListener` — it adds a
-  second listener rather than removing the first.
-- It would not matter anyway: the cleanup closure is written as a bare `() => {...};` statement
-  and **never returned** from `onMount`, so Svelte never calls it.
-
-Currently harmless because `{#key}` in `Note.svelte` destroys the elements too, but it is a trap
-for anyone who changes that.
+Both fixed — `removeEventListener`, and the closure is returned. It was harmless while `{#key}` in
+`Note.svelte` destroys the elements anyway, but it was a trap for anyone who changes that.
 
 ---
 

@@ -26,8 +26,8 @@
    * @param {HTMLLinkElement} linkElement
    */
   function unregisterEvents(linkElement) {
-    linkElement.addEventListener('mouseenter', mouseenter);
-    linkElement.addEventListener('mouseleave', mouseleave);
+    linkElement.removeEventListener('mouseenter', mouseenter);
+    linkElement.removeEventListener('mouseleave', mouseleave);
   }
 
   /** @type {Map<string,Array<HTMLLinkElement>>} */
@@ -49,7 +49,8 @@
       registerEvents(link);
     }
 
-    () => {
+    // Returned, so Svelte actually runs it on destroy (ISSUES.md B13).
+    return () => {
       for (const links of contentNoteLinks.values()) {
         for (const link of links) unregisterEvents(link);
       }
