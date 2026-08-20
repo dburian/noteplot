@@ -14,6 +14,8 @@ function dist(p1, p2) {
 
 /**
   * @typedef {{x_shift: Number, y_shift: Number, type: string}} GlowPixel
+  * @typedef {{light: string, dark: string}} GlowColor
+  * @typedef {{pixels: Map<string, GlowPixel[]>, colors: Map<string, GlowColor>}} Glow
   * @typedef {{source: Node, target: Node}} Link
   * @typedef {{source: string, target: string}} SerialisedLink
   * @typedef {{tags: Array<string>}} FrontMatter
@@ -96,7 +98,7 @@ class GraphRenderer {
   /**
     * @param {Map<String, Node>} nodes
     * @param {Map<String, Map<String, Link>>} links
-    * @param {{pixels: Map<String,GlowPixel[]>, hues: Map<String, number>}} glow
+    * @param {Glow} glow
     * @param {CanvasScreen} screen
     * @param {GraphState} state
     *
@@ -114,11 +116,11 @@ class GraphRenderer {
     const isSelected = (node) => node.slug == state.activeNote?.slug
 
     if (state.showTagsGlow) {
-      const hues = glow.hues
+      const colors = glow.colors
       for (const node of nodes.values()) {
         const pixels = glow.pixels.get(node.slug)
         if (pixels) {
-          this.drawNodeGlow(pixels, hues, node, screen)
+          this.drawNodeGlow(pixels, colors, node, screen)
         }
       }
     }
@@ -236,27 +238,26 @@ class GraphRenderer {
 
   /**
     * @param {GlowPixel[]} pixels
-    * @param {Map<String, number>} hues 
+    * @param {Map<String, GlowColor>} colors
     * @param {Node} node
     * @param {CanvasScreen} screen 
     */
-  drawNodeGlow(pixels, hues, node, screen) {
+  drawNodeGlow(pixels, colors, node, screen) {
     const { x, y } = screen.toScreenPos(node)
     const gpw = this.theme.glowPixelWidth * screen.transform.k
     const gpg = this.theme.glowPixelGap * screen.transform.k
-    const saturation = this.theme.darkMode ? 50 : 30;
+    const variant = this.theme.darkMode ? 'dark' : 'light'
 
     const ctx = screen.ctx
 
     for (const pixel of pixels) {
-      const hue = hues.get(pixel.type)
-      const hslStr = `hsla(${hue}, ${saturation}%, 50%, 0.4)`
-      const glowColor = d3.color(hslStr)?.formatHex()
-
+      // Both variants are precomputed once per tag in `generateGlow`. Parsing
+      // an `hsla()` string here meant 20 squares x every node x every frame
+      // (ISSUES.md C3).
       const pixelX = x + (pixel.x_shift * (gpw + gpg))
       const pixelY = y + (pixel.y_shift * (gpw + gpg))
 
-      ctx.fillStyle = glowColor
+      ctx.fillStyle = colors.get(pixel.type)[variant]
       ctx.fillRect(pixelX, pixelY, gpw, gpw)
     }
   }
@@ -302,7 +303,11 @@ class CanvasScreen {
   }
 
   addZoom() {
+    // `[1, 15]` is the removed SVG renderer's `[1, maxZoomCoef]`. Without it
+    // zooming out is unbounded and the graph shrinks to nothing (ISSUES.md
+    // C12); `1` is the fit-to-window scale, so there is nothing below it.
     const zoomBehavior = d3.zoom()
+      .scaleExtent([1, 15])
       .on("zoom", this.onZoom)
     d3.select(this.canvas).call(zoomBehavior)
   }
@@ -404,6 +409,8 @@ export class CanvasGraph {
   ) {
     this.nodes = new Map();
     this.links = new Map()
+    /** @type {number | null} */
+    this.pendingFrame = null
     for (const node of nodes) this.nodes.set(node.slug, node)
 
     // `__graph.json` carries a link as a pair of slugs. A file from a build
@@ -448,6 +455,11 @@ export class CanvasGraph {
 
     this.filteredNodes = this.nodes
     this.filteredLinks = this.links
+    // The results the filtered maps were last built from. `undefined`, not
+    // `null`, so the store's initial `{query: null, results: null}` still
+    // counts as a change and the subscription's first call runs.
+    /** @type {import("$lib/search/search_index").Match[] | null | undefined} */
+    this.filterResults = undefined
     this.filterStore = filterStore
     this.filterUnsubscribe = filterStore.subscribe(this.onFilterChange)
 
@@ -457,6 +469,7 @@ export class CanvasGraph {
 
 
   destruct() {
+    if (this.pendingFrame !== null) cancelAnimationFrame(this.pendingFrame)
     this.screen.canvas.removeEventListener("click", this.onClick)
     this.screen.canvas.removeEventListener("pointermove", this.onHover)
     this.screen.destruct()
@@ -478,7 +491,11 @@ export class CanvasGraph {
     * @param {FilterState} newFilter
     */
   onFilterChange = (newFilter) => {
-    // TODO: If query changed, only then filter
+    // The store also carries `query`, which nothing here draws, so a write
+    // that leaves `results` alone cannot change the picture (ISSUES.md C11).
+    if (newFilter.results === this.filterResults) return
+    this.filterResults = newFilter.results
+
     this.filteredNodes = this.nodes
     this.filteredLinks = this.links
 
@@ -523,11 +540,14 @@ export class CanvasGraph {
     */
   constructGrid() {
     const viewBox = this.screen.viewBox
+    // Aim for ~4 nodes per cell, so a mousemove scans a handful of nodes
+    // rather than the ~N/25 a fixed 5x5 grid left it with (ISSUES.md C6).
+    const targetCells = Math.max(Math.ceil(this.nodes.size / 4), 1)
     // `|| 1` catches a zero-sized viewBox -- a collection of one note, or one
     // where every node sits at the same point. Without it `gridSize` is 0, the
     // row and column counts are NaN, and `Array(NaN)` throws `RangeError:
     // Invalid array length`, so the graph never mounts at all.
-    const gridSize = Math.min(viewBox.width / 5, viewBox.height / 5) || 1
+    const gridSize = Math.sqrt(viewBox.width * viewBox.height / targetCells) || 1
     const numRows = Math.max(Math.ceil(viewBox.height / gridSize), 1)
     const numCols = Math.max(Math.ceil(viewBox.width / gridSize), 1)
 
@@ -579,10 +599,7 @@ export class CanvasGraph {
     * Generates glow pixels for each node. Glow is a pixelated 'hue' around
     * each node signilizing its type.
     *
-    * @returns {{
-    *   pixels: Map<string, GlowPixel[]>
-    *   hues: Map<string, Number>,
-    * }}
+    * @returns {Glow}
     */
   generateGlow() {
     const types = new Set()
@@ -613,15 +630,22 @@ export class CanvasGraph {
       }
     }
 
-    const hues = new Map()
+    /** @type {Map<string, GlowColor>} */
+    const colors = new Map()
     let lastHue = 0
     const hueStep = 360 / types.size
     for (const type of types) {
-      hues.set(type, lastHue)
+      // `formatHex()` drops the alpha, so the glow has always been opaque --
+      // kept as is, precomputing it is meant to be a pure performance change.
+      /** @param {number} saturation */
+      const hex = (saturation) =>
+        d3.color(`hsla(${lastHue}, ${saturation}%, 50%, 0.4)`)?.formatHex()
+
+      colors.set(type, { light: hex(30), dark: hex(50) })
       lastHue += hueStep
     }
 
-    return { pixels, hues }
+    return { pixels, colors }
   }
 
   /**
@@ -647,16 +671,33 @@ export class CanvasGraph {
 
     if (node && this.filteredNodes.has(node.slug)) {
       this.graphStateStore.hover(node)
-      document.body.style = "cursor: pointer;";
+      // Not `body.style = ...`, which assigns to `cssText` and drops every
+      // other inline style (ISSUES.md C10).
+      document.body.style.cursor = "pointer";
     } else if (!node && this.graphState.hoveredNote !== null) {
       this.graphStateStore.hover(null)
-      document.body.style = "cursor: default;";
+      document.body.style.cursor = "default";
     }
   }
 
+  /**
+    * Schedules one redraw per frame. Zoom, resize, hover, filtering and the
+    * dark-mode listener all request a redraw independently and several
+    * routinely land within a single frame (ISSUES.md C2), so this coalesces
+    * them; `deferDraw` still suppresses drawing outright during construction.
+    */
   draw = () => {
     if (this.deferDraw) return
+    if (this.pendingFrame !== null) return
 
+    this.pendingFrame = requestAnimationFrame(() => {
+      this.pendingFrame = null
+      this.drawNow()
+    })
+  }
+
+  /** Paints a frame immediately. Everything else goes through `draw`. */
+  drawNow() {
     this.renderer.draw(
       this.filteredNodes,
       this.filteredLinks,
@@ -682,7 +723,10 @@ export class CanvasGraph {
 
     if (gridItems.length == 0) return null;
 
-    const eps = 10 * this.screen.dpr
+    // CSS pixels: `toScreenPos` never sees `dpr`, the context is scaled by it
+    // instead, so factoring it in here doubled the radius on retina displays
+    // (ISSUES.md C7).
+    const eps = 10
     for (const node of gridItems) {
       const nodeDist = dist(this.screen.toScreenPos(node), screenPos)
       if (nodeDist < eps) {

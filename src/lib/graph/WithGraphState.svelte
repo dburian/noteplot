@@ -14,6 +14,7 @@
     return note ? { slug: note.slug, title: note.title } : null;
   }
 
+  /** @returns {import('./canvas_graph').GraphState} */
   function extractGraphStateFromPageData(pageData) {
     return {
       activeNote: toNoteRef(pageData.note),
@@ -26,8 +27,20 @@
   function createGraphState(pageData) {
     const { subscribe, update } = writable(extractGraphStateFromPageData(pageData));
 
+    /**
+     * Returns the state untouched when the hovered note has not actually
+     * changed, so no subscriber fires. `onHover` runs on every pointermove
+     * over a node, and a fresh object each time meant a full graph redraw
+     * every time (ISSUES.md C1).
+     *
+     * @param {import('./canvas_graph').Node | null} note
+     */
     function hover(note) {
-      update((values) => ({ ...values, hoveredNote: note }));
+      update((values) => {
+        if (note?.slug === values.hoveredNote?.slug) return values;
+
+        return { ...values, hoveredNote: note };
+      });
     }
 
     /** @param {boolean} flag */

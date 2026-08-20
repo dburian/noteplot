@@ -128,7 +128,9 @@ Two windows, **deliberately separate** because they do different jobs:
 - `SearchWindow.svelte` — keeps results in a local variable. Finding a note and jumping to it;
   the graph is untouched.
 - `FilterWindow.svelte` — writes results into `filterState`, which `GraphCanvas` reads to
-  restrict the visible nodes and links.
+  restrict the visible nodes and links. One write per query, through the store's single
+  `setQueryAndResults` action: the `setQuery`-then-`setResults` pair it replaces made the graph
+  rebuild its filtered maps and redraw twice per keystroke (ISSUES.md C11).
 
 Both share the memoised index, and both `await index.ready()` before `search()` — construction is
 `addAllAsync`, so a query typed straight after the pane opens would otherwise run against a

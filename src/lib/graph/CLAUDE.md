@@ -65,7 +65,8 @@ toViewBoxPos({ x, y }); // screen → viewBox: the exact inverse; used for hit-t
 
 Note the canvas is also `ctx.scale(dpr, dpr)`-ed for device pixel ratio, so **drawing
 coordinates are CSS pixels, not device pixels**. Mixing `dpr` into a value that is already in CSS
-pixels is a bug (there is one such case — ISSUES.md C7).
+pixels is a bug — `getNode`'s hit radius used to, and read twice as large on a retina display
+(ISSUES.md C7).
 
 ## The three classes in `canvas_graph.js`
 
@@ -94,6 +95,10 @@ its callback synchronously before the object is fully built.
 Owns `viewBox`, `paintBox`, `transform`, `dpr`, and the canvas element. Registers the `resize`
 listener and the d3 zoom behaviour. Calls the `redraw` callback it was constructed with.
 
+The zoom is clamped to `scaleExtent([1, 15])`. `k = 1` is the fit-to-window scale — the viewBox is
+already letterboxed into the canvas — so there is nothing to see below it, and without the extent
+zooming out ran forever (ISSUES.md C12).
+
 ### `GraphRenderer` — all drawing, no state
 
 `draw(nodes, links, glow, screen, state)` is the whole frame. It also owns the `theme` object and
@@ -110,23 +115,33 @@ Draw order within a frame:
 
 ## What triggers a redraw
 
-All of these call `draw()` **synchronously** — there is no `requestAnimationFrame` batching, so
-several can land in the same frame (ISSUES.md C2):
-
 - d3 zoom (`CanvasScreen.onZoom`) — on every wheel/drag event
 - window resize (`CanvasScreen.onResize`)
-- `graphState` changes (`CanvasGraph.onGraphStateChange`) — including **every pointermove over a
-  node**, because `hover()` always allocates a new state object (ISSUES.md C1)
-- `filterState` changes (`CanvasGraph.onFilterChange`) — twice per query, since `FilterWindow`
-  calls `setQuery` then `setResults`
+- `graphState` changes (`CanvasGraph.onGraphStateChange`)
+- `filterState` changes (`CanvasGraph.onFilterChange`)
 - the `prefers-color-scheme` media query (`GraphRenderer.onDarkMode`)
+
+They all call `draw()`, which is **not** the painting code: it schedules `drawNow()` on a
+`requestAnimationFrame` and holds the pending frame id, so the several requests that routinely land
+within one frame collapse into a single paint (ISSUES.md C2). `destruct()` cancels a pending frame;
+`deferDraw` still suppresses drawing outright during construction. Anything that must paint
+synchronously has to call `drawNow()` and know why.
+
+Two of those sources are also quiet at the source, so most of the events never reach `draw()` at
+all: `graphState`'s `hover()` returns the state object unchanged when the hovered slug has not
+changed, which is what stops a full redraw on every pointermove over a node (ISSUES.md C1), and
+`onFilterChange` returns early when `newFilter.results` is the same reference as the maps were last
+built from — `FilterWindow` writes the query and the results in one `setQueryAndResults` call, so
+there is one rebuild per query rather than two (ISSUES.md C11).
 
 ## Hit-testing
 
 `getNode(screenPos)` converts to viewBox space, finds the grid cell, and linearly scans that
-cell for a node within `eps`. The grid is uniform, built once in `constructGrid()` with
-`cellSize = min(viewBox.width, viewBox.height) / 5` — i.e. roughly **5×5 cells for the entire
-graph**, regardless of node count (ISSUES.md C6).
+cell for a node within `eps` (10 CSS pixels). The grid is uniform, built once in `constructGrid()`
+and sized by **node count, not by the viewBox**: `cellSize = sqrt(area / ceil(N / 4))`, so a cell
+holds about four nodes however large the collection is. It used to be
+`min(viewBox.width, viewBox.height) / 5` — roughly 5×5 cells for the whole graph, so every
+mousemove scanned on the order of N/25 nodes (ISSUES.md C6).
 
 The two callers of `toGridIdxs` treat out-of-grid indices differently, deliberately: `getNode`
 **rejects** them, because a pointer outside the graph should hit nothing, while `fillGrid`
@@ -147,9 +162,15 @@ runs once at construction:
 - each square's offset is `floor(sample_normal() * 5)` grid steps from the node — a
   Box–Muller normal sample, so the cloud is denser near the centre
 
+`generateGlow()` also resolves each tag's hue into a **pair of hex colours**, `{light, dark}` —
+the saturation differs (30% / 50%) and the variant is picked once per node from `theme.darkMode`.
+`drawNodeGlow` then only indexes a map; it used to build an `hsla()` string and run it through
+`d3.color(...).formatHex()` inside the pixel loop, 20 squares × every node × every frame
+(ISSUES.md C3). `formatHex()` drops the `0.4` alpha, so the glow has always been opaque — that is
+preserved, precomputing it changed nothing but the cost.
+
 Nodes with no tags get no glow. The offsets use `Math.random()` at runtime, so the pattern
-differs on every page load (ISSUES.md C14), and the per-square colour is re-parsed from an
-`hsla()` string on **every frame** (ISSUES.md C3).
+differs on every page load (ISSUES.md C14).
 
 ## Type definitions
 

@@ -26,11 +26,11 @@
     }
 
     query = index.parseSearchString(searchString)
-    filterContext.setQuery(query)
     searching = true;
     // See ISSUES.md B4: the index builds asynchronously.
     await index.ready()
-    filterContext.setResults(index.search(query));
+    // One store write, not `setQuery` then `setResults` -- see ISSUES.md C11.
+    filterContext.setQueryAndResults(query, index.search(query));
     searching = false;
   }
 

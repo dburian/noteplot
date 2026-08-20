@@ -586,37 +586,50 @@ Both fixed — `removeEventListener`, and the closure is returned. It was harmle
 
 ## C. Rendering / visualisation
 
-### C1. A full graph redraw on every mousemove over a node
+### C1. A full graph redraw on every mousemove over a node — **fixed**
 
-`canvas_graph.js`: `graphStateStore.hover(node)` always allocates a new state object, so
-`onGraphStateChange`'s `this.graphState !== newState` guard always passes and `draw()` runs.
+`canvas_graph.js`: `graphStateStore.hover(node)` always allocated a new state object, so
+`onGraphStateChange`'s `this.graphState !== newState` guard always passed and `draw()` ran.
 `onHover` calls it on _every_ mousemove while the pointer is over any node.
 
-Guard on the hovered slug actually changing, in `onHover` or in the store's `hover()`.
+`hover()` in `WithGraphState.svelte` now returns the state object **unchanged** when the incoming
+slug equals `values.hoveredNote?.slug`, so `update` writes the same reference and no subscriber
+fires at all. Guarding in the store rather than in `onHover` keeps every consumer of `graphState`
+— not just the canvas — off the redundant update.
 
-### C2. No `requestAnimationFrame` batching
+### C2. No `requestAnimationFrame` batching — **fixed**
 
-Zoom, resize, `graphState`, `filterState`, and the dark-mode listener each call `draw()`
-synchronously. Multiple redraws routinely land in a single frame (a zoom event that also changes
+Zoom, resize, `graphState`, `filterState`, and the dark-mode listener each called `draw()`
+synchronously. Multiple redraws routinely landed in a single frame (a zoom event that also changes
 the hovered node, for instance).
 
-Coalesce into one rAF-scheduled redraw. Together with C1 this is the largest interaction win
-available, and it is a small change.
+The painting code is now `drawNow()`, and `draw()` is a scheduler: it holds one `pendingFrame` id
+and requests an animation frame, so any number of requests within a frame collapse into one paint.
+`destruct()` cancels a pending frame, and `deferDraw` keeps its old meaning of suppressing drawing
+during construction. Every existing caller kept calling `draw()`; nothing needs a synchronous
+paint.
 
-### C3. Glow colours are re-parsed per pixel, per node, per frame
+### C3. Glow colours are re-parsed per pixel, per node, per frame — **fixed**
 
-`canvas_graph.js`, `drawNodeGlow` builds an `hsla(...)` string and runs
+`canvas_graph.js`, `drawNodeGlow` built an `hsla(...)` string and ran
 `d3.color(str)?.formatHex()` **inside the pixel loop** — 20 squares × N nodes × every frame,
 each one a string format plus a CSS colour parse.
 
-Precompute one colour string per tag in `generateGlow()` (two variants, light and dark). Pure
-win, no behaviour change.
+`generateGlow()` now resolves each tag's hue once into `{light, dark}` hex strings (the saturation
+differs, 30% against 50%), and `drawNodeGlow` picks the variant once per node and indexes the map.
+The glow data is `{pixels, colors}` where it used to be `{pixels, hues}`. `formatHex()` is kept
+even though it drops the `0.4` alpha — the glow is already opaque on screen, and keeping that makes
+this a pure performance change.
 
 ### C4. No viewport culling
 
 Every node, every link, and — above `k > 2` — every label is drawn regardless of whether it is
 on screen. At high zoom that is almost entirely wasted work. Cull against the paintBox; the
 hit-test grid could serve double duty here.
+
+**Left open deliberately.** The C-series pass fixed the per-frame waste that costs nothing to fix
+(C1, C2, C3); culling changes what the renderer iterates and wants measuring against a real
+collection first, so it was not attempted blind.
 
 ### C5. Per-point transforms in JS
 
@@ -625,16 +638,25 @@ multiplies and four adds each. Setting `ctx.setTransform` once and drawing in vi
 coordinates hands the same work to the canvas implementation. Note this would also change how
 line widths and font sizes must be specified.
 
-### C6. The hit-test grid is 5×5 for the whole graph
+**Left open deliberately.** Every node width, line width and font size in `GraphRenderer` is
+currently in CSS pixels; moving the transform into the context rescales all of them at once, which
+is a rewrite of the renderer rather than an optimisation of it.
 
-`constructGrid` uses `cellSize = min(viewBox.width, viewBox.height) / 5` regardless of node
-count, so each mousemove linearly scans on the order of N/25 nodes. Size cells to a target
-occupancy (a handful of nodes each) instead of a fixed division.
+### C6. The hit-test grid is 5×5 for the whole graph — **fixed**
 
-### C7. Hit radius doubles on retina displays
+`constructGrid` used `cellSize = min(viewBox.width, viewBox.height) / 5` regardless of node
+count, so each mousemove linearly scanned on the order of N/25 nodes.
 
-`getNode` uses `eps = 10 * this.screen.dpr`, but it compares against `toScreenPos` output, which
-is in **CSS pixels** (the context is already `scale(dpr)`-ed). Drop the `dpr` factor.
+`cellSize` is now `sqrt(viewBox.width * viewBox.height / ceil(N / 4))` — sized by node count, for
+about four nodes per cell whatever the collection's size. The `|| 1` on `cellSize` and the
+`Math.max(..., 1)` on the row and column counts that the A17 fix added are kept: they are what
+stops a zero-sized viewBox producing `Array(NaN)`.
+
+### C7. Hit radius doubles on retina displays — **fixed**
+
+`getNode` used `eps = 10 * this.screen.dpr`, but it compares against `toScreenPos` output, which
+is in **CSS pixels** (the context is already `scale(dpr)`-ed), so the hit radius was twice as large
+as intended on any retina display. `eps` is now a plain `10`.
 
 ### C8. `fillGrid` has no bounds check — **fixed**
 
@@ -655,23 +677,30 @@ simply did not exist outside Chrome.
 Now a `pointermove` listener (registered _and_ removed under that name) guarded on the standard
 `event.pointerType !== 'mouse'`, which keeps the original intent of suppressing hover on touch.
 
-### C10. Cursor changes wipe every other inline body style
+### C10. Cursor changes wipe every other inline body style — **fixed**
 
 `document.body.style = "cursor: pointer;"` assigns to `cssText`, replacing the whole inline
-style declaration. Use `document.body.style.cursor = 'pointer'`. Relevant because a future
-scroll-lock would also want to write to `body.style`.
+style declaration. `onHover` now writes `document.body.style.cursor` instead. Relevant because a
+future scroll-lock would also want to write to `body.style`.
 
-### C11. Filtering rebuilds everything, twice per query
+### C11. Filtering rebuilds everything, twice per query — **fixed**
 
-`onFilterChange` rebuilds both filtered maps from scratch on **every** filter-store write, and
-`FilterWindow` writes twice per query (`setQuery` then `setResults`) — so two full rebuilds and
-two full redraws per keystroke. The existing `// TODO: If query changed, only then filter` marks
-the spot. Either make it one store write, or skip the rebuild when `results` is unchanged.
+`onFilterChange` rebuilt both filtered maps from scratch on **every** filter-store write, and
+`FilterWindow` wrote twice per query (`setQuery` then `setResults`) — so two full rebuilds and
+two full redraws per keystroke. The `// TODO: If query changed, only then filter` marked the spot.
 
-### C12. Unbounded zoom-out
+Both halves are done. `WithFilterContext` exposes a single `setQueryAndResults(query, results)`
+and no longer exposes `setQuery` / `setResults`, which had no other callers and only offered a way
+back into the two-write pattern. `onFilterChange` records the `results` reference the maps were
+built from and returns early when the new one is identical — the store's other field, `query`, is
+not drawn, so such a write cannot change the picture.
 
-`CanvasScreen.addZoom` sets no `.scaleExtent()`. The removed SVG implementation had
-`[1, maxZoomCoef]` with `maxZoomCoef = 15`; the constraint was lost in the port to canvas.
+### C12. Unbounded zoom-out — **fixed**
+
+`CanvasScreen.addZoom` set no `.scaleExtent()`. The removed SVG implementation had
+`[1, maxZoomCoef]` with `maxZoomCoef = 15`; the constraint was lost in the port to canvas and is
+restored as `.scaleExtent([1, 15])`. `k = 1` is the fit-to-window scale — `updatePaintBox` already
+letterboxes the whole viewBox into the canvas — so nothing is reachable below it.
 
 ### C13. Roughly a third of the graph sits behind the content pane
 
@@ -682,6 +711,10 @@ drawn but permanently invisible, and centring is off by half the pane width.
 This is the README's "graph shift with content slider" TODO. The fix belongs in `updatePaintBox`
 — give `CanvasScreen` an inset and subscribe to the slider width — not in CSS, because the
 hit-testing has to agree with what is drawn.
+
+**Left open deliberately.** It is a layout change, not a rendering bug: `CanvasScreen` would have
+to subscribe to `contentSliderState`, which is the state it is currently and deliberately
+independent of. Worth its own pass.
 
 ### C14. The glow pattern changes on every page load
 
