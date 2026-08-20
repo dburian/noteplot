@@ -170,7 +170,7 @@ runs once at construction:
 
 - every distinct tag across all notes gets a hue, evenly spaced around the 360° wheel
 - each node gets `numGlowPixels` (20) squares, split evenly across its tags
-- each square's offset is `floor(sample_normal() * 5)` grid steps from the node — a
+- each square's offset is `floor(sample_normal(random) * 5)` grid steps from the node — a
   Box–Muller normal sample, so the cloud is denser near the centre
 
 `generateGlow()` also resolves each tag's hue into a **pair of hex colours**, `{light, dark}` —
@@ -180,8 +180,14 @@ the saturation differs (30% / 50%) and the variant is picked once per node from 
 (ISSUES.md C3). `formatHex()` drops the `0.4` alpha, so the glow has always been opaque — that is
 preserved, precomputing it changed nothing but the cost.
 
-Nodes with no tags get no glow. The offsets use `Math.random()` at runtime, so the pattern
-differs on every page load (ISSUES.md C14).
+Nodes with no tags get no glow.
+
+The offsets come from `mulberry32` seeded with an FNV-1a hash of the node's **slug**, not from
+`Math.random()`, so a node's cloud is the same on every page load (ISSUES.md C14). Seeding per node
+rather than once per run is what makes it independent of the collection: adding a note does not
+reshuffle everything else. Same argument as node positions in A14, but solved in the frontend —
+serialising 20 pixel records per node into a `__graph.json` that every page loads costs more than
+the hash does.
 
 ## Type definitions
 

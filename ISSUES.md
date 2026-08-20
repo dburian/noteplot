@@ -37,9 +37,3 @@ line widths and font sizes must be specified.
 **Left open deliberately.** Every node width, line width and font size in `GraphRenderer` is
 currently in CSS pixels; moving the transform into the context rescales all of them at once, which
 is a rewrite of the renderer rather than an optimisation of it.
-
-### C14. The glow pattern changes on every page load
-
-`generateGlow` calls `Math.random()` (via `sample_normal`) at runtime, so a node's tag cloud is
-laid out differently every time the page is opened. Seed the RNG, or move glow generation into
-the preprocessor and serialise it — the same argument as for node positions.

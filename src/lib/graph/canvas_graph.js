@@ -41,13 +41,51 @@ function dist(p1, p2) {
   * Sample Normal distribution with unit mean and unit variance using the
   * Box–Muller transform.
   *
+  * @param {() => Number} random a uniform source on [0, 1)
   * @returns {Number}
   */
-function sample_normal() {
-  const u1 = 1 - Math.random()
-  const u2 = 1 - Math.random()
+function sample_normal(random) {
+  const u1 = 1 - random()
+  const u2 = 1 - random()
 
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
+}
+
+/**
+  * mulberry32: a small, fast, seedable PRNG.
+  *
+  * The glow used to be sampled from `Math.random()`, so a note's tag cloud was
+  * laid out differently every time the page was opened (ISSUES.md C14).
+  *
+  * @param {Number} seed
+  * @returns {() => Number} uniform on [0, 1)
+  */
+function mulberry32(seed) {
+  let a = seed >>> 0
+
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
+  * FNV-1a, so a slug can be turned into a seed.
+  *
+  * @param {String} str
+  * @returns {Number}
+  */
+function hashString(str) {
+  let hash = 0x811c9dc5
+
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+
+  return hash >>> 0
 }
 
 class GraphRenderer {
@@ -641,13 +679,18 @@ export class CanvasGraph {
       }
       pixels.set(node.slug, [])
 
+      // Seeded per node, not once for the whole run: a node's cloud is then
+      // independent of how many notes there are and of the order they come in,
+      // so adding a note does not reshuffle every other node's glow.
+      const random = mulberry32(hashString(node.slug))
+
       const glowPixesPerType = Math.ceil(this.renderer.theme.numGlowPixels / nodeTypes.length)
       for (const type of nodeTypes) {
         types.add(type)
 
         for (const _ of Array(glowPixesPerType)) {
-          const x_shift = Math.floor(sample_normal() * 5)
-          const y_shift = Math.floor(sample_normal() * 5)
+          const x_shift = Math.floor(sample_normal(random) * 5)
+          const y_shift = Math.floor(sample_normal(random) * 5)
 
           pixels.get(node.slug).push({ x_shift: x_shift, y_shift: y_shift, type })
         }
