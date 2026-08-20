@@ -10,7 +10,15 @@
 
     const state = {
       hasContent: url.pathname !== `${base}/`,
-      onlyContent: searchParams.get('onlyContent') == '',
+      // `/notes/<slug>` is the note-only route. It *seeds* the state rather
+      // than owning it: a later `reset()` clears the store for the session,
+      // but the pathname says note-only again on the next navigation or
+      // reload. Expressing the route through this store is what keeps it from
+      // needing a second mechanism of its own -- the `withGraph` /
+      // `graphFullScreen` flags that four `load` functions used to return and
+      // nothing ever read (ISSUES.md B7).
+      onlyContent:
+        url.pathname.startsWith(`${base}/notes/`) || searchParams.get('onlyContent') == '',
       noContent: searchParams.get('noContent') == ''
     };
 
@@ -31,6 +39,12 @@
         } else if (newValues.noContent) {
           newUrl.searchParams.set('noContent', '');
           newUrl.searchParams.delete('onlyContent', '');
+        } else {
+          // The `reset()` path. Without this branch neither param was ever
+          // removed, so resetting left a stale `?onlyContent` in the URL and
+          // the state came back on the next reload.
+          newUrl.searchParams.delete('onlyContent');
+          newUrl.searchParams.delete('noContent');
         }
 
         // `URL` objects compare by reference, so this used to be always true

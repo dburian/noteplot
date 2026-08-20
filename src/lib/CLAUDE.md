@@ -109,8 +109,9 @@ events to `graphState`, so hovering a link in prose highlights the node in the g
 `data-slug` attribute is injected back in `unify_pipelines.js`'s `addLinks`.
 
 `MobileNoteContainer.svelte` is a draggable bottom sheet. It is imported by `Note.svelte` but
-**entirely commented out** — nothing currently mounts it. It is kept because it is the intended
-home for the mobile note view described in `ISSUES.md` B7.
+**entirely commented out** — nothing currently mounts it. It is kept as unfinished work on the
+mobile note view, not as a dependency of anything: the note-only route it used to be earmarked for
+(`ISSUES.md` B7) is served by `contentState` and `MobileGraphInterface`'s own overlay.
 
 ### `search/`
 

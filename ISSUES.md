@@ -14,23 +14,6 @@ pointers now dangle, but the prose around each one explains its own mechanism.
 
 ---
 
-## B. Data flow
-
-### B7. Two competing mechanisms for "show the note without the graph"
-
-`withGraph` and `graphFullScreen` are returned by four `load` functions and **read nowhere**. The
-intended `/(graph)/notes/[slug]` behaviour — note only, no graph, which matters on mobile — is
-consequently unimplemented.
-
-The complication is that a second, _working_ mechanism for the same concept already exists:
-`contentState` with its `?onlyContent` / `?noContent` search params. Don't wire up `withGraph`
-alongside it. Pick one: the smaller change is to delete both flags and have `/notes/[slug]` seed
-`contentState` with `onlyContent`, so route and search param express the same state through one
-code path.
-
-**Left open deliberately.** Which of the two mechanisms wins is a design call, not a bug fix, so the
-data-flow pass around it left both flags exactly where they were.
-
 ## C. Rendering / visualisation
 
 ### C4. No viewport culling

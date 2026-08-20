@@ -28,7 +28,7 @@ navigation either way, so nothing else changes.
 
 ## Route table
 
-| Route                  | Renders        | Intended behaviour                                          |
+| Route                  | Renders        | Behaviour                                                   |
 | ---------------------- | -------------- | ----------------------------------------------------------- |
 | `(graph)/+page.svelte` | _(empty file)_ | bare graph, no content pane                                 |
 | `(graph)/[slug]`       | `NoteContent`  | graph **with that note selected**, note in the content pane |
@@ -36,19 +36,24 @@ navigation either way, so nothing else changes.
 | `(graph)/search`       | `SearchWindow` | full-text search; jumps to a note, leaves the graph alone   |
 | `(graph)/filter`       | `FilterWindow` | full-text filter; restricts which nodes the graph shows     |
 
-### The `[slug]` / `notes/[slug]` split is currently inert
+### The `[slug]` / `notes/[slug]` split runs through `contentState`
 
-Both routes call the same `loadNote` / `noteEntries` (see below) and differ only in the flags
-`load` returns: `withGraph: true` versus `withGraph: false`. **Nothing reads `withGraph` or
-`graphFullScreen`** — grep confirms they are write-only. The intended distinction
-(`notes/[slug]` shows the note without the graph) is therefore not implemented, and both URLs
-currently behave the same.
+Both routes call the same `loadNote` / `noteEntries` (see below) and their `load` functions are
+now identical. What separates them is the **pathname**:
+`WithContentState.svelte`'s `extractContentSwitcherStateFromUrl` sets `onlyContent` for any path
+under `${base}/notes/`, exactly as `?onlyContent` does. Desktop then snaps the content pane to the
+full window and the graph is covered; mobile shows its full-screen note overlay. The distinction
+matters most on mobile, where there is not enough room for a graph and a note at once.
 
-The distinction matters most on **mobile**, where there is not enough room to show a graph and a
-note at once. Note that a second, _working_ mechanism for the same concept already exists: the
-`contentState` context and its `?onlyContent` / `?noContent` search params. Before wiring
-`withGraph` up, decide which of the two mechanisms wins — having both is the actual problem.
-Tracked as B7 in `ISSUES.md`.
+There used to be a second mechanism for the same concept — `withGraph` and `graphFullScreen`,
+returned by four `load` functions and read nowhere, so `notes/[slug]` behaved exactly like
+`[slug]`. Having two was the actual problem, so the flags are gone and `contentState` is the one
+code path (ISSUES.md B7).
+
+The pathname **seeds** the state rather than owning it. A `reset()` from the toolbar clears
+`onlyContent` for the session, but the store is re-derived from the URL on the next navigation, so
+a reload of `/notes/<slug>` is note-only again. Nothing in the UI links to `/notes/<slug>` — it is
+a URL you type or share.
 
 ## Data loading
 

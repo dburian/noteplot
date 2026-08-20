@@ -4,8 +4,6 @@ export async function load() {
   const searchNotes = await import('$lib/notes/__search.json');
 
   return {
-    withGraph: true,
-    search: '',
     searchNotes: searchNotes.default
   };
 }
