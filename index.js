@@ -53,9 +53,13 @@ async function watch(noteRootArg, options, command) {
   if (!opts.onlyNotes) {
     // No `root`: SvelteKit enforces `root: process.cwd()` and warns about any
     // value we pass, so `setupCommonOpts`'s `chdir` is the only way to point
-    // vite at the package.
+    // vite at the package. `server.host` is *not* enforced that way, so unlike
+    // `base` and `root` it really does reach vite -- `undefined` (no `--host`)
+    // leaves vite on its localhost-only default, `true` (bare `--host`) binds
+    // every interface.
     const viteServer = await createServer({
       server: {
+        host: opts.host,
         port: opts.port,
       },
     })
@@ -120,6 +124,7 @@ async function main() {
     .name("noteplot")
     .description("Visualization tool for your Markdown notes.")
     .option("--log-level <level>", `Log level to hide/display logs. One of ${LOG_LEVELS.join(', ')}.`, "debug")
+    .option("--host [address]", "Address for the dev server to bind to. A bare `--host` binds every interface. Only used by `watch`.")
 
   prog
     .command("watch")

@@ -78,6 +78,9 @@ npm install
 # dev: vite dev server + note watcher in one process
 npm run watch -- <note-dir>
 
+# same, but reachable from other machines
+npm run watch -- <note-dir> --host
+
 # preprocessor only (useful when vite is already running elsewhere)
 npm run watch:notes -- <note-dir>
 
@@ -88,6 +91,14 @@ npm run preview
 
 `npm run dev` / `npm run build` run **vite alone** and will fail or serve stale data unless the
 preprocessor has already populated `src/lib/notes/`. Prefer the `index.js` entry points.
+
+`--host` is a **global** option (declared on the program, not on `watch`), so every command
+accepts it; only `watch` uses it, where it becomes vite's `server.host`. A bare `--host` binds
+every interface, `--host <address>` binds that one, and omitting it keeps vite's localhost-only
+default. `build` tolerates the flag as a no-op. Because the value is optional, commander swallows
+the next token as the address, so `noteplot watch --host <note-dir>` reads the note directory as a
+host name — put `--host` after the note directory, or write `--host=0.0.0.0`. Vite's own CLI has
+the same footgun.
 
 `build` refuses a collection with no Markdown files in it — both `[slug]` routes are prerendered
 from what the preprocessor wrote, so vite would otherwise fail with a confusing message about
