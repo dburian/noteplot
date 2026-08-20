@@ -2,6 +2,7 @@
 node_modules
 src/lib/notes
 static/note_imgs
+/test_notes
 /build
 /.svelte-kit
 /package
