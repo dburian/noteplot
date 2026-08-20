@@ -23,13 +23,13 @@ hand-rolled — they expose `subscribe` plus named action methods rather than a 
 
 ### The five contexts
 
-| Key                  | Provider                              | Shape                                                      | Consumers                                                                                               |
-| -------------------- | ------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `adaptive`           | `adaptive/WithAdaptiveContext.svelte` | `{mobile, desktop}`                                        | `Adaptive.svelte`                                                                                       |
-| `filterState`        | `search/WithFilterContext.svelte`     | `{query, results}`                                         | `GraphCanvas`, `FilterWindow`                                                                           |
-| `graphState`         | `graph/WithGraphState.svelte`         | `{activeNote, hoveredNote, showConnections, showTagsGlow}` | `GraphCanvas`, `WithHoverableLinks`, `MobileToolbar`, `CloseContent`, `ShowConnections`, `ShowTagsGlow` |
-| `contentState`       | `content/WithContentState.svelte`     | `{hasContent, onlyContent, noContent}`                     | `ContentSlider`, `MobileGraphInterface`, `MobileToolbar`, `LargerContent`, `SmallerContent`             |
-| `contentSliderState` | `ContentSlider.svelte`                | `{searchString, lastUrl, width, lastSetWidth}`             | `DesktopToolbar`, `LargerContent`, `SmallerContent`, `ResizeContent`                                    |
+| Key                  | Provider                                | Shape                                                                    | Consumers                                                                                               |
+| -------------------- | --------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `adaptive`           | `adaptive/WithAdaptiveContext.svelte`   | `{mobile, desktop}`                                                      | `Adaptive.svelte`                                                                                       |
+| `filterState`        | `search/WithFilterContext.svelte`       | `{query, results}`                                                       | `GraphCanvas`, `FilterWindow`                                                                           |
+| `graphState`         | `graph/WithGraphState.svelte`           | `{activeNote, hoveredNote, showConnections, showTagsGlow}`               | `GraphCanvas`, `WithHoverableLinks`, `MobileToolbar`, `CloseContent`, `ShowConnections`, `ShowTagsGlow` |
+| `contentState`       | `content/WithContentState.svelte`       | `{hasContent, onlyContent, noContent}`                                   | `WithContentSliderState`, `MobileGraphInterface`, `MobileToolbar`, `LargerContent`, `SmallerContent`    |
+| `contentSliderState` | `content/WithContentSliderState.svelte` | `{searchString, lastUrl, width, lastSetWidth}` plus a `pixelWidth` store | `ContentSlider`, `GraphCanvas`, `DesktopToolbar`, `LargerContent`, `SmallerContent`, `ResizeContent`    |
 
 `graphState`'s two notes are `{slug, title}` refs, not whole notes — the store used to hold the
 note's rendered HTML, and nothing ever read it (ISSUES.md B9).
@@ -48,12 +48,20 @@ branches or commits, it maps onto `contentState` plus `contentSliderState`.
 
 `contentState` is the source of truth for _whether_ content shows; `contentSliderState` is the
 desktop-only _how wide_. They are bidirectionally synced by a reactive block in
-`ContentSlider.svelte`, which is the trickiest state code in the repo:
+`content/WithContentSliderState.svelte`, which is the trickiest state code in the repo:
 
-- `contentState` is derived from the URL (`?onlyContent` / `?noContent`, plus `hasContent` from
-  the pathname) and writes back to it with `replaceState`.
-- `ContentSlider` watches `$contentState` and snaps `width` to `1.0`, `0.0`, or `lastSetWidth`.
-- The slider's own `larger()` / `smaller()` / `confirmWidth()` call _back_ into `contentState`.
+- `contentState` is derived from the URL (`?onlyContent` / `?noContent`, `hasContent` from the
+  pathname, and `onlyContent` again for the `/notes/` route) and writes back to it with
+  `replaceState`.
+- the provider watches `$contentState` and snaps `width` to `1.0`, `0.0`, or `lastSetWidth`.
+- the slider's own `larger()` / `smaller()` / `confirmWidth()` call _back_ into `contentState`.
+
+The provider is **one level above** `ContentSlider.svelte`, which used to own all of this, and
+wraps `GraphContainer` as well as the pane. That is not tidiness: the canvas insets itself by the
+pane's width (ISSUES.md C13) and context does not flow sideways between siblings. `ContentSlider`
+is now only the pane element, its open/close tween, and a `bind:clientWidth` that publishes the
+rendered width into the store's separate `pixelWidth` store — separate because it is written on
+every frame of the tween and nothing in the sync block reads it.
 
 Changing one side without the other produces oscillation. `lastSetWidth` exists so that
 collapsing and re-expanding restores the user's chosen width.
@@ -69,8 +77,9 @@ collapsing and re-expanding restores the user's chosen width.
             └─ Adaptive           picks one named slot; nothing renders before the
                                   media query resolves on mount
                ├─ DesktopGraphInterface (slot="desktop")
-               │   ├─ GraphContainer → GraphCanvas      full-screen canvas, fixed, behind
-               │   └─ ContentSlider                     right-hand pane, tweened width
+               │   └─ WithContentSliderState            pane width; wraps both, see below
+               │       ├─ GraphContainer → GraphCanvas  full-screen canvas, fixed, behind
+               │       └─ ContentSlider                 right-hand pane, tweened width
                │       ├─ DesktopToolbar
                │       └─ Note → <slot/> → the route's +page.svelte
                └─ MobileGraphInterface (slot="mobile")

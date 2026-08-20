@@ -279,6 +279,14 @@ class CanvasScreen {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
+    // CSS pixels of the canvas's right-hand edge covered by the content pane.
+    // The canvas is full-screen and the pane is laid over it, so without this
+    // the viewBox is letterboxed into the whole window and roughly a third of
+    // the graph is drawn where nothing can be seen (ISSUES.md C13). Fed by
+    // `GraphCanvas` from `contentSliderState`; stays 0 on mobile, which has no
+    // pane.
+    this.insetRight = 0
+
     window.addEventListener("resize", this.onResize)
 
     // Just to convince LS these properties exist
@@ -323,6 +331,16 @@ class CanvasScreen {
     this.redraw()
   }
 
+  /**
+    * @param {Number} px width of the content pane, in CSS pixels */
+  setInsetRight(px) {
+    if (px === this.insetRight) return
+
+    this.insetRight = px
+    this.updatePaintBox()
+    this.redraw()
+  }
+
   updateCanvasSize() {
     this.width = window.innerWidth
     this.height = window.innerHeight
@@ -335,20 +353,26 @@ class CanvasScreen {
   }
 
   updatePaintBox() {
+    // Letterbox into the part of the canvas the content pane is not covering,
+    // not into the whole window. Floored at 1: `onlyContent` puts the pane at
+    // the full window width, and a zero-width paintBox makes every
+    // `toScreenPos` divide by zero and hand the canvas NaN.
+    const availWidth = Math.max(this.width - this.insetRight, 1)
+
     const viewBoxAR = this.viewBox.width / this.viewBox.height
-    const trueAR = this.width / this.height
+    const trueAR = availWidth / this.height
 
     const paintBox = { minX: 0, minY: 0, width: 0, height: 0 }
     if (viewBoxAR > trueAR) {
       //True is less width or more height -> we enlarge width and center height
 
-      paintBox.width = this.width
-      paintBox.height = this.width / viewBoxAR;
+      paintBox.width = availWidth
+      paintBox.height = availWidth / viewBoxAR;
       paintBox.minY = (this.height - paintBox.height) / 2
     } else {
       paintBox.height = this.height
       paintBox.width = this.height * viewBoxAR;
-      paintBox.minX = (this.width - paintBox.width) / 2
+      paintBox.minX = (availWidth - paintBox.width) / 2
     }
 
 

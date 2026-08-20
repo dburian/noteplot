@@ -38,20 +38,6 @@ line widths and font sizes must be specified.
 currently in CSS pixels; moving the transform into the context rescales all of them at once, which
 is a rewrite of the renderer rather than an optimisation of it.
 
-### C13. Roughly a third of the graph sits behind the content pane
-
-The canvas sizes itself to `window.innerWidth`/`innerHeight` and draws full-screen, while
-`ContentSlider` overlays the right ~38% (the golden-ratio default). Nodes under the pane are
-drawn but permanently invisible, and centring is off by half the pane width.
-
-This is the README's "graph shift with content slider" TODO. The fix belongs in `updatePaintBox`
-— give `CanvasScreen` an inset and subscribe to the slider width — not in CSS, because the
-hit-testing has to agree with what is drawn.
-
-**Left open deliberately.** It is a layout change, not a rendering bug: `CanvasScreen` would have
-to subscribe to `contentSliderState`, which is the state it is currently and deliberately
-independent of. Worth its own pass.
-
 ### C14. The glow pattern changes on every page load
 
 `generateGlow` calls `Math.random()` (via `sample_normal`) at runtime, so a node's tag cloud is

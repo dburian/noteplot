@@ -49,10 +49,20 @@ The one caveat: a new node landing left of or above the existing extent shifts e
 the same amount, because the bounding box is always re-originated. Nodes never move _relative to
 each other_.
 
-**2. paintBox space** — CSS pixels. The viewBox is letterboxed into the window while preserving
-aspect ratio, so `paintBox` is `{minX, minY, width, height}` describing where the graph actually
-sits inside the canvas. `updatePaintBox()` recomputes it on resize: whichever axis is relatively
-tighter gets the full window, the other is centred.
+**2. paintBox space** — CSS pixels. The viewBox is letterboxed into the visible part of the canvas
+while preserving aspect ratio, so `paintBox` is `{minX, minY, width, height}` describing where the
+graph actually sits inside it. `updatePaintBox()` recomputes it whenever the window or the visible
+region changes: whichever axis is relatively tighter gets the full extent, the other is centred.
+
+**Visible** is not the same as the canvas. The canvas is full-screen, and on desktop the content
+pane is laid over its right-hand side, so `CanvasScreen.insetRight` holds how many CSS pixels of
+that edge are covered and `updatePaintBox` letterboxes into `width - insetRight`. Without it a
+third of the graph was drawn where nothing could see it, and centring was off by half the pane
+(ISSUES.md C13). `GraphCanvas` feeds it from `contentSliderState.pixelWidth` — the pane's
+_measured_ width, so it follows the open/close tween — and it stays `0` on mobile, which has no
+pane. `availWidth` is floored at 1: `onlyContent` puts the pane across the whole window, and a
+zero-width paintBox makes every `toScreenPos` return NaN. Hit-testing needs no separate
+adjustment; `toViewBoxPos` is the exact inverse and goes through the same paintBox.
 
 **3. screen space** — paintBox after the d3 zoom transform `{x, y, k}`.
 
@@ -92,8 +102,9 @@ its callback synchronously before the object is fully built.
 
 ### `CanvasScreen` — coordinate spaces, sizing, zoom
 
-Owns `viewBox`, `paintBox`, `transform`, `dpr`, and the canvas element. Registers the `resize`
-listener and the d3 zoom behaviour. Calls the `redraw` callback it was constructed with.
+Owns `viewBox`, `paintBox`, `transform`, `dpr`, `insetRight`, and the canvas element. Registers the
+`resize` listener and the d3 zoom behaviour. Calls the `redraw` callback it was constructed with —
+including from `setInsetRight`, which is the one entry point the outside world has into it.
 
 The zoom is clamped to `scaleExtent([1, 15])`. `k = 1` is the fit-to-window scale — the viewBox is
 already letterboxed into the canvas — so there is nothing to see below it, and without the extent

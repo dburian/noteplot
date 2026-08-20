@@ -56,5 +56,4 @@ npm run watch:vite
 
 #### Desktop
 
-- [ ] graph shift with content slider, so that active note is (almost) always visible
-
+- [x] graph shift with content slider, so that active note is (almost) always visible
