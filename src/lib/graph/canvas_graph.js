@@ -6,6 +6,12 @@ import tailwindConfig from "virtual:tailwind-config";
 const tailwindColors = tailwindConfig.theme.colors
 
 
+// A label is drawn to the *right* of its node, at 12-16px, so a node off the
+// left edge by more than the label is wide contributes nothing. Measuring the
+// text to find that width would cost more than the draw call it saves, so this
+// is a generous constant instead.
+const LABEL_REACH = 400
+
 function dist(p1, p2) {
   return Math.sqrt(
     (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2
@@ -15,7 +21,7 @@ function dist(p1, p2) {
 /**
   * @typedef {{x_shift: Number, y_shift: Number, type: string}} GlowPixel
   * @typedef {{light: string, dark: string}} GlowColor
-  * @typedef {{pixels: Map<string, GlowPixel[]>, colors: Map<string, GlowColor>}} Glow
+  * @typedef {{pixels: Map<string, GlowPixel[]>, colors: Map<string, GlowColor>, maxShift: Number}} Glow
   * @typedef {{source: Node, target: Node}} Link
   * @typedef {{source: string, target: string}} SerialisedLink
   * @typedef {{tags: Array<string>}} FrontMatter
@@ -153,11 +159,19 @@ class GraphRenderer {
     /** @param {Node} node */
     const isSelected = (node) => node.slug == state.activeNote?.slug
 
+    const view = this.visibleBox(screen)
+
     if (state.showTagsGlow) {
       const colors = glow.colors
+      // The furthest any square actually sits from its node. `glow.maxShift` is
+      // in grid steps and is measured once, in `generateGlow`; the step itself
+      // scales with the zoom. Guessing this from the sampling parameters would
+      // mean guessing how far into the normal's tail the samples went.
+      const glowReach =
+        glow.maxShift * (this.theme.glowPixelWidth + this.theme.glowPixelGap) * screen.transform.k
       for (const node of nodes.values()) {
         const pixels = glow.pixels.get(node.slug)
-        if (pixels) {
+        if (pixels && this.isNodeVisible(node, screen, view, glowReach)) {
           this.drawNodeGlow(pixels, colors, node, screen)
         }
       }
@@ -166,12 +180,19 @@ class GraphRenderer {
     if (state.showConnections) {
       for (const byTarget of links.values()) {
         for (const link of byTarget.values()) {
+          if (!this.isLinkVisible(link, screen, view)) continue
+
           this.drawLink(link, screen)
         }
       }
     }
 
+    // Half the width of the largest a node is ever drawn -- `drawNode` doubles
+    // `nodeWidth` for the hovered and selected ones.
+    const nodeReach = this.theme.nodeWidth
     for (const node of nodes.values()) {
+      if (!this.isNodeVisible(node, screen, view, nodeReach)) continue
+
       this.drawNode(
         node,
         screen,
@@ -182,6 +203,8 @@ class GraphRenderer {
 
     if (screen.transform.k > 2) {
       for (const node of nodes.values()) {
+        if (!this.isLabelVisible(node, screen, view)) continue
+
         this.drawNodeLabel(
           node,
           screen,
@@ -200,6 +223,94 @@ class GraphRenderer {
       this.drawNode(node, screen, isHovered(node), isSelected(node))
       this.drawNodeLabel(node, screen, isHovered(node), isSelected(node))
     }
+  }
+
+  /**
+    * The part of the canvas anything drawn can actually be seen in, in CSS
+    * pixels: the whole canvas minus whatever the content pane covers.
+    *
+    * @param {CanvasScreen} screen
+    * @returns {{minX: Number, minY: Number, maxX: Number, maxY: Number}}
+    */
+  visibleBox(screen) {
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: screen.width - screen.insetRight,
+      maxY: screen.height,
+    }
+  }
+
+  /**
+    * Whether `node` can put ink inside `view`, allowing `reach` CSS pixels of
+    * slop for whatever is drawn around its centre.
+    *
+    * Everything above the fit-to-window zoom draws mostly off-screen, and every
+    * node, link and label used to be painted regardless (ISSUES.md C4).
+    *
+    * @param {Node} node
+    * @param {CanvasScreen} screen
+    * @param {{minX: Number, minY: Number, maxX: Number, maxY: Number}} view
+    * @param {Number} reach
+    */
+  isNodeVisible(node, screen, view, reach) {
+    const { x, y } = screen.toScreenPos(node)
+
+    return (
+      x + reach >= view.minX &&
+      x - reach <= view.maxX &&
+      y + reach >= view.minY &&
+      y - reach <= view.maxY
+    )
+  }
+
+  /**
+    * Whether `node`'s label can put ink inside `view`.
+    *
+    * Asymmetric, unlike `isNodeVisible`: a label is drawn to the **right** of
+    * its node, so a node off the left edge can still show one but a node off
+    * the right edge cannot. Using one symmetric margin for both would keep a
+    * `LABEL_REACH`-wide strip of invisible labels along the right edge, which
+    * at high zoom is a good fraction of the window.
+    *
+    * @param {Node} node
+    * @param {CanvasScreen} screen
+    * @param {{minX: Number, minY: Number, maxX: Number, maxY: Number}} view
+    */
+  isLabelVisible(node, screen, view) {
+    const { x, y } = screen.toScreenPos(node)
+    // Half the tallest line, which is the hovered/selected 12 * 1.3px.
+    const vertical = this.theme.nodeWidth
+
+    return (
+      x + LABEL_REACH >= view.minX &&
+      x <= view.maxX &&
+      y + vertical >= view.minY &&
+      y - vertical <= view.maxY
+    )
+  }
+
+  /**
+    * Whether `link`'s segment can cross `view`.
+    *
+    * Rejects only when **both** endpoints are outside the same edge, which is
+    * conservative: a link whose endpoints are off opposite edges still crosses
+    * the screen and is kept. Testing the endpoints individually would drop it.
+    *
+    * @param {Link} link
+    * @param {CanvasScreen} screen
+    * @param {{minX: Number, minY: Number, maxX: Number, maxY: Number}} view
+    */
+  isLinkVisible(link, screen, view) {
+    const a = screen.toScreenPos(link.source)
+    const b = screen.toScreenPos(link.target)
+
+    if (a.x < view.minX && b.x < view.minX) return false
+    if (a.x > view.maxX && b.x > view.maxX) return false
+    if (a.y < view.minY && b.y < view.minY) return false
+    if (a.y > view.maxY && b.y > view.maxY) return false
+
+    return true
   }
 
   /**
@@ -671,6 +782,12 @@ export class CanvasGraph {
       */
     const pixels = new Map()
 
+    // How far the furthest square ends up from its node, in grid steps. The
+    // offsets are normal samples, so this is a property of the draw rather than
+    // of the parameters; the renderer needs it to know how much slop to allow
+    // when culling (ISSUES.md C4).
+    let maxShift = 0
+
     for (const node of this.nodes.values()) {
       const nodeTypes = node.matter?.tags || []
       // No glow for nodes without type
@@ -691,6 +808,7 @@ export class CanvasGraph {
         for (const _ of Array(glowPixesPerType)) {
           const x_shift = Math.floor(sample_normal(random) * 5)
           const y_shift = Math.floor(sample_normal(random) * 5)
+          maxShift = Math.max(maxShift, Math.abs(x_shift), Math.abs(y_shift))
 
           pixels.get(node.slug).push({ x_shift: x_shift, y_shift: y_shift, type })
         }
@@ -712,7 +830,9 @@ export class CanvasGraph {
       lastHue += hueStep
     }
 
-    return { pixels, colors }
+    // `+ 1` for the square's own width, which is drawn from the offset
+    // outwards.
+    return { pixels, colors, maxShift: maxShift + 1 }
   }
 
   /**

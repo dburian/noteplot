@@ -124,6 +124,36 @@ Draw order within a frame:
 4. all labels, but only when `transform.k > 2`
 5. the active and hovered nodes **again**, so they land on top
 
+Steps 1–4 are **culled against the visible box** — the canvas minus
+`insetRight`, computed once per frame by `visibleBox()`. Everything above the
+fit-to-window zoom draws mostly off-screen, and all of it used to be painted
+anyway (ISSUES.md C4). Each category gets its own slop, because each puts ink a
+different distance from the node's centre:
+
+- **nodes** — `nodeWidth`, half of the widest a node is drawn (`drawNode`
+  doubles it when hovered or selected)
+- **glow** — `glow.maxShift * (glowPixelWidth + glowPixelGap) * k`. `maxShift`
+  is measured in `generateGlow` rather than derived from the sampling
+  parameters, because the offsets are normal samples and how far into the tail
+  they went is a property of the draw
+- **labels** — `isLabelVisible`, which is deliberately **asymmetric**: a label
+  is drawn to the _right_ of its node, so a node off the left edge can still
+  show one but a node off the right edge cannot. A symmetric margin would keep
+  a 400px strip of invisible labels along the right edge
+- **links** — `isLinkVisible` rejects only when **both** endpoints are outside
+  the _same_ edge. A link with endpoints off opposite edges still crosses the
+  screen; testing the endpoints one at a time would drop it
+
+Step 5 is not culled — it is two nodes.
+
+The hit-test grid is deliberately _not_ reused for this. It holds `nodes`, not
+`filteredNodes`, so enumerating cells would mean intersecting the two sets every
+frame, and the per-node loop is not what costs: the draw calls are. Measured on
+a 2000-node/6000-link graph in a 1600×900 viewport, culling takes the ink
+operations per frame from 44,000 to 10,609 at `k = 5` and to 3,904 at `k = 15`.
+At `k = 1` it changes nothing at all and costs about 7% of the frame's JS —
+the whole graph is on screen, so every test passes.
+
 ## What triggers a redraw
 
 - d3 zoom (`CanvasScreen.onZoom`) — on every wheel/drag event
