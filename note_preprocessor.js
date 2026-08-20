@@ -69,8 +69,11 @@ class NotesUpdater {
     this._events_to_process = []
     this._watch_debounce_timer = null
 
+    // Held by name as well as in the array: `updateAll` needs it for the
+    // orphaned-image sweep, and `this.pipelines[0]` is a worse way to say so.
+    this.notePipeline = new NotePipeline(config)
     this.pipelines = [
-      new NotePipeline(config),
+      this.notePipeline,
       new GraphPipeline(config),
       new SearchIndexPipeline(config),
     ]
@@ -198,6 +201,15 @@ class NotesUpdater {
     // `notes` map is threaded through to the last one, so the final result is
     // where the note count already lives.
     const result = await this.flush_events()
+
+    // Only on a scan that came back clean. `flush_events` swallows a failed
+    // batch and returns `null`, and after one the image map is missing whatever
+    // that batch would have referenced -- sweeping then deletes images that are
+    // still in use.
+    if (result !== null) {
+      await this.notePipeline.pruneOrphanImages()
+    }
+
     return result?.notes?.size ?? 0
   }
 

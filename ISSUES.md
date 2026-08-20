@@ -14,26 +14,6 @@ pointers now dangle, but the prose around each one explains its own mechanism.
 
 ---
 
-## A. Build pipeline — correctness
-
-### A19. Two notes embedding the same image fight over one file
-
-_Surfaced by fixing `isDeepEqual`'s array branch, which is what made the image-removal path run
-at all._
-
-`unify_pipelines.js`, `collectImgs` derives an image's destination from the **image's own** path
-(`toSlug(absolutePath, noteRoot, {withExtension: true})`), so `img.png` referenced by two notes is
-copied to one file in `static/note_imgs/` and appears in **both** notes' `images` arrays.
-
-Deleting either note, or editing either note to drop the image, therefore removes the file the
-other note still points at — a broken image with no error anywhere. The remaining note only gets
-it back when it is next re-parsed.
-
-`{force: true}` on the `rm` calls keeps this from crashing the pipeline, which is all that
-has been done. A real fix needs per-image reference counting in `NotePipeline` — an
-`image → Set<slug>` map alongside `backlinks`, with the `rm` deferred until the last referrer drops
-it. The same map would let a restart notice orphaned images, which nothing currently prunes.
-
 ## B. Data flow
 
 ### B7. Two competing mechanisms for "show the note without the graph"

@@ -40,6 +40,14 @@ removed from, the sources of a deleted note, and, when a title changes, both sid
 `on()` therefore writes `toSave ∪ diffs.keys() ∪ resave`, not just the notes whose files moved
 (`ISSUES.md` A6, A20). `GraphPipeline` iterates `events`, so the extra entries never reach it.
 
+`NotePipeline` owns a second cross-note map, `imageRefs` (`destPath → Set<slug>`). An image's copy
+in `static/note_imgs/` is named after the **image's** path, not the referring note's, so two notes
+embedding the same file share one copy; the copy is removed only when the last referrer drops it.
+Without that, either note losing the image deleted it out from under the other. `updateAll()` also
+calls `pruneOrphanImages()` once the startup scan has finished, which is the only thing that ever
+removes an image dropped while the preprocessor was not running — and it is skipped after a failed
+batch, when the map is incomplete.
+
 `unify_pipelines.js` exports two pipeline builders:
 
 - `createRehypePipeline` — the full markdown → HTML path (MathJax, Shiki, figures, image

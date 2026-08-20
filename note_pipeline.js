@@ -3,12 +3,18 @@ import { readSync } from "to-vfile"
 import { createRehypePipeline, logger, toSlug } from "./unify_pipelines.js"
 import reporter from "vfile-reporter"
 import { saveJSON } from './note_preprocessor.js';
-import { mkdir, rm } from 'fs/promises';
+import { mkdir, readdir, rm } from 'fs/promises';
 
 export class NotePipeline {
   constructor(config) {
     this.config = config
     this.backlinks = new Map()
+    // An image's destination in `static/note_imgs/` is derived from the image's
+    // own path, so two notes embedding the same file share one copy of it. Who
+    // still refers to each copy, so it is removed only when the last one drops
+    // it (ISSUES.md A19).
+    /** @type {Map<string, Set<string>>} destPath -> slugs referring to it */
+    this.imageRefs = new Map()
     this.rehypePipeline = createRehypePipeline({
       ...this.config,
       backlinks: this.backlinks
@@ -115,6 +121,13 @@ export class NotePipeline {
 
   async add(targetPath) {
     const note = await this._rehype(targetPath)
+
+    // An `add` for a slug we already hold is reachable through `change()`'s
+    // never-seen-slug fallback, and the images that version embedded have to be
+    // released or the map keeps them alive for ever.
+    const oldNote = this.notes.get(note.slug)
+    await this._updateImageRefs(note.slug, oldNote ? this._imagesOf(oldNote) : [], this._imagesOf(note))
+
     this.notes.set(note.slug, note)
 
     return note.slug
@@ -168,17 +181,7 @@ export class NotePipeline {
       }
     }
 
-    // `force` because the file may already be gone: a second note can reference
-    // the same image and have removed it first (ISSUES.md A19), or the user may
-    // have deleted it by hand. Without it an ENOENT rejects the whole batch.
-    const removePromises = []
     if (!isDeepEqual(oldNote.images, note.images)) {
-      const oldImages = oldNote.images.filter(imgPath => !note.images.includes(imgPath))
-      for (const imgPath of oldImages) {
-        logger.debug(`Removing ${imgPath}`)
-        removePromises.push(rm(imgPath, { force: true }))
-      }
-
       diffKeys.add('images')
     }
 
@@ -189,9 +192,8 @@ export class NotePipeline {
     }
 
     // Awaited, so a failed removal rejects `change()` instead of escaping as an
-    // unhandled rejection -- the A9 failure mode. Unreachable until the array
-    // branch of `isDeepEqual` above started comparing anything.
-    await Promise.all(removePromises)
+    // unhandled rejection.
+    await this._updateImageRefs(note.slug, this._imagesOf(oldNote), this._imagesOf(note))
 
     // Both sides of every edge cache this note's title -- its sources in their
     // `links`, its targets in their `backlinks` -- so a renamed heading goes
@@ -221,6 +223,123 @@ export class NotePipeline {
     */
   _linkSlugsOf(note) {
     return note.links?.map(l => l.slug) ?? note.linkSlugs ?? []
+  }
+
+  /**
+    * The images `note` has copied into `imgSavePath`, tolerating a note that
+    * never got as far as `collectImgs`.
+    *
+    * Same tolerance as `_linkSlugsOf` above, and needed in the same place: a
+    * note whose first parse threw part-way is still in `this.notes` and can
+    * still be deleted.
+    *
+    * @param {{images?: string[]}} note
+    * @returns {string[]}
+    */
+  _imagesOf(note) {
+    return note.images ?? []
+  }
+
+  /**
+    * Move `slug`'s image references from `oldImages` to `newImages`.
+    *
+    * Only the images this version dropped are released. Releasing the whole old
+    * set and re-referencing the new one would not do: references are keyed by
+    * slug, so an image the note kept would be added and immediately removed
+    * again, and a note that is its only referrer would delete the file
+    * `_rehype` has just rewritten.
+    *
+    * @param {string} slug
+    * @param {string[]} oldImages
+    * @param {string[]} newImages
+    */
+  async _updateImageRefs(slug, oldImages, newImages) {
+    const kept = new Set(newImages)
+    this._refImages(slug, newImages)
+    await this._derefImages(slug, oldImages.filter(imgPath => !kept.has(imgPath)))
+  }
+
+  /**
+    * Record that `slug` refers to each of `images`.
+    *
+    * @param {string} slug
+    * @param {string[]} images destination paths under `imgSavePath`
+    */
+  _refImages(slug, images) {
+    for (const imgPath of images) {
+      let refs = this.imageRefs.get(imgPath)
+      if (!refs) {
+        refs = new Set()
+        this.imageRefs.set(imgPath, refs)
+      }
+      refs.add(slug)
+    }
+  }
+
+  /**
+    * Drop `slug`'s claim on each of `images`, removing the file once nothing
+    * refers to it any more.
+    *
+    * This is the whole of the A19 fix: an image's destination is derived from
+    * the image's own path, so two notes embedding the same file get one copy
+    * between them, and the note that stops referring to it first used to delete
+    * the file the other one still points at.
+    *
+    * `force`, still, because the file may genuinely be gone -- the user can
+    * delete it by hand, and an ENOENT here would reject the whole batch.
+    *
+    * @param {string} slug
+    * @param {string[]} images destination paths under `imgSavePath`
+    */
+  async _derefImages(slug, images) {
+    const removePromises = []
+
+    for (const imgPath of images) {
+      const refs = this.imageRefs.get(imgPath)
+      if (!refs) continue
+
+      refs.delete(slug)
+      if (refs.size > 0) continue
+
+      this.imageRefs.delete(imgPath)
+      logger.debug(`Removing ${imgPath}`)
+      removePromises.push(rm(imgPath, { force: true }))
+    }
+
+    await Promise.all(removePromises)
+  }
+
+  /**
+    * Removes everything in `imgSavePath` that no note refers to.
+    *
+    * Reference counting keeps the directory correct within a session, but
+    * nothing has ever pruned it across one: an image dropped while the
+    * preprocessor was not running stays for ever. `NotesUpdater.updateAll`
+    * calls this once the startup scan has populated `imageRefs`, and only when
+    * that scan succeeded -- after a failed batch the map is incomplete and this
+    * would delete images that are still in use.
+    */
+  async pruneOrphanImages() {
+    let entries
+    try {
+      entries = await readdir(this.config.imgSavePath, { withFileTypes: true })
+    } catch (error) {
+      logger.warn(`Could not read ${this.config.imgSavePath}: ${error.message}`)
+      return
+    }
+
+    const removePromises = []
+    for (const entry of entries) {
+      if (!entry.isFile()) continue
+
+      const imgPath = path.join(this.config.imgSavePath, entry.name)
+      if (this.imageRefs.has(imgPath)) continue
+
+      logger.info(`Removing orphaned image ${imgPath}.`)
+      removePromises.push(rm(imgPath, { force: true }))
+    }
+
+    await Promise.all(removePromises)
   }
 
   /**
@@ -280,19 +399,12 @@ export class NotePipeline {
       affected.add(slug)
     }
 
-    const deletePromises = []
-
-    // Delete note itself
-    const noteSavePath = this.notePath(note)
-    deletePromises.push(rm(noteSavePath, { force: true }))
-
-    // Delete images. `force` for the same reason as in `change()`: a shared
-    // image may already be gone (ISSUES.md A19).
-    for (const imgPath of note.images) {
-      deletePromises.push(rm(imgPath, { force: true }))
-    }
-
-    await Promise.all(deletePromises)
+    // Delete note itself, and release its images -- the copies still referred to
+    // by another note stay where they are.
+    await Promise.all([
+      rm(this.notePath(note), { force: true }),
+      this._derefImages(note.slug, this._imagesOf(note)),
+    ])
 
     // Delete record of the note. `this.backlinks.get(note.slug)` is deliberately
     // kept: it describes links that still exist in other notes, so it is
