@@ -1,62 +1,122 @@
 <script>
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher, onDestroy, onMount } from 'svelte';
 
+  /**
+   * The one text input, used by all three overlays as the panel's header row.
+   *
+   * It changed shape in the redesign: it used to be a bordered `text-xl` box
+   * with a `mb-6` under it, sized for the middle of a full `/search` page. The
+   * pages are gone; this is now the top edge of a modal panel and owns the
+   * border between itself and the results.
+   *
+   * Three behavioural changes came with that, all of them relied on:
+   *
+   * - **It fires on `input`, not `keydown`.** `keydown` runs *before* the value
+   *   updates, so the old version dispatched the text as it was one keystroke
+   *   ago. The 250 ms debounce hid it — the timer outlived the gap — but it
+   *   surfaced on `debounceTime = 0`, which the command palette uses.
+   * - **`value` is a prop**, so `?q=` can seed the field on open.
+   * - **`keydown` is forwarded**, because ↑/↓/Enter have to reach the list
+   *   while focus stays in the input.
+   */
+
+  /** Bindable current text. @type {string} */
+  export let value = '';
+  /** @type {string} */
+  export let placeholder = 'Search for something…';
+  /** Milliseconds of quiet before `search` fires. `0` dispatches synchronously. @type {number} */
   export let debounceTime = 250;
-  export let placeholder = "Search for something..."
-  export let suggestions = [];
-  let searchString = '';
+  /** @type {boolean} */
+  export let autofocus = true;
 
-  /** @type {HTMLInputElement} */
-  let searchBarElement;
+  const dispatch = createEventDispatcher();
 
-  const dispatcher = createEventDispatcher();
+  /** @type {HTMLInputElement | undefined} */
+  let inputEl;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
 
-  /** @type {NodeJS.Timeout} */
-  let debounceTimeout;
+  /** Whether a debounced dispatch is owed. Read by `flush`. */
+  let pending = false;
 
-  function debounceSearch() {
-    clearTimeout(debounceTimeout);
-    debounceTimeout = setTimeout(search, debounceTime);
+  function fire() {
+    pending = false;
+    dispatch('search', { searchString: value });
   }
 
-  function search() {
-    dispatcher('search', {
-      searchString: searchString
-    });
+  function schedule() {
+    clearTimeout(timer);
+    if (debounceTime <= 0) {
+      fire();
+      return;
+    }
+    pending = true;
+    timer = setTimeout(fire, debounceTime);
+  }
+
+  /**
+   * Dispatch the owed `search` now instead of waiting out the debounce — what
+   * Enter does in the filter overlay.
+   *
+   * **A no-op when nothing is pending**, and that guard is the point: a filter
+   * search re-runs `index.search` and writes a fresh `results` array, which
+   * `CanvasGraph.onFilterChange` compares by reference. Flushing
+   * unconditionally would redraw the whole graph on every Enter press.
+   */
+  export function flush() {
+    if (!pending) return;
+    clearTimeout(timer);
+    fire();
+  }
+
+  export function focus() {
+    inputEl?.focus();
+  }
+
+  function clear() {
+    value = '';
+    clearTimeout(timer);
+    fire();
+    inputEl?.focus();
   }
 
   onMount(() => {
-    searchBarElement.focus();
+    if (autofocus) inputEl?.focus();
   });
+
+  // The overlay unmounts this component the moment it closes; a timer left
+  // running would dispatch into a dead component.
+  onDestroy(() => clearTimeout(timer));
 </script>
 
-<div class="border-2 w-full border-front-light dark:border-front-dark flex text-xl mb-6">
+<div
+  class="shrink-0 flex items-center gap-2 px-3
+         border-b border-b-muted-light dark:border-b-muted-dark"
+>
   <input
     type="text"
-    class="p-1 flex-1 w-full focus-visible:outline-none dark:bg-back-dark"
-    placeholder={placeholder}
-    bind:value={searchString}
-    on:keydown={debounceSearch}
-    bind:this={searchBarElement}
+    class="flex-1 min-w-0 py-2.5 bg-transparent text-base
+           placeholder:text-muted-light dark:placeholder:text-muted-dark
+           focus-visible:outline-none"
+    {placeholder}
+    autocomplete="off"
+    spellcheck="false"
+    bind:value
+    bind:this={inputEl}
+    on:input={schedule}
+    on:keydown
   />
-  <button
-    class="select-none p-2 bg-back-light text-front-light dark:bg-back-dark dark:text-front-dark hover:underline"
-    on:click={() => {
-      searchString = '';
-      search();
-    }}>
-    x
-  </button>
+  {#if value}
+    <button
+      type="button"
+      class="shrink-0 select-none px-2 py-0.5 text-xs rounded
+             text-muted-light dark:text-muted-dark
+             hover:bg-muted-light/25 dark:hover:bg-muted-dark/25
+             hover:text-emphasis-light dark:hover:text-emphasis-dark"
+      title="Clear"
+      on:click={clear}
+    >
+      clear
+    </button>
+  {/if}
 </div>
-<!-- <div> -->
-<!--   <h6>Parsed search</h6> -->
-<!--   <ul> -->
-<!--   {#each fields as field} -->
-<!--     <li><ul> -->
-<!--       <li>search: <code>{field.search}</code></li> -->
-<!--       <li>field: {field.field}</li> -->
-<!--       <li>error: {field.error}</li> -->
-<!--     </ul></li> -->
-<!--   {/each} -->
-<!--   </ul> -->
-<!-- </div> -->

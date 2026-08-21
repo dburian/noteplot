@@ -1,37 +1,36 @@
-
-import typography from "@tailwindcss/typography"
-import colors from "tailwindcss/colors";
+import typography from '@tailwindcss/typography';
+import colors from 'tailwindcss/colors';
 
 //Copied over from typography plugin
 /** @param {string} hex */
 const hexToRgb = (hex) => {
-  hex = hex.replace('#', '')
-  hex = hex.length === 3 ? hex.replace(/./g, '$&$&') : hex
-  const r = parseInt(hex.substring(0, 2), 16)
-  const g = parseInt(hex.substring(2, 4), 16)
-  const b = parseInt(hex.substring(4, 6), 16)
-  return `${r} ${g} ${b}`
-}
+  hex = hex.replace('#', '');
+  hex = hex.length === 3 ? hex.replace(/./g, '$&$&') : hex;
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  return `${r} ${g} ${b}`;
+};
 
 // Noteplot colors
 const nc = {
   front: {
     light: colors.zinc[700],
-    dark: colors.zinc[300],
+    dark: colors.zinc[300]
   },
   back: {
     light: colors.white,
-    dark: colors.zinc[950],
+    dark: colors.zinc[950]
   },
   emphasis: {
     light: colors.zinc[900],
-    dark: colors.white,
+    dark: colors.white
   },
   muted: {
     light: colors.zinc[400],
-    dark: colors.zinc[600],
+    dark: colors.zinc[600]
   }
-}
+};
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -47,7 +46,7 @@ export default {
             },
             'code::after': {
               content: ''
-            },
+            }
           }
         },
         // My theme, slightly changed 'zinc' theme.
@@ -88,14 +87,11 @@ export default {
             '--tw-prose-invert-pre-code': colors.zinc[300],
             '--tw-prose-invert-pre-bg': 'rgb(0 0 0 / 50%)',
             '--tw-prose-invert-th-borders': nc.muted.dark,
-            '--tw-prose-invert-td-borders': colors.zinc[700],
-          },
-        },
+            '--tw-prose-invert-td-borders': colors.zinc[700]
+          }
+        }
       }
-
-    },
+    }
   },
-  plugins: [
-    typography,
-  ],
-}
+  plugins: [typography]
+};

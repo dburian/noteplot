@@ -1,9 +1,12 @@
 <script>
-    import { dev } from "$app/environment";
-    import { base } from "$app/paths";
-    import InfoBox from "$lib/components/InfoBox.svelte";
+  import { dev } from '$app/environment';
+  import { base } from '$app/paths';
+  import InfoBox from '$lib/components/InfoBox.svelte';
 
-  export let slug, title, links, backlinks, noteRoot, matter, readingTime;
+  // No `title`: this block is *about* the note, and the note's own title is
+  // rendered by its content, not repeated here. `NoteContent` builds these
+  // props explicitly, so dropping it here drops it there too.
+  export let slug, links, backlinks, noteRoot, matter, readingTime;
 
   export let displayNoteRoot = dev;
   export let displaySlug = dev;
@@ -51,11 +54,13 @@
     {#if displaySlug}
       <li><strong>slug:</strong> <code>{slug}</code></li>
     {/if}
-    <li><strong>read time:</strong>
+    <li>
+      <strong>read time:</strong>
       {#if readMins > 0}
         {readMins}<small>mins</small>
       {/if}
-      {readSecs}<small>s</small></li>
+      {readSecs}<small>s</small>
+    </li>
     <li><strong>words:</strong> {readingTime.words}</li>
   </ul>
 </InfoBox>

@@ -1,81 +1,81 @@
-import { saveJSON } from "./note_preprocessor.js"
-import { toSlug } from "./unify_pipelines.js"
+import { saveJSON } from './note_preprocessor.js';
+import { toSlug } from './unify_pipelines.js';
 import path from 'path';
-import * as d3 from "d3";
+import * as d3 from 'd3';
 
 // A graph with no nodes, or with every node at the same point, has no extent.
 // The frontend divides by the viewBox's dimensions and sizes an array from them,
 // so it must never be handed a zero -- or a `null`, which is what an empty
 // collection used to produce because `updatePositions` never ran.
-const MIN_VIEW_BOX_SIZE = 1
-const DEFAULT_VIEW_BOX = [0, 0, MIN_VIEW_BOX_SIZE, MIN_VIEW_BOX_SIZE]
+const MIN_VIEW_BOX_SIZE = 1;
+const DEFAULT_VIEW_BOX = [0, 0, MIN_VIEW_BOX_SIZE, MIN_VIEW_BOX_SIZE];
 
 // What `genD3Format` and the simulation add to a node on top of `toNode`'s
 // shape. The velocities and the index are meaningless once the layout is
 // frozen, and `fx`/`fy` are an input to the next run rather than something the
 // frontend has any use for. Listed here rather than allow-listing the fields
 // to keep, so `toNode` stays the single definition of a node's shape.
-const TRANSIENT_NODE_KEYS = ['index', 'vx', 'vy', 'fx', 'fy']
+const TRANSIENT_NODE_KEYS = ['index', 'vx', 'vy', 'fx', 'fy'];
 
 function toSerialisableNode(node) {
-  const serialisable = { ...node }
-  for (const key of TRANSIENT_NODE_KEYS) delete serialisable[key]
-  return serialisable
+  const serialisable = { ...node };
+  for (const key of TRANSIENT_NODE_KEYS) delete serialisable[key];
+  return serialisable;
 }
 
 export class GraphPipeline {
   constructor(config) {
-    this.config = config
+    this.config = config;
 
-    this.nodes = new Map()
-    this.links = new Map()
-    this.positions = new Map()
-    this.viewBox = [...DEFAULT_VIEW_BOX]
+    this.nodes = new Map();
+    this.links = new Map();
+    this.positions = new Map();
+    this.viewBox = [...DEFAULT_VIEW_BOX];
   }
 
   async on(events, previousResults) {
-    const notes = previousResults.notes
-    const changes = previousResults.changes
+    const notes = previousResults.notes;
+    const changes = previousResults.changes;
 
-    const positionsToUpdate = new Set()
+    const positionsToUpdate = new Set();
     for (const { eventType, targetPath } of events) {
-      const slug = toSlug(targetPath, this.config.noteRoot)
+      const slug = toSlug(targetPath, this.config.noteRoot);
       if (eventType == 'add') {
-        this.addNote(notes.get(slug))
-        positionsToUpdate.add(slug)
+        this.addNote(notes.get(slug));
+        positionsToUpdate.add(slug);
       } else if (eventType == 'change') {
         // TODO: Separate 'change' method
-        const changedKeys = changes.get(slug)
+        const changedKeys = changes.get(slug);
 
         if (changedKeys.has('links')) {
-          this.addNote(notes.get(slug))
-          positionsToUpdate.add(slug)
+          this.addNote(notes.get(slug));
+          positionsToUpdate.add(slug);
         } else {
           // Only the keys a node actually has: `changedKeys` almost always
           // holds `content`, and copying that writes the note's entire
           // rendered HTML into `__graph.json` (ISSUES.md A4).
-          const node = this.nodes.get(slug)
+          const node = this.nodes.get(slug);
           for (const key of changedKeys) {
-            if (key in node) node[key] = notes.get(slug)[key]
+            if (key in node) node[key] = notes.get(slug)[key];
           }
         }
       } else if (eventType == 'unlink') {
         // The slug, not the note: `NotePipeline._deleteNote` has already dropped
         // it from `notes` by the time we get here.
-        this.removeNote(slug)
+        this.removeNote(slug);
       }
     }
 
-    let { nodes, links, nodesWithoutPosition } = this.genD3Format()
+    let { nodes, links, nodesWithoutPosition } = this.genD3Format();
 
-    const nodesToUpdate = positionsToUpdate.union(nodesWithoutPosition)
+    const nodesToUpdate = positionsToUpdate.union(nodesWithoutPosition);
     if (nodesToUpdate.size > 0) {
       // Relax everything only when nothing is pinned yet -- that is, on a cold
       // start. Testing `positionsToUpdate` here instead would spend the full
       // ~69k ticks on an entirely pinned graph whenever every note changes at
       // once within a live session.
       const maxSteps = nodesWithoutPosition.size == this.nodes.size ? null : 100;
-      ({ nodes, links } = this.updatePositions(nodes, links, maxSteps))
+      ({ nodes, links } = this.updatePositions(nodes, links, maxSteps));
     }
 
     const graph = {
@@ -86,47 +86,50 @@ export class GraphPipeline {
       // (ISSUES.md B1). `CanvasGraph` rehydrates them against `nodes`.
       links: links.map(({ source, target }) => ({
         source: source.slug,
-        target: target.slug,
-      })),
-    }
+        target: target.slug
+      }))
+    };
 
-    await saveJSON(path.join(this.config.savePath, '__graph.json'), graph)
+    await saveJSON(path.join(this.config.savePath, '__graph.json'), graph);
 
-    return previousResults
+    return previousResults;
   }
 
   toNode(note) {
     return {
       title: note.title,
       slug: note.slug,
-      matter: note.matter,
-    }
+      matter: note.matter
+    };
   }
 
   addNote(note) {
-    this.nodes.set(note.slug, this.toNode(note))
-    this.links.set(note.slug, note.links.map(({ slug }) => slug))
+    this.nodes.set(note.slug, this.toNode(note));
+    this.links.set(
+      note.slug,
+      note.links.map(({ slug }) => slug)
+    );
   }
 
   removeNote(slug) {
-    this.nodes.delete(slug)
-    this.links.delete(slug)
+    this.nodes.delete(slug);
+    this.links.delete(slug);
     // Otherwise the map grows for the lifetime of the watch session. The cost
     // is that deleting a note and re-adding it relaxes it as a new node rather
     // than returning it to where it was.
-    this.positions.delete(slug)
+    this.positions.delete(slug);
   }
 
   genD3Format() {
-    const nodesWithoutPosition = new Set()
-    const nodes = []
-    const slugToIdx = new Map()
+    const nodesWithoutPosition = new Set();
+    const nodes = [];
+    const slugToIdx = new Map();
     for (const [slug, node] of this.nodes.entries()) {
-      const nodeIndex = nodes.length
-      slugToIdx.set(slug, nodeIndex)
-      const position = this.positions.get(slug)
+      const nodeIndex = nodes.length;
+      slugToIdx.set(slug, nodeIndex);
+      const position = this.positions.get(slug);
       if (!position) {
-        nodesWithoutPosition.add(slug)
+        nodesWithoutPosition.add(slug);
       }
 
       nodes.push({
@@ -137,31 +140,35 @@ export class GraphPipeline {
         // nodes stay free. Nothing is pinned on a cold start -- `positions`
         // only ever lives in memory -- so a restart re-lays the whole graph.
         ...(position && { fx: position.x, fy: position.y }),
-        index: nodeIndex,
-      })
+        index: nodeIndex
+      });
     }
 
-    const links = []
+    const links = [];
     for (const [fromSlug, targetSlugs] of this.links.entries()) {
-      const fromIdx = slugToIdx.get(fromSlug)
-      if (fromIdx === undefined) continue
+      const fromIdx = slugToIdx.get(fromSlug);
+      if (fromIdx === undefined) continue;
 
       for (const toSlug of targetSlugs) {
-        const toIdx = slugToIdx.get(toSlug)
-        if (toIdx === undefined) continue
+        const toIdx = slugToIdx.get(toSlug);
+        if (toIdx === undefined) continue;
 
         links.push({
           source: nodes[fromIdx],
           target: nodes[toIdx]
-        })
+        });
       }
     }
 
-    return { nodes, links, slugToIdx, nodesWithoutPosition }
+    return { nodes, links, slugToIdx, nodesWithoutPosition };
   }
 
   updatePositions(nodes, links, steps) {
-    const { nodes: computedNodes, links: computedLinks, viewBox } = computeForceSimulation(nodes, links, {
+    const {
+      nodes: computedNodes,
+      links: computedLinks,
+      viewBox
+    } = computeForceSimulation(nodes, links, {
       alphaDecay: 0.0001,
       // A `strength` on link, center and radial is a per-tick multiplier:
       // anything above 1 overshoots and amplifies, and the simulation reaches
@@ -172,50 +179,45 @@ export class GraphPipeline {
         link: { fn: d3.forceLink(links), strength: 1, distance: 0.1 },
         repel: { fn: d3.forceManyBody(), strength: -20, distanceMax: 60, distanceMin: 0 },
         center: { fn: d3.forceCenter(), strength: 1 },
-        radial: { fn: d3.forceRadial(0.001, 0, 0), strength: 0.001 },
+        radial: { fn: d3.forceRadial(0.001, 0, 0), strength: 0.001 }
       },
-      maxSteps: steps,
-    })
+      maxSteps: steps
+    });
 
     for (const node of computedNodes) {
-      this.positions.set(node.slug, { x: node.x, y: node.y })
+      this.positions.set(node.slug, { x: node.x, y: node.y });
     }
-    this.viewBox = viewBox
+    this.viewBox = viewBox;
 
-    return { nodes: computedNodes, links: computedLinks }
+    return { nodes: computedNodes, links: computedLinks };
   }
 }
 
-
-
 function computeForceSimulation(nodes, links, config) {
-  let simulation = d3.forceSimulation(nodes)
-    .alphaDecay(config.alphaDecay)
-    .stop()
+  let simulation = d3.forceSimulation(nodes).alphaDecay(config.alphaDecay).stop();
 
   for (const name in config.forces) {
-    const settings = config.forces[name]
-    let force = settings.fn
-    if ('strength' in settings) force = force.strength(settings.strength)
-    if ('distanceMax' in settings) force = force.distanceMax(settings.distanceMax)
-    if ('distanceMin' in settings) force = force.distanceMin(settings.distanceMin)
-    if ('distance' in settings) force = force.distance(settings.distance)
+    const settings = config.forces[name];
+    let force = settings.fn;
+    if ('strength' in settings) force = force.strength(settings.strength);
+    if ('distanceMax' in settings) force = force.distanceMax(settings.distanceMax);
+    if ('distanceMin' in settings) force = force.distanceMin(settings.distanceMin);
+    if ('distance' in settings) force = force.distance(settings.distance);
 
-    simulation = simulation.force(name, force)
+    simulation = simulation.force(name, force);
   }
 
   let numberOfTicksTillEnd = Math.ceil(
-    Math.log(simulation.alphaMin()) /
-    Math.log(1 - simulation.alphaDecay())
-  )
+    Math.log(simulation.alphaMin()) / Math.log(1 - simulation.alphaDecay())
+  );
 
   if (config.maxSteps) {
-    numberOfTicksTillEnd = Math.min(config.maxSteps, numberOfTicksTillEnd)
+    numberOfTicksTillEnd = Math.min(config.maxSteps, numberOfTicksTillEnd);
   }
 
   simulation.tick(numberOfTicksTillEnd);
 
-  return shrinkViewBox(nodes, links)
+  return shrinkViewBox(nodes, links);
 }
 
 function shrinkViewBox(nodes, links) {
@@ -242,18 +244,17 @@ function shrinkViewBox(nodes, links) {
   // untranslated, which is harmless -- they are dropped on the way out and
   // rebuilt from `this.positions`, which stores the translated coordinates.
   for (const node of nodes) {
-    node.x -= minX
-    node.y -= minY
+    node.x -= minX;
+    node.y -= minY;
   }
-
 
   // Floored: a single node, or a row of collinear ones, collapses an axis to 0.
   const width = Math.max(maxX - minX, MIN_VIEW_BOX_SIZE);
   const height = Math.max(maxY - minY, MIN_VIEW_BOX_SIZE);
-  const paddingFr = 0.1
+  const paddingFr = 0.1;
   const newViewBox = [
-    -width * paddingFr / 2, // min x
-    -height * paddingFr / 2, // min y
+    (-width * paddingFr) / 2, // min x
+    (-height * paddingFr) / 2, // min y
     width + width * paddingFr, // width
     height + height * paddingFr // height
   ];

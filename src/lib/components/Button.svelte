@@ -1,27 +1,23 @@
 <script>
   /** @type {HTMLButtonElement | null} */
   export let button = null;
+  /** Native tooltip. The toolbar's items are text-only, so this is where the longer explanation goes. @type {string} */
+  export let title = '';
   /** @type {string} */
-  let classNames = "";
-  export { classNames as class};
+  let classNames = '';
+  export { classNames as class };
 </script>
 
 <button
+  type="button"
   on:click
+  on:auxclick
   on:mousedown
   on:mouseenter
   on:mouseleave
   bind:this={button}
-  class={`${classNames} select-none p-2 outline-none` +
-  // Normal
-  //`bg-front-light text-back-light ` +
-  // Dark normal
-  //`dark:bg-front-dark dark:text-back-dark ` +
-  // Hover
-  //`hover:bg-front-light hover:text-back-light ` +
-  // Dark hover
-  //`dark:hover:bg-front-dark dark:hover:text-back-dark `
-  ''}
+  title={title || undefined}
+  class={`${classNames} select-none outline-none`}
 >
   <slot />
 </button>

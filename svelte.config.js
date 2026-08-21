@@ -13,12 +13,12 @@ export default {
       strict: true
     }),
     prerender: {
-      handleHttpError: 'warn',
+      handleHttpError: 'warn'
     },
     paths: {
-      base: "BASE_PATH" in process.env ? process.env.BASE_PATH : '',
-      relative: false,
+      base: 'BASE_PATH' in process.env ? process.env.BASE_PATH : '',
+      relative: false
     }
   },
-  preprocess: vitePreprocess(),
+  preprocess: vitePreprocess()
 };

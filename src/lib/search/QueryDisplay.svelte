@@ -1,16 +1,28 @@
 <script>
-    import InfoBox from '$lib/components/InfoBox.svelte';
+  import InfoBox from '$lib/components/InfoBox.svelte';
 
-
-  /** @type {import('minisearch').Query} */
+  /**
+   * What `parseSearchString` made of what you typed — which fields it will look
+   * in, and how the terms combine.
+   *
+   * In the overlays this is behind the toolbar's **Metadata** toggle, the same
+   * switch that shows a note's frontmatter and backlinks: both answer "show me
+   * the machinery", and neither is something you want in the way by default.
+   *
+   * @type {import('minisearch').Query}
+   */
   export let query;
+
+  /** Passed through to `InfoBox`; the overlays want `mb-0`. @type {string} */
+  export let margin = 'mb-10';
 </script>
 
 {#if query}
-  <InfoBox>
+  <InfoBox {margin}>
     {#if typeof query == 'string'}
       {query}
-    {:else}
+      <!-- `Query` also admits minisearch's wildcard symbol, which has nothing to show. -->
+    {:else if typeof query == 'object'}
       <div>
         {#if query.fields !== undefined}
           <p>
@@ -26,11 +38,11 @@
         {/if}
         <span class="font-bold">queries:</span>
         <ul>
-        {#each query.queries as subQuery}
-          <li>
-            <svelte:self query={subQuery} />
-          </li>
-        {/each}
+          {#each query.queries as subQuery}
+            <li>
+              <svelte:self query={subQuery} {margin} />
+            </li>
+          {/each}
         </ul>
       </div>
     {/if}

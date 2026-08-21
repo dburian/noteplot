@@ -2,15 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="apple-touch-icon" sizes="180x180" href="%sveltekit.assets%/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="%sveltekit.assets%/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="%sveltekit.assets%/favicon-16x16.png">
-    <link rel="manifest" href="%sveltekit.assets%/site.webmanifest">
-    <link rel="mask-icon" href="%sveltekit.assets%/safari-pinned-tab.svg" color="#000000">
-    <meta name="msapplication-TileColor" content="#ffffff">
-    <meta name="theme-color" content="#ffffff">
+    <link rel="apple-touch-icon" sizes="180x180" href="%sveltekit.assets%/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="%sveltekit.assets%/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="%sveltekit.assets%/favicon-16x16.png" />
+    <link rel="manifest" href="%sveltekit.assets%/site.webmanifest" />
+    <link rel="mask-icon" href="%sveltekit.assets%/safari-pinned-tab.svg" color="#000000" />
+    <meta name="msapplication-TileColor" content="#ffffff" />
+    <meta name="theme-color" content="#ffffff" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Noteplot</title>
+    <!--
+      No <title> here. A hard-coded one sits *before* %sveltekit.head% and wins
+      — browsers take the first — so every prerendered note page shipped the
+      title "Noteplot" and only got its real one on hydration. The content pane
+      owns the title now and emits one in every state, including "no note
+      open"; +error.svelte, which renders outside that pane, carries its own.
+    -->
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

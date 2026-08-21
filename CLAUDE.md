@@ -58,8 +58,27 @@ batch, when the map is incomplete.
 
 ### Half 2 — the SvelteKit site (`src/`)
 
-Reads the generated JSON via static `import`, renders the graph on a `<canvas>`, and prerenders
-one page per note. See `src/routes/CLAUDE.md` and `src/lib/CLAUDE.md`.
+Reads the generated JSON with dynamic `import()` inside `load`, and prerenders one page per note.
+
+The shape is a conventional application shell: `src/routes/(app)/+layout.svelte` mounts one state
+provider (`$lib/state/WithAppState.svelte`) and one shell (`$lib/shell/AppShell.svelte`) — a
+toolbar strip across the top, and below it a visualization pane and a content pane as real flex
+siblings with a draggable divider between them. The URL carries the whole layout; `?layout=`,
+`?tile=`, `?overlay=` and friends are documented in `src/routes/CLAUDE.md`.
+
+The content pane is itself **N columns side by side**, each holding one note in its own scroll
+container. Only the focused column shows the route's page; the others load their own note JSON.
+Nothing scrolls the window, so scroll restoration across back/forward is implemented by hand in
+`src/lib/content/scroll_memory.js`.
+
+Search, filter and the command palette are **modal overlays over the content area**, not routes —
+`$lib/overlay/OverlayHost.svelte`, mounted inside the content pane so the toolbar stays clickable
+and the visualization stays visible and usable underneath. Which one is open is one field in one
+store, mirrored into `?overlay=`. See `src/routes/CLAUDE.md` and `src/lib/CLAUDE.md`.
+
+The redesign is feature-complete; what is left is the cleanup and documentation pass in
+`ISSUES.md` and the plan. There is **no mobile layout** — the half-finished mobile branch was
+deleted rather than carried along, and a mobile shell is a later effort.
 
 ### Generated output — never hand-edit, never commit
 
@@ -152,8 +171,7 @@ exercise the UI.
 ## Tooling
 
 - **SvelteKit 2** on **Svelte 4** — no runes, no `$state`/`$derived`. Use `export let`,
-  `$:` reactive statements, and stores. (`WithContentState.svelte` imports `page` from
-  `$app/state`, which is a newer SvelteKit API; the rest of the codebase uses `$app/stores`.)
+  `$:` reactive statements, and stores. `page` always comes from `$app/stores`.
 - **`@sveltejs/adapter-static`** — the whole site prerenders. No server, no endpoints.
 - **JavaScript with JSDoc types**, `checkJs: true` in `jsconfig.json`. There is no TypeScript;
   add types as JSDoc comments.
@@ -161,14 +179,15 @@ exercise the UI.
   each with `.light`/`.dark`) and a `prose-noteplot` theme live in `tailwind.config.js`.
 - **unified / remark / rehype** for markdown, **MathJax** for maths, **Shiki** for code.
 - **d3** for both the build-time force layout and the runtime canvas zoom.
-- **minisearch** for search and filter. (`flexsearch` is still a dependency but unused.)
+- **minisearch** for search, filter, and nothing else — the command palette scores its dozen
+  static strings by hand in `src/lib/commands/match.js`.
 - **pino** + `pino-pretty` for logging; **`watcher`** for filesystem events; **commander** for
   the CLI.
 
 ### The `virtual:tailwind-config` vite plugin
 
 `vite.config.js` defines a virtual module that serialises the _resolved_ Tailwind config into
-JS. `src/lib/graph/canvas_graph.js` imports it to get theme colours, because canvas drawing
+JS. `src/lib/viz/force_graph/canvas_graph.js` imports it to get theme colours, because canvas drawing
 cannot use CSS classes:
 
 ```js
@@ -176,7 +195,10 @@ import tailwindConfig from 'virtual:tailwind-config';
 const tailwindColors = tailwindConfig.theme.colors;
 ```
 
-This is easy to break by accident. If canvas colours go wrong, check this plugin first.
+This is easy to break by accident. If canvas colours go wrong, check this plugin first. Its type
+lives in `src/virtual-tailwind-config.d.ts` — its own ambient file, because `src/app.d.ts` ends in
+`export {}`, and a `declare module` inside a module is an augmentation of an existing one, which a
+virtual module is not.
 
 ## Repo map
 
@@ -190,7 +212,14 @@ This is easy to break by accident. If canvas colours go wrong, check this plugin
 | `unify_pipelines.js`       | shared remark/rehype plugins, `toSlug`, the shared `logger`            |
 | `src/routes/`              | pages and data loading — see `src/routes/CLAUDE.md`                    |
 | `src/lib/`                 | components and state — see `src/lib/CLAUDE.md`                         |
-| `src/lib/graph/`           | the canvas renderer — see `src/lib/graph/CLAUDE.md`                    |
+| `src/lib/state/`           | the stores and the URL contract — see `src/lib/CLAUDE.md`              |
+| `src/lib/shell/`           | the flex application shell and the pane divider                        |
+| `src/lib/content/`         | the content pane's columns, and their scroll memory                    |
+| `src/lib/toolbar/`         | the three-section top strip and its button stack                       |
+| `src/lib/overlay/`         | the modal host and the search / filter / command screens               |
+| `src/lib/commands/`        | the command registry and its subsequence matcher                       |
+| `src/lib/search/`          | the shared input, result row, and the memoised minisearch index        |
+| `src/lib/viz/`             | the registry, the pane that hosts it, and the force graph renderer     |
 | `static/`                  | favicons, manifest, and generated `note_imgs/`                         |
 | `.tmux`                    | the author's dev session bootstrap; not part of the build              |
 
@@ -217,12 +246,13 @@ boundaries; see `ISSUES.md` A13.
 
 ## Known issues
 
-`ISSUES.md` lists the known structural bugs and non-optimal paths, grouped by build pipeline,
-data flow, and rendering. **Read it before "fixing" something** — many rough edges there are
-already catalogued, and some apparent bugs are load-bearing.
+`ISSUES.md` lists the known structural bugs and non-optimal paths, grouped by build pipeline (A),
+data flow (B), rendering (C), and scope the UI redesign deliberately did not take (D). **Read it
+before "fixing" something** — many rough edges there are already catalogued, and some apparent bugs
+are load-bearing.
 
 ## Nested documentation
 
 - `src/routes/CLAUDE.md` — routing, prerendering, data loading
 - `src/lib/CLAUDE.md` — component tree and the Svelte context architecture
-- `src/lib/graph/CLAUDE.md` — the canvas renderer and its coordinate spaces
+- `src/lib/viz/CLAUDE.md` — the registry contract, the canvas renderer, and its coordinate spaces
