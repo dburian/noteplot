@@ -1,7 +1,7 @@
 <script>
   import { page } from '$app/stores';
 
-  import { useAppState, SELECTION, TILES, VIZ } from '$lib/state/keys.js';
+  import { useAppState, LAYOUT, SELECTION, TILES, VIZ } from '$lib/state/keys.js';
   import { openNote } from '$lib/state/navigate.js';
   import { toNoteRef } from '$lib/state/selection.js';
   import { getVisualization } from './registry.js';
@@ -24,6 +24,7 @@
 
   const viz = /** @type {import('$lib/state/viz.js').VizStore} */ (useAppState(VIZ));
   const tiles = /** @type {import('$lib/state/tiles.js').TilesStore} */ (useAppState(TILES));
+  const layout = /** @type {import('$lib/state/layout.js').LayoutStore} */ (useAppState(LAYOUT));
   const selection = /** @type {import('$lib/state/selection.js').SelectionStore} */ (
     useAppState(SELECTION)
   );
@@ -55,7 +56,7 @@
   const callbacks = {
     /** @param {string} slug */
     onActivate: (slug) => {
-      openNote(tiles, slug);
+      openNote(tiles, layout, slug);
     },
     /** @param {{slug: string, title: string} | null} node */
     onHover: (node) => selection.hover(toNoteRef(node))

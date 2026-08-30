@@ -1,5 +1,5 @@
 <script>
-  import { useAppState, FILTER, OVERLAY, PREFS, TILES } from '$lib/state/keys.js';
+  import { useAppState, FILTER, LAYOUT, OVERLAY, PREFS, TILES } from '$lib/state/keys.js';
   import ToolbarItem from './ToolbarItem.svelte';
 
   /**
@@ -25,6 +25,7 @@
   );
   const prefs = /** @type {import('$lib/state/prefs.js').PrefsStore} */ (useAppState(PREFS));
   const tiles = /** @type {import('$lib/state/tiles.js').TilesStore} */ (useAppState(TILES));
+  const layout = /** @type {import('$lib/state/layout.js').LayoutStore} */ (useAppState(LAYOUT));
   const filter = /** @type {import('$lib/state/filter.js').FilterStore} */ (useAppState(FILTER));
 
   // Closing the filter overlay does not clear the filter, so "is the overlay
@@ -36,6 +37,14 @@
   // there is none. `tiles.splitRight` is a no-op at zero tiles anyway; hiding
   // the button keeps the strip from offering a control that does nothing.
   $: focused = $tiles.tiles[$tiles.focusIndex] ?? null;
+
+  // This button is in the strip, which is on screen in every mode — so it can
+  // be pressed while the content pane is hidden, where a new column would be
+  // invisible. `reveal()` is a no-op unless the mode is `viz`.
+  function splitRight() {
+    tiles.splitRight();
+    layout.reveal();
+  }
 </script>
 
 <div class="flex items-center gap-1 shrink-0">
@@ -79,7 +88,7 @@
     <ToolbarItem
       label="Split"
       title="Split the focused note into a new column"
-      on:click={tiles.splitRight}
+      on:click={splitRight}
     />
     <ToolbarItem
       label="Close"

@@ -43,8 +43,10 @@
   function onKeydown(ev) {
     // Escape is the one key that must still work from inside a text field —
     // it is how you leave the overlay you are typing in. It is handled *here*
-    // and nowhere else: `OverlayShell` deliberately has no key handler, so
-    // there is one closer rather than two.
+    // and nowhere else: `OverlayShell` deliberately has no key handler, and
+    // `overlay/focus_trap.js` sees only Tab, so no two handlers race on the
+    // same key. (The shell's ✕ is a second *closer*, calling the same action —
+    // an opaque full-pane modal has no backdrop left to click.)
     if (ev.key === 'Escape') {
       if (!$overlay.kind) return;
       ev.preventDefault();
@@ -89,6 +91,9 @@
     } else if (key === '\\') {
       ev.preventDefault();
       tiles.splitRight();
+      // A new column is invisible while the content pane is hidden, and this
+      // shortcut works in every mode. A no-op unless the mode is `viz`.
+      layout.reveal();
     } else if (key === 'b') {
       ev.preventDefault();
       layout.cycle();
@@ -119,9 +124,25 @@
    * `ContentPane` snapshots and restores its tiles' offsets across a hide —
    * see `content/scroll_memory.js`'s `hold()`.
    */
-  $: vizStyle = $layout.mode === 'content' ? 'display: none' : `flex: ${$layout.vizFraction} 1 0%`;
-  $: contentStyle =
-    $layout.mode === 'viz' ? 'display: none' : `flex: ${1 - $layout.vizFraction} 1 0%`;
+  /**
+   * **The grow factor is `1` in the single-pane modes, not the pane's
+   * fraction.** This is the one bit of flex arithmetic here that does not do
+   * what it looks like: when the flex-grow factors of a line sum to *less than
+   * 1*, the items share only that much of the free space (CSS Flexbox §9.7) —
+   * the remainder is simply left empty. With `flex-basis: 0%` all the space is
+   * free, so a lone pane at `flex: 0.618` painted across 61.8% of the row and
+   * left a blank 38.2% strip of body-row background beside it, looking for all
+   * the world like an empty div covering the graph. `content` mode had the
+   * mirror of it at 38.2%.
+   *
+   * In `split` the two factors are `f` and `1 - f`, which sum to exactly 1, so
+   * that mode was always correct and hid the bug.
+   */
+  $: vizGrow = $layout.mode === 'viz' ? 1 : $layout.vizFraction;
+  $: contentGrow = $layout.mode === 'content' ? 1 : 1 - $layout.vizFraction;
+
+  $: vizStyle = $layout.mode === 'content' ? 'display: none' : `flex: ${vizGrow} 1 0%`;
+  $: contentStyle = $layout.mode === 'viz' ? 'display: none' : `flex: ${contentGrow} 1 0%`;
 </script>
 
 <svelte:window on:keydown={onKeydown} />

@@ -47,6 +47,21 @@ export class SearchIndexPipeline {
     const slug = file.data.slug;
     this.index.set(slug, {
       slug,
+      // Display only -- the overlays show a result's directory, and slugs are
+      // opaque (see the Slugs section of the root CLAUDE.md), so the path has
+      // to be carried rather than parsed back out of one.
+      //
+      // `resolve` first, for the same reason `_isIgnored` does it: a path
+      // reaches the pipelines in more than one shape, and `path.relative` on a
+      // path that is already relative to the note root would silently resolve
+      // it against the CWD -- which `index.js` has `chdir`ed away from -- and
+      // produce a plausible-looking `../../..` rather than an error. Then to
+      // `/`, because `path.sep` is platform state and this is data for a
+      // browser.
+      path: path
+        .relative(this.config.noteRoot, path.resolve(this.config.noteRoot, notePath))
+        .split(path.sep)
+        .join('/'),
       title: file.data.title,
       content: file.value,
       matter: { ...file.data.matter }

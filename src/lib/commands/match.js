@@ -17,6 +17,14 @@ const SUBSEQUENCE = 400;
 const KEYWORD_PENALTY = 150;
 
 /**
+ * **`description` is deliberately not scored.** The palette rows show one, but
+ * matching against a sentence of prose floods the SUBSTRING and SUBSEQUENCE
+ * bands — nearly every command contains "the" somewhere — and the ranking a
+ * dozen hand-written titles and keywords was tuned for stops meaning anything.
+ * Descriptions are there to be read, not searched.
+ */
+
+/**
  * Score one string against one needle. `0` means no match at all.
  *
  * Deliberately hand-rolled: this runs over a dozen static strings, and

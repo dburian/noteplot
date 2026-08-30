@@ -86,7 +86,7 @@ deleted rather than carried along, and a mobile shell is a later effort.
 | ----------------------------- | ------------------------------------------------------------------------------ |
 | `src/lib/notes/<slug>.json`   | one per note: HTML content, title, links, backlinks, frontmatter, reading time |
 | `src/lib/notes/__graph.json`  | `{viewBox, nodes, links}` — node positions; links are `{source, target}` slugs |
-| `src/lib/notes/__search.json` | array of `{slug, title, content, matter}` plaintext records                    |
+| `src/lib/notes/__search.json` | array of `{slug, path, title, content, matter}` plaintext records              |
 | `static/note_imgs/`           | images copied out of the note directory                                        |
 
 Both directories are gitignored and are created on demand by `NotePipeline._setupPaths`.
@@ -243,6 +243,12 @@ Because `~` always starts a two-character token and a lone `-` is always a separ
 can produce the same slug. **Slugs are opaque** — nothing in the codebase reverse-parses one, and
 nothing should. Doubling the delimiter (`-` → `--`) looks equivalent but is ambiguous at component
 boundaries; see `ISSUES.md` A13.
+
+If you need a note's **location** — the search results show one — take it from the `path` field
+`search_index_pipeline.js` writes into `__search.json`, which is the file's path relative to the
+note root with `/` separators. That field exists precisely so nothing has to invert `toSlug`:
+`edge/a-b.md` slugs to `edge-a~-b`, and a naive `split('-')` gets it wrong in a way that looks
+right on most notes.
 
 ## Known issues
 

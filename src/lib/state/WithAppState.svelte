@@ -1,7 +1,7 @@
 <script>
   import { afterNavigate, goto, replaceState } from '$app/navigation';
   import { navigating, page } from '$app/stores';
-  import { onMount, setContext } from 'svelte';
+  import { onMount, setContext, tick } from 'svelte';
 
   import * as keys from './keys.js';
   import { createNotesIndex } from './notes_index.js';
@@ -96,10 +96,33 @@
    * Half of the gate on the two URL-writing blocks below: the router has
    * started. `replaceState` throws before it has — which includes the whole
    * prerender — and a `goto` there would be equally wrong.
+   *
+   * **`onMount` on its own is not late enough, and the microtask is the fix.**
+   * SvelteKit's `_hydrate` does `new app.root({...})`, which runs Svelte's
+   * first flush and therefore every `onMount` in the tree, and only sets its
+   * internal `started` flag a few synchronous statements later — after the
+   * `afterNavigate('enter')` callbacks, which are inside the same window. So
+   * both of the obvious places to raise this flag run while `replaceState`
+   * still throws.
+   *
+   * And the throw is not survivable. Svelte's `flush()` catches, empties
+   * `dirty_components` and rethrows, so every component still queued behind
+   * this one never updates and their `onMount`s never run: the page keeps its
+   * server-rendered markup and then patches erratically. That is what a blank
+   * overlay panel in `viz` mode was — an aborted hydration, not an overlay bug.
+   *
+   * Deferring by one microtask lands after the whole synchronous tail of
+   * `_hydrate`, `started` included. `buildUrl` being idempotent means there is
+   * usually nothing to write when it does resolve; this is the guard for when
+   * there is — a hand-written `?layout=split`, a legacy `?onlyContent`, a `?q=`
+   * with no `?overlay=`, or an `?overlay=` on a `layout=viz` URL, where the
+   * nudge below rewrites the mode during that very first flush.
    */
   let mounted = false;
   onMount(() => {
-    mounted = true;
+    tick().then(() => {
+      mounted = true;
+    });
   });
 
   /**
@@ -134,18 +157,31 @@
   $: history.push(focusedRef);
 
   /**
-   * An overlay lives inside the content pane, and in `viz` mode there is no
-   * content pane to live in — `AppShell` does not mount one. Opening one there
-   * widens the layout back to split rather than being swallowed.
+   * An overlay lives inside the content pane, and in `viz` mode that pane is
+   * hidden — `AppShell` gives it `display: none`. Opening one there widens the
+   * layout back to split rather than being swallowed.
    *
    * It is here, not at the call sites, because there are five of them: the
    * toolbar buttons, the keyboard shortcuts, two commands, and `?overlay=` on a
-   * URL that also says `layout=viz`. It does not fire in `content` mode: the
-   * pane is already the whole body row, and the visualization is worth keeping
-   * on screen while you search — which is the entire reason the overlay covers
-   * the content area only.
+   * URL that also says `layout=viz`. `layout.reveal()` leaves `content` mode
+   * alone, which is what we want: the pane is already the whole body row, and
+   * the visualization is worth keeping on screen while you search — the entire
+   * reason the overlay covers the content area only.
+   *
+   * The `mode === 'viz'` test is redundant as a guard now that `reveal()` makes
+   * its own check, and is kept for what it does to the *dependencies*: it keeps
+   * this block **level**-triggered on the mode, so cycling to `viz` with an
+   * overlay open snaps straight back to split. Drop it and the block becomes
+   * edge-triggered on `overlay.kind` alone, which is a behaviour change.
+   *
+   * The other half of this — a *note* opening into a hidden pane — is **not**
+   * here. It is `layout.reveal()` inside `openNote` (`navigate.js`), because
+   * this shape cannot express it: a level check on the focused slug would make
+   * `viz` mode unreachable whenever a note is open, and an edge on it would
+   * also fire on `enter` and `popstate`, where `?layout=viz` is authoritative
+   * and must be honoured exactly.
    */
-  $: if ($overlay.kind && $layout.mode === 'viz') layout.setMode('split');
+  $: if ($overlay.kind && $layout.mode === 'viz') layout.reveal();
 
   /**
    * Focused tile → path.

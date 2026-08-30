@@ -7,6 +7,7 @@ import { writable } from 'svelte/store';
  *   subscribe: import('svelte/store').Readable<LayoutState>['subscribe'],
  *   cycle: () => void,
  *   setMode: (mode: LayoutMode) => void,
+ *   reveal: () => void,
  *   setVizFraction: (f: number) => void,
  *   confirmFraction: () => void,
  * }} LayoutStore
@@ -63,6 +64,29 @@ export function createLayoutState(initial = {}) {
     });
   }
 
+  /**
+   * Make the content pane visible if it is not. Called when something opens
+   * *into* the content pane — an overlay, or a note — from a control that is
+   * still on screen while the pane is hidden: a graph node, a history chip, the
+   * Split button. Without it the note lands in a `display: none` column and the
+   * click looks like it did nothing.
+   *
+   * Only `viz` is widened, and deliberately not via `setMode('split')`, which
+   * would drag `content` mode into split as well. There the pane is already the
+   * whole body row, and hiding the visualization is what the user asked for.
+   *
+   * The reveal is one-way: closing the overlay or the note does not snap back.
+   * Nothing in this app silently undoes itself — closing the filter overlay
+   * leaves the filter applied for the same reason.
+   */
+  function reveal() {
+    update((values) =>
+      values.mode !== 'viz'
+        ? values
+        : { ...values, mode: 'split', vizFraction: values.lastSplitFraction }
+    );
+  }
+
   function cycle() {
     update((values) => {
       const next = CYCLE[(CYCLE.indexOf(values.mode) + 1) % CYCLE.length];
@@ -97,5 +121,5 @@ export function createLayoutState(initial = {}) {
     });
   }
 
-  return { subscribe, cycle, setMode, setVizFraction, confirmFraction };
+  return { subscribe, cycle, setMode, reveal, setVizFraction, confirmFraction };
 }

@@ -1,7 +1,14 @@
 import MiniSearch from 'minisearch';
 
 /**
- * @typedef {{slug: string, content: string, title: string, matter: import("$lib/viz/force_graph/canvas_graph").FrontMatter}} Note
+ * `path` is the note's path relative to the note root, POSIX-separated. It is
+ * **display only** — the result rows show a note's directory, and slugs are
+ * opaque (root `CLAUDE.md`), so it is carried rather than parsed back out of
+ * one. It is deliberately absent from `FIELDS` below: that list is what
+ * `parseSearchString` offers as `field:` prefixes, so indexing the path would
+ * invent a `path:` operator and reweight every result.
+ *
+ * @typedef {{slug: string, path: string, content: string, title: string, matter: import("$lib/viz/force_graph/canvas_graph").FrontMatter}} Note
  */
 
 /**

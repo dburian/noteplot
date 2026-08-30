@@ -11,11 +11,16 @@
     <meta name="theme-color" content="#ffffff" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <!--
-      No <title> here. A hard-coded one sits *before* %sveltekit.head% and wins
-      — browsers take the first — so every prerendered note page shipped the
-      title "Noteplot" and only got its real one on hydration. The content pane
-      owns the title now and emits one in every state, including "no note
-      open"; +error.svelte, which renders outside that pane, carries its own.
+      No title element here. A hard-coded one sitting above the head
+      placeholder below wins — browsers take the first — so every prerendered
+      note page shipped the title "Noteplot" and only got its real one on
+      hydration. The content pane owns the title now and emits one in every
+      state, including "no note open"; +error.svelte, which renders outside
+      that pane, carries its own.
+
+      Do not write the head placeholder token in this comment: SvelteKit
+      replaces only its first occurrence, so it would be substituted here and
+      the injected markup would break out of the comment.
     -->
     %sveltekit.head%
   </head>

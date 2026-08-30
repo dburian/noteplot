@@ -2,12 +2,17 @@
   import { createEventDispatcher, onDestroy, onMount } from 'svelte';
 
   /**
-   * The one text input, used by all three overlays as the panel's header row.
+   * The one text input, used by all three overlays. It goes in `OverlayShell`'s
+   * `input` slot, directly under the frame's own title bar.
    *
    * It changed shape in the redesign: it used to be a bordered `text-xl` box
    * with a `mb-6` under it, sized for the middle of a full `/search` page. The
-   * pages are gone; this is now the top edge of a modal panel and owns the
-   * border between itself and the results.
+   * pages are gone; this is a query bar under a header now, and it owns the
+   * border between itself and the results — the frame does not draw one there.
+   *
+   * It also still owns the overlay's **initial focus**, via the `onMount`
+   * autofocus below. `overlay/focus_trap.js` deliberately focuses nothing, so
+   * there is one claimant rather than two racing.
    *
    * Three behavioural changes came with that, all of them relied on:
    *

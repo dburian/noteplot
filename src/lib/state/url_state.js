@@ -131,6 +131,13 @@ export function readUrlState(url) {
 }
 
 /**
+ * Every param `buildUrl` owns, cleared before any is written. The last two are
+ * legacy names from the pre-redesign content state, dropped so an old bookmark
+ * does not leave a dead param wedged in the bar forever.
+ */
+const OWNED_PARAMS = ['tile', 'focus', 'layout', 'overlay', 'q', 'onlyContent', 'noContent'];
+
+/**
  * Serialise state back into a URL.
  *
  * **Keeps `currentUrl.pathname` untouched.** Only the query string is ever
@@ -138,6 +145,20 @@ export function readUrlState(url) {
  * semantics: a path change is a `goto` (it should be a back-button stop), a
  * query change is a `replaceState` (fiddling with the layout should not fill
  * up the history). Use `notePath()` for the former.
+ *
+ * **It is idempotent, and has to be**: `buildUrl(buildUrl(u, s), s)` must equal
+ * `buildUrl(u, s)` *as a string*, because `WithAppState` decides whether to
+ * call `replaceState` by comparing `href`s. That is why every owned param is
+ * deleted up front and then written in one fixed order, rather than each being
+ * `set`/`delete`d in place. `URLSearchParams` is order-sensitive in a way that
+ * makes the in-place version silently non-idempotent: `delete` + `append` moves
+ * a key to the *end*, while `set` keeps an existing key where it was. So
+ * `?tile=a&tile=b&focus=1` — a URL this function had just written — came back
+ * out as `?focus=1&tile=a&tile=b`, and the `href` compare reported a change on
+ * a URL nothing had changed. At hydration that was fatal rather than merely
+ * wasteful: see the `settled` gate in `WithAppState`.
+ *
+ * Params this app does not own keep their relative order and stay in front.
  *
  * @param {URL} currentUrl
  * @param {UrlState} state
@@ -147,39 +168,23 @@ export function buildUrl(currentUrl, state) {
   const url = new URL(currentUrl);
   const search = url.searchParams;
 
-  search.delete('tile');
+  for (const key of OWNED_PARAMS) search.delete(key);
+
+  // Omitted for a single tile: the pathname already names it.
   if (state.tileSlugs.length > 1) {
     for (const slug of state.tileSlugs) search.append('tile', slug);
-  }
-
-  if (state.tileSlugs.length > 1 && state.focusIndex > 0) {
-    search.set('focus', String(state.focusIndex));
-  } else {
-    search.delete('focus');
+    if (state.focusIndex > 0) search.set('focus', String(state.focusIndex));
   }
 
   // `/notes/<slug>` already means content-only; spelling it out again would
   // add a param the user never asked for to every note-only URL.
   const impliedByPath = url.pathname.startsWith(NOTES_PREFIX()) && state.mode === 'content';
-  if (state.mode !== 'split' && !impliedByPath) {
-    search.set('layout', state.mode);
-  } else {
-    search.delete('layout');
-  }
+  if (state.mode !== 'split' && !impliedByPath) search.set('layout', state.mode);
 
   if (state.overlay) {
     search.set('overlay', state.overlay);
     if (state.query) search.set('q', state.query);
-    else search.delete('q');
-  } else {
-    search.delete('overlay');
-    search.delete('q');
   }
-
-  // Legacy params from the pre-redesign content state. Cleared so an old
-  // bookmark does not leave a dead param wedged in the bar forever.
-  search.delete('onlyContent');
-  search.delete('noContent');
 
   return url;
 }

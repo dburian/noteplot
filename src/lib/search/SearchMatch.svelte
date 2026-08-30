@@ -2,14 +2,17 @@
   import { base } from '$app/paths';
   import { createEventDispatcher } from 'svelte';
 
+  import { rowClass } from '$lib/overlay/row_style.js';
+  import { buildSnippet } from './snippet.js';
+
   /**
    * One result row, in the search or the filter overlay.
    *
-   * It is a **real `<a href>`** now, not the `<div role="link">` with an
-   * `on:click` and a no-op `on:keydown` it used to be. Middle-click,
-   * Ctrl/Cmd-click, keyboard activation, "copy link address" and SvelteKit's
-   * link preloading all work for free once the element is the right one; none
-   * of them worked before.
+   * It is a **real `<a href>`**, not the `<div role="link">` with an `on:click`
+   * and a no-op `on:keydown` it used to be. Middle-click, Ctrl/Cmd-click,
+   * keyboard activation, "copy link address" and SvelteKit's link preloading
+   * all work for free once the element is the right one; none of them worked
+   * before.
    *
    * The click is still intercepted, because opening a note here means writing a
    * tile, not navigating (`WithAppState` derives the path from the focused
@@ -17,8 +20,10 @@
    * a new tab or window, and that is the browser's to honour, so the default is
    * left alone.
    *
-   * It also lost the full-page card shape: `text-xl` titles with `mb-9` between
-   * them fitted two results into the overlay's `max-h-[70vh]` panel.
+   * Three lines rather than one, now that the overlay is a whole pane: title
+   * and directory, tags, and a **match-centred** excerpt with the matched terms
+   * bolded. The old row showed `content.slice(0, 160)` — the opening of the
+   * note — which said that a note matched but never where.
    */
 
   /** @type {import('./search_index.js').Match} */
@@ -30,22 +35,31 @@
   /** Show which fields matched. Driven by the toolbar's Metadata toggle. @type {boolean} */
   export let showMeta = false;
 
-  /** @type {number} */
-  export let maxContentLength = 160;
+  /** Characters of excerpt around the match. @type {number} */
+  export let snippetLength = 220;
 
   const dispatch = createEventDispatcher();
 
   $: href = `${base}/${encodeURIComponent(match.note.slug)}`;
 
-  // The search index stores the note as one plaintext blob; its newlines are
-  // paragraph breaks, which would each become a line of their own in a row that
-  // is one line tall.
-  $: excerpt =
-    match.note.content.slice(0, maxContentLength).split('\n').filter(Boolean).join(' … ').trim() +
-    ' …';
-
   /** minisearch reports `{term: [field, ...]}`. @type {[string, string[]][]} */
   $: matched = Object.entries(match.matchedFields ?? {});
+
+  /**
+   * The note's directory, from the `path` the preprocessor writes into
+   * `__search.json`. It is **not** derived from the slug: slugs are opaque and
+   * nothing reverse-parses one (see the root `CLAUDE.md`). Empty at the root of
+   * the collection, and empty against an index built before the field existed.
+   */
+  $: dir = (match.note.path ?? '').split('/').slice(0, -1).join('/');
+
+  $: tags = match.note.matter?.tags ?? [];
+
+  $: snippet = buildSnippet(
+    match.note.content,
+    matched.map(([term]) => term),
+    { window: snippetLength }
+  );
 
   /** @type {HTMLAnchorElement | undefined} */
   let anchor;
@@ -78,25 +92,44 @@
 <a
   bind:this={anchor}
   {href}
-  class="block px-3 py-2 border-l-2 no-underline
-         {active
-    ? 'border-l-emphasis-light dark:border-l-emphasis-dark bg-muted-light/20 dark:bg-muted-dark/20'
-    : 'border-l-transparent hover:bg-muted-light/10 dark:hover:bg-muted-dark/10'}"
+  class="{rowClass(active)} px-4 py-3"
   on:click={onClick}
   on:auxclick={onAuxClick}
   on:mouseenter
 >
-  <span class="flex items-baseline gap-2">
+  <span class="flex items-baseline gap-3">
     <span class="min-w-0 truncate text-emphasis-light dark:text-emphasis-dark">
       {match.note.title}
     </span>
-    {#if showMeta}
-      <span class="shrink-0 text-xs italic text-muted-light dark:text-muted-dark">
-        {#each matched as [term, fields]}
-          <span class="ml-2">{term}:{fields.join(',')}</span>
-        {/each}
-      </span>
+    {#if dir}
+      <span class="ml-auto shrink-0 text-xs text-muted-light dark:text-muted-dark">{dir}</span>
     {/if}
   </span>
-  <span class="block truncate text-sm text-muted-light dark:text-muted-dark">{excerpt}</span>
+
+  {#if tags.length}
+    <span class="mt-0.5 block truncate text-xs text-muted-light dark:text-muted-dark">
+      {#each tags as tag}<span class="mr-2">#{tag}</span>{/each}
+    </span>
+  {/if}
+
+  <!--
+    The line breaks inside the loop below are load-bearing, and the `</strong\n >`
+    especially so. Svelte collapses a run of whitespace in a text node to a
+    single space, so putting `{#each}`, `{#if}` and `</strong>` on tidy separate
+    lines renders "convexity" as "convex ity". Verify with
+    `svelte.compiler.compile(src, {generate: 'ssr'})` if you reflow this.
+  -->
+  {#if snippet.parts.length}
+    <span class="mt-1 block line-clamp-2 text-sm text-muted-light dark:text-muted-dark">
+      {#if snippet.head}…{/if}{#each snippet.parts as part}{#if part.match}<strong
+            class="font-semibold text-front-light dark:text-front-dark">{part.text}</strong
+          >{:else}{part.text}{/if}{/each}{#if snippet.tail}…{/if}
+    </span>
+  {/if}
+
+  {#if showMeta && matched.length}
+    <span class="mt-1 block truncate text-xs italic text-muted-light dark:text-muted-dark">
+      {#each matched as [term, fields]}<span class="mr-2">{term}:{fields.join(',')}</span>{/each}
+    </span>
+  {/if}
 </a>

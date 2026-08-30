@@ -1,6 +1,9 @@
 <script>
   import { matchCommands } from '$lib/commands/match.js';
   import { commands } from '$lib/commands/registry.js';
+  import CommandRow from '$lib/commands/CommandRow.svelte';
+  import OverlayEmpty from './OverlayEmpty.svelte';
+  import OverlayShell from './OverlayShell.svelte';
   import SearchBar from '$lib/search/SearchBar.svelte';
   import { useAppState, FILTER, LAYOUT, OVERLAY, PREFS, TILES, VIZ } from '$lib/state/keys.js';
 
@@ -69,15 +72,6 @@
   // past the end.
   $: if (highlight >= entries.length) highlight = 0;
 
-  /** @type {HTMLElement | undefined} */
-  let listEl;
-
-  // Same job as `SearchMatch`'s own `scrollIntoView`, done from here because a
-  // command row is a plain button rather than a component.
-  $: if (listEl && entries.length) {
-    listEl.children[highlight]?.scrollIntoView({ block: 'nearest' });
-  }
-
   /** @param {number} i */
   function runAt(i) {
     const entry = entries[i];
@@ -110,44 +104,32 @@
   }
 </script>
 
-<SearchBar
-  bind:value
-  placeholder="Type a command"
-  debounceTime={0}
-  on:search={() => (highlight = 0)}
-  on:keydown={onKeydown}
-/>
+<OverlayShell title="Command palette" on:close={overlay.close}>
+  <SearchBar
+    slot="input"
+    bind:value
+    placeholder="Type a command"
+    debounceTime={0}
+    on:search={() => (highlight = 0)}
+    on:keydown={onKeydown}
+  />
 
-<div bind:this={listEl} class="flex-1 min-h-0 overflow-y-auto py-1">
   {#each entries as entry, i (entry.command.id)}
-    <button
-      type="button"
-      class="w-full flex items-baseline gap-3 px-3 py-1.5 text-left border-l-2
-             {i === highlight
-        ? 'border-l-emphasis-light dark:border-l-emphasis-dark bg-muted-light/20 dark:bg-muted-dark/20'
-        : 'border-l-transparent hover:bg-muted-light/10 dark:hover:bg-muted-dark/10'}
-             {entry.enabled
-        ? 'text-front-light dark:text-front-dark'
-        : 'text-muted-light dark:text-muted-dark'}"
-      disabled={!entry.enabled}
+    <CommandRow
+      {entry}
+      active={i === highlight}
       on:click={() => runAt(i)}
       on:mouseenter={() => (highlight = i)}
-    >
-      <span class="flex-1 min-w-0 truncate">{entry.command.title}</span>
-      {#if entry.command.group}
-        <span class="shrink-0 text-xs text-muted-light dark:text-muted-dark">
-          {entry.command.group}
-        </span>
-      {/if}
-    </button>
+    />
   {:else}
-    <p class="px-3 py-6 text-center text-sm text-muted-light dark:text-muted-dark">no command</p>
+    <OverlayEmpty><p class="text-sm">no command</p></OverlayEmpty>
   {/each}
-</div>
 
-<footer
-  class="shrink-0 px-3 py-1.5 text-xs text-muted-light dark:text-muted-dark
-         border-t border-t-muted-light dark:border-t-muted-dark"
->
-  ↑↓ move · ↵ run · Esc close
-</footer>
+  <footer
+    slot="footer"
+    class="shrink-0 truncate px-3 py-1.5 text-xs text-muted-light dark:text-muted-dark
+           border-t border-t-muted-light dark:border-t-muted-dark"
+  >
+    ↑↓ move · ↵ run · Esc close
+  </footer>
+</OverlayShell>

@@ -1,11 +1,13 @@
 <script>
   import { onMount } from 'svelte';
 
+  import OverlayEmpty from './OverlayEmpty.svelte';
+  import OverlayShell from './OverlayShell.svelte';
   import QueryDisplay from '$lib/search/QueryDisplay.svelte';
   import SearchBar from '$lib/search/SearchBar.svelte';
   import SearchMatch from '$lib/search/SearchMatch.svelte';
   import { loadSearchIndex } from '$lib/search/lazy_index.js';
-  import { useAppState, OVERLAY, PREFS, TILES } from '$lib/state/keys.js';
+  import { useAppState, LAYOUT, OVERLAY, PREFS, TILES } from '$lib/state/keys.js';
   import { openNote } from '$lib/state/navigate.js';
 
   /**
@@ -20,6 +22,7 @@
     useAppState(OVERLAY)
   );
   const tiles = /** @type {import('$lib/state/tiles.js').TilesStore} */ (useAppState(TILES));
+  const layout = /** @type {import('$lib/state/layout.js').LayoutStore} */ (useAppState(LAYOUT));
   const prefs = /** @type {import('$lib/state/prefs.js').PrefsStore} */ (useAppState(PREFS));
 
   /** Seeded from `?q=`, so a shared search URL opens with its results. */
@@ -81,7 +84,7 @@
    * @param {'focused'|'new'} where
    */
   function open(match, where) {
-    openNote(tiles, match.note.slug, { where });
+    openNote(tiles, layout, match.note.slug, { where });
     // Alt+Enter leaves the overlay up: opening several notes into their own
     // columns is one gesture repeated, and closing between each would make it
     // three.
@@ -114,20 +117,21 @@
   });
 </script>
 
-<SearchBar
-  bind:value
-  placeholder="Search notes"
-  on:search={(ev) => run(ev.detail.searchString)}
-  on:keydown={onKeydown}
-/>
+<OverlayShell title="Search notes" on:close={overlay.close}>
+  <SearchBar
+    slot="input"
+    bind:value
+    placeholder="Search notes"
+    on:search={(ev) => run(ev.detail.searchString)}
+    on:keydown={onKeydown}
+  />
 
-<div class="flex-1 min-h-0 overflow-y-auto py-1">
   {#if $prefs.showMeta && query}
-    <div class="px-3 py-2"><QueryDisplay {query} margin="mb-0" /></div>
+    <div class="px-4 pb-2"><QueryDisplay {query} margin="mb-0" /></div>
   {/if}
 
   {#if searching}
-    <p class="px-3 py-6 text-center text-sm text-muted-light dark:text-muted-dark">searching …</p>
+    <OverlayEmpty><p class="text-sm">searching …</p></OverlayEmpty>
   {:else if results && results.length > 0}
     {#each results as match, i (match.note.slug)}
       <SearchMatch
@@ -139,18 +143,19 @@
       />
     {/each}
   {:else if results}
-    <p class="px-3 py-6 text-center text-sm text-muted-light dark:text-muted-dark">no match</p>
+    <OverlayEmpty><p class="text-sm">no match</p></OverlayEmpty>
   {:else}
-    <p class="px-3 py-6 text-center text-sm text-muted-light dark:text-muted-dark">
-      Search titles, tags and note text. <code>tag:math</code> and
-      <code>"a phrase"</code> both work.
-    </p>
+    <OverlayEmpty>
+      <p class="text-sm">Search titles, tags and note text.</p>
+      <p class="text-xs"><code>tag:math</code> and <code>"a phrase"</code> both work.</p>
+    </OverlayEmpty>
   {/if}
-</div>
 
-<footer
-  class="shrink-0 px-3 py-1.5 text-xs text-muted-light dark:text-muted-dark
-         border-t border-t-muted-light dark:border-t-muted-dark"
->
-  ↑↓ move · ↵ open · Alt+↵ new column · Esc close
-</footer>
+  <footer
+    slot="footer"
+    class="shrink-0 truncate px-3 py-1.5 text-xs text-muted-light dark:text-muted-dark
+           border-t border-t-muted-light dark:border-t-muted-dark"
+  >
+    ↑↓ move · ↵ open · Alt+↵ new column · Esc close
+  </footer>
+</OverlayShell>

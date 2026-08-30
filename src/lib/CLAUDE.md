@@ -64,6 +64,12 @@ to keep in sync — `mode` and `vizFraction` are fields of one object, so the os
 bidirectional block could produce is structurally impossible. `lastSplitFraction` plays the role
 `lastSetWidth` used to: collapsing and re-expanding restores the width the user chose.
 
+`layout.reveal()` is the one action that is _not_ a user asking for a mode. It means "something is
+about to appear in the content pane", and it widens `viz` back to `split` and does nothing in the
+other two modes — deliberately **not** `setMode('split')`, which would drag `content` mode into
+split and undo a choice the user made. Its callers are `openNote`, the overlay nudge in
+`WithAppState`, and the three `tiles.splitRight()` sites.
+
 `persist.js` wraps both storages with the two guards every caller needs: `typeof window` (these
 modules are imported during prerender, and there is no `Adaptive` gate any more to stop them
 running on the server) and try/catch (storage throws in private-mode Safari).
@@ -97,7 +103,16 @@ Both stores → \* blocks are gated on `settled` (`mounted && $navigating === nu
 of that gate are load-bearing:
 
 - **`mounted`** — `replaceState` throws before the router has initialised, which includes the
-  whole prerender.
+  whole prerender. **It is raised one microtask after `onMount`, and that delay is load-bearing.**
+  SvelteKit's `_hydrate` does `new app.root({...})` — which runs Svelte's first flush and therefore
+  every `onMount` in the tree — and sets its internal `started` flag only a few synchronous
+  statements later, after the `afterNavigate('enter')` callbacks. So `onMount` and `afterNavigate`
+  are both inside the window where `replaceState` still throws, and the throw is not survivable:
+  Svelte's `flush()` empties `dirty_components` and rethrows, so every component queued behind
+  `WithAppState` never updates and their `onMount`s never run. The page keeps its server-rendered
+  markup and then patches erratically — which presented as an empty overlay panel, an aborted
+  hydration wearing an overlay bug's clothes. A microtask lands after the whole synchronous tail of
+  `_hydrate`.
 - **`$navigating === null`** — **SvelteKit updates the `page` store and flushes Svelte _before_ it
   runs `afterNavigate`.** (`_navigate` does `root.$set(...)`, `update(page)`, `await tick()`, then
   the callbacks.) There is therefore a window in every navigation where a reactive block sees the
@@ -112,8 +127,14 @@ of that gate are load-bearing:
   stack). Use `notePath(slug)` for the former.
 - The `href` compare before `replaceState` is not an optimisation. `URL` objects compare by
   reference, so an unguarded check fires on every reactive run (ISSUES.md B8).
-- The `mounted` gate is not optional either: `replaceState` throws before the router initialises,
-  which includes the whole prerender.
+- **`buildUrl` must stay idempotent**, or that compare is worse than useless: it reports a change
+  on a URL nothing changed, forever. `URLSearchParams` is order-sensitive in a way that makes the
+  obvious implementation silently non-idempotent — `delete` + `append` moves a key to the end while
+  `set` keeps an existing key in place — so `?tile=a&tile=b&focus=1`, a URL `buildUrl` had itself
+  written, came back out as `?focus=1&tile=a&tile=b`. Every load of a two-column URL then wrote the
+  URL during hydration, and the `mounted` gate above did not hold. It now deletes every param it
+  owns up front and writes them in one fixed order; params it does not own keep their place. Verify
+  a change to it by asserting `buildUrl(buildUrl(u, s), s).href === buildUrl(u, s).href`.
 - **The reconcile is restricted to `popstate`/`enter` on purpose.** On our own navigations the
   store is already correct and _ahead_ of the URL; reconciling there would read the
   not-yet-rewritten `?tile` params and collapse a three-column layout to one column on every
@@ -141,18 +162,34 @@ rewriting one into the other would kick every note-only URL out of note-only mod
 
 ### `state/navigate.js` — open a note
 
-`openNote(tiles, slug, opts)` is `tiles.open` plus the `where` default, and **every navigation
-source must go through it** — the history chips and the canvas today, prose links, search results
-and the command palette in the stages after this one.
+`openNote(tiles, layout, slug, opts)` is `tiles.open` plus the `where` default and
+`layout.reveal()`, and **every navigation source must go through it** — the canvas, the history
+chips, and both search-shaped overlays.
 
-It is the tile half only. **Do not put a `goto` back into it**: the block above already navigates
-on the focus change that `tiles.open` produces, so a second one here is a duplicate history entry
-for one click. The current split also makes re-opening the note already in the focused tile a
-genuine no-op — the store does not change, so nothing navigates.
+It is the tile half plus the layout nudge. **Do not put a `goto` back into it**: the block above
+already navigates on the focus change that `tiles.open` produces, so a second one here is a
+duplicate history entry for one click. The tile half is still a genuine no-op when the note is
+already in the focused tile — the store does not change, so nothing navigates — but `reveal()`
+runs regardless, which is the point: clicking the node of the note in the _hidden_ focused tile
+has to show it to you.
+
+**`layout` is a required positional parameter, not a field on `opts`.** That is the whole reason
+it reads awkwardly: with `checkJs` on, a call site left un-updated passes a `string` where a
+`LayoutStore` is expected and `npm run check` names it. An optional field would be silently
+omitted, which is exactly the drift this shared helper exists to prevent.
+
+`layout.reveal()` widens `viz` mode back to `split` (restoring `lastSplitFraction`) and leaves
+`split` and `content` untouched. It is **one-way** — closing the note or the overlay does not snap
+back, on the same principle as Escape leaving the filter applied. The two overlays' calls are a
+no-op in practice, since the nudge below already widened the layout to open the overlay at all,
+but they go through the same helper because they are a navigation source like any other.
 
 `WithAppState`'s `afterNavigate` calls `tiles.open(pathSlug)` on any non-`popstate` navigation, to
 catch links it did not route (a metadata backlink, say). That call is a no-op when `openNote` ran
-first, and does the work when it did not.
+first, and does the work when it did not. It deliberately stays on `tiles.open` rather than
+`openNote`: a first load or a bookmark arrives as `enter`, where `?layout=viz` is authoritative and
+revealing the pane would override the URL. Same for the `popstate`/`enter` reconcile above — which
+is also why `tiles.js` knows nothing about layout, or `reconcile` would reveal on every back press.
 
 `notePath()` carries no query string, so the URL momentarily loses `?tile`/`?layout`. The stores →
 URL block writes them straight back from state the navigation never touched.
@@ -179,9 +216,10 @@ URL block writes them straight back from state the navigation never touched.
             │  ├─ TileHeader         note title + close, shrink-0
             │  └─ (scroll container) flex-1 min-h-0 overflow-y-auto
             │     └─ NoteContent     from <slot/> in the focused tile, else loadNote
-            └─ OverlayHost           absolute inset-0, only when $overlay.kind
-               └─ OverlayShell       backdrop + panel
-                  └─ Search | Filter | CommandOverlay
+            └─ OverlayHost           only when $overlay.kind; owns focus restore
+               └─ Search | Filter | CommandOverlay
+                  └─ OverlayShell    absolute inset-0, opaque, fills the pane
+                                     header / input / body / footer slots
 ```
 
 Everything here is a real flex child. Nothing is `fixed`, and no component has to be told how much
@@ -213,9 +251,13 @@ Two consequences, both already handled:
   _before_ it patches the DOM, so the snapshot happens while the boxes still exist.
 
 `OverlayHost` lives inside `ContentPane`, so an overlay opened in `viz` mode would be inside a
-`display:none` subtree. That is resolved in the state layer rather than here: `WithAppState` nudges
-the mode back to `split` when `overlay.kind` becomes non-null. See `overlay/` below for why the
-modal is anchored to the content pane in the first place.
+`display:none` subtree — and a note opened there lands in a column nobody can see. Both are
+resolved in the state layer rather than here, and by the same `layout.reveal()`: `WithAppState`
+calls it when `overlay.kind` becomes non-null, and `openNote` calls it for every note. The three
+`tiles.splitRight()` call sites — `AppShell`'s Ctrl/Cmd+`\`, `ContentSection`'s Split button, the
+`content.split` command — call it too, for the same reason: all three are reachable while the pane
+is hidden. See `overlay/` below for why the modal is anchored to the content pane in the first
+place.
 
 ### Keyboard shortcuts
 
@@ -235,7 +277,9 @@ overlay could only ever run once that overlay was already open.
 The handler bails out when the event target is an `input`, `textarea` or `[contenteditable]` —
 **except for `Escape`**, which is how you leave the overlay you are typing in. Escape is therefore
 handled here and nowhere else; `OverlayShell` deliberately carries no key handler, so there is one
-closer rather than two racing to call the same action.
+closer rather than two racing to call the same action. The shell's ✕ button is a second _closer_ —
+it calls the same `overlay.close()` — but not a second Escape handler, and `overlay/focus_trap.js`
+sees only `Tab` for the same reason.
 
 ## Directories
 
@@ -301,6 +345,14 @@ You must land at the same offset in A.
 ### `shell/`
 
 `AppShell.svelte` and `PaneDivider.svelte`.
+
+**A lone visible pane is given `flex-grow: 1`, not its fraction.** When the flex-grow factors on a
+line sum to _less than 1_, the items share only that much of the free space (CSS Flexbox §9.7) and
+the rest is left empty — so with `flex-basis: 0%`, a single pane at `flex: 0.618` covered 61.8% of
+the row and left a blank strip of body-row background next to the graph, which reads as a stray div
+painted over it. `content` mode had the mirror at 38.2%. `split` was always right and hid it: `f`
+and `1 - f` sum to exactly 1. `vizFraction` still stores what the user dragged to; it is only the
+_grow factor_ that is overridden, and only in the two single-pane modes.
 
 The divider uses **pointer capture** — `setPointerCapture` on `pointerdown`, release on
 `pointerup` — rather than attaching listeners to `document.body`. The component it replaces
@@ -411,32 +463,125 @@ in `CanvasGraph.onFilterChange` — on every press.
 The click is still intercepted — opening a note means writing a tile, not navigating — **except**
 when Ctrl/Cmd/Shift is held, which is a request for a new tab and the browser's to honour.
 
+It is four lines now, not one: title with the note's directory right-aligned, tag chips, a
+match-centred snippet, and the `showMeta` readout. Three things in it will bite:
+
+- **The directory comes from `match.note.path`**, the field `search_index_pipeline.js` writes. It
+  is _not_ derived from the slug — see the root `CLAUDE.md`. Guard it: `path` is `?? ''` because an
+  `__search.json` generated before the field existed must still render.
+- **The whitespace inside the snippet `{#each}` is load-bearing.** Svelte collapses a run of
+  whitespace in a text node to one space, so laying `{#if}`, `{#each}` and `</strong>` out on tidy
+  separate lines renders `convexity` as `convex ity`. There is a comment above it saying so; if you
+  reflow it, check the result with `compile(src, {generate: 'ssr'})`.
+- **The snippet is built from `matchedFields`' keys**, so it needs no extra data — but it is per
+  row, so it is also where a pathological result set would show up first.
+
+`snippet.js` is the excerpt builder, and it is pure — no Svelte, no DOM, so it can be exercised
+from `node`. `buildSnippet(content, terms)` collapses the note's paragraph newlines once, slides a
+220-character window to the first matched term (a third of it as lead), snaps both ends to a space,
+and returns `{parts, head, tail}` — alternating `{text, match}` runs plus whether each end was cut.
+Render `parts` with an `{#each}`; **never** `{@html}`, this is note text. Two rules inside it are
+deliberate and easy to "fix" wrongly:
+
+- **A leading word boundary, and no trailing one.** minisearch tokenises with neither prefix nor
+  fuzzy matching on, so a term in `matchedFields` is a whole token that really occurs in the note:
+  searching `form` cannot have matched `transformers`, and bolding the `form` inside it points at
+  text that had nothing to do with the hit. A _trailing_ boundary would be wrong the other way —
+  it would refuse to bold the `convex` of `convexity`, which is what every good search UI does.
+- **`\p{L}\p{N}` with the `u` flag, not `\b`.** `\b` is ASCII-only in JavaScript, so in `časy`
+  the `č` is a non-word character and `\bčas` never matches — which breaks on exactly the notes a
+  personal collection is full of.
+
+A term that matched only `title` or `tag`, an empty query, or a note the term is not in all land on
+the same fallback: the head of the note, unhighlighted. That is what the row used to always show.
+
 `QueryDisplay.svelte` is behind the toolbar's **Metadata** toggle in both overlays, the same
 switch that shows a note's frontmatter and backlinks. It takes a `margin` prop, passed through to
-`InfoBox`, because that component's `mb-10` is a third of the height of a `max-h-[70vh]` panel —
-and a `class="mb-0"` from the call site would silently lose, since Tailwind resolves competing
-utilities by stylesheet order rather than attribute order. Same reason `ToolbarItem` takes
-`padding` as a prop.
+`InfoBox`, and both call sites pass `mb-0`: `InfoBox`'s default `mb-10` is a paragraph-break-sized
+gap under a readout that sits directly above the result list, which reads as a section break that
+is not there. It has to be a **prop** rather than a `class="mb-0"` from the call site because
+Tailwind resolves competing utilities by stylesheet order rather than attribute order, so the call
+site's would silently lose. Same reason `ToolbarItem` takes `padding` as a prop. (The old
+justification — "`mb-10` is a third of a `max-h-[70vh]` panel" — died with the card; the prop did
+not.)
 
 ### `overlay/`
 
-`OverlayHost.svelte`, `OverlayShell.svelte`, and one screen per kind: `SearchOverlay`,
-`FilterOverlay`, `CommandOverlay`.
+`OverlayHost.svelte`, `OverlayShell.svelte`, `OverlayEmpty.svelte`, `focus_trap.js`,
+`row_style.js`, and one screen per kind: `SearchOverlay`, `FilterOverlay`, `CommandOverlay`.
 
 `OverlayHost` is the single mount point and the only thing that maps a kind to a component.
 Nothing else decides what is open: the toolbar buttons, the shortcuts, two commands and
 `?overlay=` all write `overlay.kind`, and this reads it. A fourth screen is a key in `OverlayKind`
-plus a row in the two maps.
+plus a row in `SCREENS`.
 
 **It is mounted inside `ContentPane`, and that placement is the design.** The modal covers the
 content area only, so the toolbar stays clickable and the visualization stays visible _and usable_
 underneath while you search — which matters most for the filter, whose whole output is a change to
 the graph. `ContentPane`'s `relative` is its anchor. The consequence is handled in
-`WithAppState`: `viz` mode has no content pane, so opening an overlay there widens the layout back
-to `split`. `content` mode is deliberately left alone.
+`WithAppState`: `viz` mode hides the content pane, so opening an overlay there widens the layout
+back to `split` via `layout.reveal()`. `content` mode is deliberately left alone, and the reveal is
+one-way — Escape leaves you in `split`.
 
 `<svelte:component>` remounts on every change of `this`, which is what makes each screen's
 autofocus fire on open and its local state start clean.
+
+#### `OverlayShell` — one frame, and it fills the pane
+
+The shell is **an opaque surface covering the whole content pane**, not the top-anchored card it
+used to be. The card was `w-full max-w-2xl max-h-[70vh]` over a `bg-back-*/80 backdrop-blur-sm`
+backdrop, offset `pt-[10vh]` — every one of those numbers measured against the _viewport_ while
+the box they lived in is a `flex: (1 − vizFraction) 1 0%` share of it. At the default fraction
+`max-w-2xl` never bound at all and `px-4` was the real width, while `pt-[10vh] + max-h-[70vh]` came
+to 80vh inside a pane 41px shorter than the window.
+
+Now: `absolute inset-0 z-20 flex flex-col bg-back-*`, four slots — a header, `input`, the default
+body slot, and `footer`. **The shell owns the scroller** (`flex-1 min-h-0 overflow-y-auto`); the
+three screens each used to write that same div and that same `<footer class="shrink-0 px-3 py-1.5
+…">` out for themselves.
+
+Details that are load-bearing:
+
+- **The header is `h-10`, the toolbar's height**, so the two read as a stack rather than as a
+  caption floating under a bar.
+- **No backdrop click.** An opaque full-pane surface has no "outside" to click, so that closer is
+  gone; the header's ✕ replaces it, and Escape is unchanged.
+- **The body is capped at `max-w-3xl` and centred**, inside a full-width scroller so the scrollbar
+  stays at the pane edge. In `content` mode the pane is the whole window, and nothing else in this
+  app sets text that wide — `Prose.svelte` caps a note at 65ch for the same reason.
+- **No minimum width anywhere**, `min-w-0 truncate` on the header title, `truncate` on the footers.
+  `confirmFraction()` only snaps below 0.1 / above 0.9, so a live drag can leave the pane very
+  narrow and the frame must not blow it out.
+- **Each screen mounts its own shell.** It cannot be wrapped around `<svelte:component>` from the
+  host any more: slot content is scoped to where it is written, so a screen rendered as a child
+  could never fill the shell's `input` and `footer` slots.
+
+#### Focus
+
+Neither of these existed before; the dialog claimed `aria-modal` and enforced nothing.
+
+- **`focus_trap.js`** is a `use:` action on the shell, and does **Tab containment only**. It
+  focuses nothing on mount — `SearchBar`'s own `onMount` autofocus is the sole owner of initial
+  focus, and a second claimant would race it. It never looks at Escape.
+- **Focus restore is in `OverlayHost`, not the shell**, because each screen mounts its own shell:
+  switching kinds (the palette's own "Search notes" command) tears one shell down and builds
+  another, so a capture at shell init would record the _outgoing_ screen's input as the opener.
+  The host's `{#if $overlay.kind}` spans the whole open, so it captures once, guarded on
+  `!opener`. It reads `document.activeElement` in a reactive block, which Svelte runs _before_ it
+  patches the DOM — the same ordering `ContentPane`'s `hold()` depends on — so the overlay does
+  not exist yet and the toolbar button is still focused.
+
+#### `OverlayEmpty` and `row_style.js`
+
+`OverlayEmpty` is the idle / "searching …" / "no match" block. Those were a `px-3 py-6` paragraph
+pinned to the top, which looks mislaid in a pane six times the height of the old card; it now
+centres them with the same `grid place-content-center` idiom as `content/EmptyState.svelte`, the
+other legitimately-empty surface in the content area.
+
+`row_style.js` holds the one `border-l-2` highlight pair, which `SearchMatch` and the palette's
+rows had a copy of each. Literal strings in a `.js` file are still literal to Tailwind's content
+scanner, so this does not trip the computed-class-name rule — padding stays on the call sites,
+because the two rows differ and a `class` passthrough would lose to the stylesheet order.
 
 The two search-shaped screens differ in more than which store they write, and the difference is
 the point:
@@ -452,7 +597,7 @@ the point:
 That last cell is why `ContentSection`'s filter badge tracks `$filter.query` rather than
 `$overlay.kind`, and why a "Clear filter" command exists at all.
 
-Both funnel every open through `openNote(tiles, slug, {where})` — never `goto` — and both hold a
+Both funnel every open through `openNote(tiles, layout, slug, {where})` — never `goto` — and both hold a
 monotonic `latest` counter, because each run awaits twice (the lazy `__search.json` import, then
 `index.ready()`) and nothing orders two in-flight keystrokes. Only the newest run may write its
 results. Both also pass `loadSearchNotes()`'s resolved array to `getSearchIndex` **untouched**; a
@@ -463,8 +608,8 @@ copy or a spread re-indexes the corpus (ISSUES.md B3).
 
 ### `commands/`
 
-`registry.js` is a list of `{id, title, keywords, group, run, enabled}`. A command is **data that
-calls a store action**; none of them touches the DOM or navigates, which is what keeps a command
+`registry.js` is a list of `{id, title, description, keywords, group, run, enabled}`. A command is
+**data that calls a store action**; none of them touches the DOM or navigates, which is what keeps a command
 and the toolbar button beside it from drifting apart.
 
 `CommandOverlay` assembles the `ctx` bag once from context, with one mutable field: `values`, a
@@ -482,8 +627,21 @@ Two details that will bite whoever edits it:
   whether that one actually has the setting, so a second visualization needs no edit here and does
   not inherit a command that would do nothing.
 
-`match.js` is a ~40-line subsequence scorer over `title + keywords`: prefix beats word-boundary
-beats substring beats scattered subsequence, position breaks ties inside a band, and a keyword hit
+`description` is **required**, not optional. The rows show one under the title, and the array is
+annotated `@type {Command[]}`, so a forgotten description is an `npm run check` failure rather than
+a blank line in the palette.
+
+A row is `CommandRow.svelte`, which **scrolls itself into view** when the cursor lands on it, the
+way `SearchMatch` does. The overlay used to do that from the parent via
+`listEl.children[highlight]`, which only held while every child of the list was a row and the
+cursor index matched a DOM position — the empty state already breaks that assumption.
+
+`match.js` is a ~40-line subsequence scorer over `title + keywords` — **not** `description`, and
+that is deliberate: matching against a sentence of prose floods the SUBSTRING and SUBSEQUENCE bands
+(nearly every description contains "the") and the calibration a dozen hand-written titles was tuned
+for stops meaning anything. Descriptions are there to be read, not searched.
+
+The scoring itself: prefix beats word-boundary beats substring beats scattered subsequence, position breaks ties inside a band, and a keyword hit
 is penalised against a title hit of the same shape. `sort` is stable, so equal scores keep
 registry order. Do **not** reach for `minisearch` for a dozen static strings, and do not add a
 second search library for them either — `flexsearch` sat in `package.json` imported by nothing
@@ -515,6 +673,8 @@ Three things in here are easy to get wrong:
 - **The Metadata toggle is broader than its name.** It gates a note's frontmatter and backlinks
   _and_ the parsed-query readout inside the search and filter overlays — both are "show me the
   machinery".
+- **Split reveals the content pane as well** (`layout.reveal()` beside `tiles.splitRight()`), since
+  the strip is on screen in every mode and a new column is invisible in `viz`.
 - **Split and Close are absent when no note is open.** Both act on the focused column and there is
   none; `tiles.splitRight` is a no-op at zero tiles rather than minting a tile with an empty slug,
   which would push a "no note here" state into every consumer to describe what `EmptyState`
@@ -567,7 +727,7 @@ The state layer never imports this file. `(app)/+layout.svelte` passes `visualiz
 those defaults.
 
 `VizPane` supplies the visualization's `callbacks` — `{onActivate, onHover}` — rather than letting
-the renderer reach for a router or a store. `onActivate` is `openNote(tiles, slug)`; `onHover` is
+the renderer reach for a router or a store. `onActivate` is `openNote(tiles, layout, slug)`; `onHover` is
 `selection.hover(toNoteRef(node))`, and the `toNoteRef` is what keeps a graph node's `x`, `y` and
 `matter` out of the store (ISSUES.md B9). `callbacks` must stay a `const`: `CanvasGraph` captures
 it once at mount.

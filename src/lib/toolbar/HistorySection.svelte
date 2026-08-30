@@ -1,5 +1,5 @@
 <script>
-  import { useAppState, HISTORY, TILES } from '$lib/state/keys.js';
+  import { useAppState, HISTORY, LAYOUT, TILES } from '$lib/state/keys.js';
   import { openNote } from '$lib/state/navigate.js';
   import ToolbarItem from './ToolbarItem.svelte';
 
@@ -18,12 +18,13 @@
     useAppState(HISTORY)
   );
   const tiles = /** @type {import('$lib/state/tiles.js').TilesStore} */ (useAppState(TILES));
+  const layout = /** @type {import('$lib/state/layout.js').LayoutStore} */ (useAppState(LAYOUT));
 
   $: focusedSlug = $tiles.tiles[$tiles.focusIndex]?.slug ?? null;
 
   /** @param {MouseEvent} ev @param {string} slug */
   function onClick(ev, slug) {
-    openNote(tiles, slug, { where: ev.altKey ? 'new' : 'focused' });
+    openNote(tiles, layout, slug, { where: ev.altKey ? 'new' : 'focused' });
   }
 
   /**
@@ -35,7 +36,7 @@
   function onAuxClick(ev, slug) {
     if (ev.button !== 1) return;
     ev.preventDefault();
-    openNote(tiles, slug, { where: 'new' });
+    openNote(tiles, layout, slug, { where: 'new' });
   }
 </script>
 

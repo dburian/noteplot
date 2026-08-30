@@ -58,8 +58,12 @@ It supplies `callbacks`, which is the whole of what a visualization may do to th
 { onActivate(slug), onHover(node) }
 ```
 
-`onActivate` is `openNote(tiles, slug)` — the tile mutation and the `goto`, together, as every
-navigation source must be (see `src/lib/CLAUDE.md`). `onHover` is `selection.hover(toNoteRef(node))`.
+`onActivate` is `openNote(tiles, layout, slug)` — the tile mutation and the layout reveal, as
+every navigation source must be, and _not_ a `goto`: the path follows the focused tile from one
+block in `WithAppState` (see `src/lib/CLAUDE.md`). The `layout` argument is what makes a node click
+work in `viz` mode at all — the content pane is hidden there, so without it the note would open
+into a `display: none` column and the click would look like it did nothing. `onHover` is
+`selection.hover(toNoteRef(node))`.
 Both live here rather than in the renderer for the same reason: **which tile a click opens into, and
 what shape goes into the store, are the app's business, not the renderer's.** `toNoteRef` matters —
 a graph `Node` carries `x`, `y` and `matter`, and putting that in `selection` is `ISSUES.md` B9.

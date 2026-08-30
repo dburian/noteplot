@@ -31,6 +31,7 @@
  * @typedef {Object} Command
  * @property {string} id
  * @property {string} title shown in the palette
+ * @property {string} description one line under the title, saying what it does
  * @property {string[]} [keywords] extra match terms
  * @property {'Layout'|'Content'|'Visualization'|'Navigation'} [group]
  * @property {(ctx: CommandContext) => void} run
@@ -66,6 +67,7 @@ export const commands = [
   {
     id: 'layout.cycle',
     title: 'Cycle layout',
+    description: 'Step through split, visualization only, and content only.',
     keywords: ['view', 'panes', 'toggle', 'split'],
     group: 'Layout',
     run: (ctx) => ctx.layout.cycle()
@@ -73,6 +75,7 @@ export const commands = [
   {
     id: 'layout.viz',
     title: 'Show visualization only',
+    description: 'Give the whole window to the graph and hide the notes.',
     keywords: ['graph', 'full screen', 'hide notes'],
     group: 'Layout',
     run: (ctx) => ctx.layout.setMode('viz')
@@ -80,6 +83,7 @@ export const commands = [
   {
     id: 'layout.content',
     title: 'Show content only',
+    description: 'Give the whole window to the notes and hide the graph.',
     keywords: ['notes', 'reading', 'hide graph'],
     group: 'Layout',
     run: (ctx) => ctx.layout.setMode('content')
@@ -87,6 +91,7 @@ export const commands = [
   {
     id: 'layout.split',
     title: 'Show split view',
+    description: 'Show the graph and the notes side by side.',
     keywords: ['side by side', 'both'],
     group: 'Layout',
     run: (ctx) => ctx.layout.setMode('split')
@@ -94,13 +99,20 @@ export const commands = [
   {
     id: 'content.split',
     title: 'Split content right',
+    description: 'Open the focused note again in a new column to its right.',
     keywords: ['column', 'duplicate', 'side by side'],
     group: 'Content',
-    run: (ctx) => ctx.tiles.splitRight()
+    // Reveals the content pane too: the palette is reachable in every mode,
+    // and a new column is invisible while the pane is hidden.
+    run: (ctx) => {
+      ctx.tiles.splitRight();
+      ctx.layout.reveal();
+    }
   },
   {
     id: 'content.closeTile',
     title: 'Close focused note',
+    description: 'Close the focused column.',
     keywords: ['column', 'dismiss'],
     group: 'Content',
     // A disabled command is still listed, greyed out. Hiding it would make the
@@ -116,6 +128,7 @@ export const commands = [
   {
     id: 'content.toggleMeta',
     title: 'Toggle note metadata',
+    description: "Show or hide each note's frontmatter, backlinks and reading time.",
     keywords: ['frontmatter', 'backlinks', 'tags', 'reading time'],
     group: 'Content',
     run: (ctx) => ctx.prefs.toggleMeta()
@@ -123,6 +136,7 @@ export const commands = [
   {
     id: 'viz.toggleConnections',
     title: 'Toggle connections',
+    description: 'Draw or hide the links between nodes in the graph.',
     keywords: ['links', 'edges', 'graph'],
     group: 'Visualization',
     enabled: (ctx) => hasSetting(ctx, 'showConnections'),
@@ -131,6 +145,7 @@ export const commands = [
   {
     id: 'viz.toggleTagGlow',
     title: 'Toggle tag glow',
+    description: 'Tint each node by its tags.',
     keywords: ['colour', 'color', 'tags', 'graph'],
     group: 'Visualization',
     enabled: (ctx) => hasSetting(ctx, 'showTagsGlow'),
@@ -139,6 +154,7 @@ export const commands = [
   {
     id: 'overlay.search',
     title: 'Search notes',
+    description: 'Find a note by title, tag or text, and open it.',
     keywords: ['find', 'open', 'go to'],
     group: 'Navigation',
     run: (ctx) => ctx.overlay.open('search')
@@ -146,6 +162,7 @@ export const commands = [
   {
     id: 'overlay.filter',
     title: 'Filter notes',
+    description: 'Restrict the graph to the notes matching a query.',
     keywords: ['restrict', 'narrow', 'graph'],
     group: 'Navigation',
     run: (ctx) => ctx.overlay.open('filter')
@@ -153,6 +170,7 @@ export const commands = [
   {
     id: 'filter.clear',
     title: 'Clear filter',
+    description: 'Drop the current filter and show the whole graph again.',
     keywords: ['reset', 'show all'],
     group: 'Navigation',
     // Closing the filter overlay does not clear the filter, so this is the one

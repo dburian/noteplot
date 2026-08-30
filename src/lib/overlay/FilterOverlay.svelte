@@ -1,11 +1,13 @@
 <script>
   import { onMount } from 'svelte';
 
+  import OverlayEmpty from './OverlayEmpty.svelte';
+  import OverlayShell from './OverlayShell.svelte';
   import QueryDisplay from '$lib/search/QueryDisplay.svelte';
   import SearchBar from '$lib/search/SearchBar.svelte';
   import SearchMatch from '$lib/search/SearchMatch.svelte';
   import { loadSearchIndex } from '$lib/search/lazy_index.js';
-  import { useAppState, FILTER, OVERLAY, PREFS, TILES } from '$lib/state/keys.js';
+  import { useAppState, FILTER, LAYOUT, OVERLAY, PREFS, TILES } from '$lib/state/keys.js';
   import { openNote } from '$lib/state/navigate.js';
 
   /**
@@ -27,6 +29,7 @@
   );
   const filter = /** @type {import('$lib/state/filter.js').FilterStore} */ (useAppState(FILTER));
   const tiles = /** @type {import('$lib/state/tiles.js').TilesStore} */ (useAppState(TILES));
+  const layout = /** @type {import('$lib/state/layout.js').LayoutStore} */ (useAppState(LAYOUT));
   const prefs = /** @type {import('$lib/state/prefs.js').PrefsStore} */ (useAppState(PREFS));
 
   /** Seeded from `?q=`. @type {string} */
@@ -99,7 +102,7 @@
    * @param {'focused'|'new'} where
    */
   function open(match, where) {
-    openNote(tiles, match.note.slug, { where });
+    openNote(tiles, layout, match.note.slug, { where });
     if (where === 'focused') overlay.close();
   }
 
@@ -112,23 +115,24 @@
   $: results = $filter.results;
 </script>
 
-<SearchBar
-  bind:this={searchBar}
-  bind:value
-  placeholder="Filter notes"
-  on:search={(ev) => run(ev.detail.searchString)}
-  on:keydown={onKeydown}
-/>
+<OverlayShell title="Filter notes" on:close={overlay.close}>
+  <SearchBar
+    slot="input"
+    bind:this={searchBar}
+    bind:value
+    placeholder="Filter notes"
+    on:search={(ev) => run(ev.detail.searchString)}
+    on:keydown={onKeydown}
+  />
 
-<div class="flex-1 min-h-0 overflow-y-auto py-1">
   {#if $prefs.showMeta && query}
-    <div class="px-3 py-2"><QueryDisplay {query} margin="mb-0" /></div>
+    <div class="px-4 pb-2"><QueryDisplay {query} margin="mb-0" /></div>
   {/if}
 
   {#if searching}
-    <p class="px-3 py-6 text-center text-sm text-muted-light dark:text-muted-dark">searching …</p>
+    <OverlayEmpty><p class="text-sm">searching …</p></OverlayEmpty>
   {:else if results && results.length > 0}
-    <p class="px-3 py-2 text-xs text-muted-light dark:text-muted-dark">
+    <p class="px-4 pb-1 text-xs text-muted-light dark:text-muted-dark">
       {results.length}
       {results.length === 1 ? 'note' : 'notes'} shown in the visualization
     </p>
@@ -140,19 +144,19 @@
       />
     {/each}
   {:else if results}
-    <p class="px-3 py-6 text-center text-sm text-muted-light dark:text-muted-dark">
-      no match — the visualization is empty
-    </p>
+    <OverlayEmpty><p class="text-sm">no match — the visualization is empty</p></OverlayEmpty>
   {:else}
-    <p class="px-3 py-6 text-center text-sm text-muted-light dark:text-muted-dark">
-      Narrow the visualization to matching notes. Clearing the box removes the filter.
-    </p>
+    <OverlayEmpty>
+      <p class="text-sm">Narrow the visualization to matching notes.</p>
+      <p class="text-xs">Clearing the box removes the filter.</p>
+    </OverlayEmpty>
   {/if}
-</div>
 
-<footer
-  class="shrink-0 px-3 py-1.5 text-xs text-muted-light dark:text-muted-dark
-         border-t border-t-muted-light dark:border-t-muted-dark"
->
-  ↵ apply now · Esc close — the filter stays until you clear it
-</footer>
+  <footer
+    slot="footer"
+    class="shrink-0 truncate px-3 py-1.5 text-xs text-muted-light dark:text-muted-dark
+           border-t border-t-muted-light dark:border-t-muted-dark"
+  >
+    ↵ apply now · Esc close — the filter stays until you clear it
+  </footer>
+</OverlayShell>

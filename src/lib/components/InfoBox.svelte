@@ -7,7 +7,9 @@
    * Tailwind resolves competing utilities by their order in the generated
    * stylesheet rather than in the attribute, so a `class="mb-0"` alongside a
    * hard-coded `mb-10` silently loses — the same trap `ToolbarItem`'s `padding`
-   * prop exists for. An overlay panel is 70vh tall and cannot afford `mb-10`.
+   * prop exists for. The overlays pass `mb-0`: a paragraph-sized gap under a
+   * readout that sits directly above the result list reads as a section break
+   * that is not there.
    *
    * @type {string}
    */
