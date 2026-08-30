@@ -221,10 +221,13 @@ class GraphRenderer {
   }
 
   /**
-   * The part of the canvas anything drawn can actually be seen in, in CSS
-   * pixels — which is now simply all of it. The canvas is a flex child sized
-   * to exactly its visible area, so nothing is painted over it and there is no
-   * inset to subtract.
+   * The part of the graph anything drawn can actually be seen in, in CSS
+   * pixels: the canvas, all of it. The canvas is a flex child sized to exactly
+   * its visible area, so nothing is painted over it and there is no inset to
+   * subtract — but it is *not* the whole drawing surface any more. The paintBox
+   * is letterboxed into the frame (the whole row), so in `split` mode the graph
+   * runs past the canvas's right edge and this box is what drops the part the
+   * content pane covers.
    *
    * @param {CanvasScreen} screen
    * @returns {{minX: Number, minY: Number, maxX: Number, maxY: Number}}
@@ -431,6 +434,22 @@ class CanvasScreen {
     this.redraw = redrawFn;
 
     this.canvas = canvas;
+    // The box the graph is laid out against: the whole visualization+content
+    // row, not the canvas. `AppShell` marks it with `data-viz-frame`; the
+    // fallback keeps this class usable over a bare canvas, where the two
+    // coincide.
+    //
+    // This is what makes every coordinate independent of the layout mode. The
+    // canvas is ~38% narrower in `split` than in `viz` and `0 x 0` in
+    // `content`, while the row is the same box in all three -- so letterboxing
+    // into the canvas rescaled and re-centred the graph under a transform
+    // nothing adjusted, and the graph jumped, worst of all on the very click
+    // that opened the content pane. It is *not* a return of `insetRight`
+    // (ISSUES.md C13): nothing tells the renderer how much of it is covered.
+    // It measures the row it sits in, and whatever the content pane covers is
+    // culled rather than squeezed -- pan to it.
+    this.frame = canvas.closest('[data-viz-frame]') ?? canvas;
+
     const ctx = canvas.getContext('2d');
     // Only null if the element already has a context of another kind, which
     // cannot happen for a canvas this class was handed at mount. Asserted
@@ -439,25 +458,31 @@ class CanvasScreen {
     if (!ctx) throw new Error('CanvasScreen: could not get a 2d context');
     this.ctx = ctx;
 
-    // A `ResizeObserver` on the canvas, not a `window` resize listener. The
-    // canvas is a flex child now, so it changes size for three reasons -- the
-    // window resizing, the divider being dragged, and the layout mode changing
-    // -- and only the first of those is a `resize` event. This one mechanism
-    // covers all three, and replaces the `contentSliderState.pixelWidth` ->
-    // `setInsetRight` plumbing that used to tell the renderer how much of it was
-    // hidden (ISSUES.md C13): nothing is laid over it any more.
+    // One `ResizeObserver` over both boxes, not a `window` resize listener.
+    // Both are flex children, so they change size for reasons that are not
+    // `resize` events -- the canvas when the divider is dragged or the layout
+    // mode changes, the frame only when the window (or the toolbar) does. The
+    // two are watched for different things: the canvas sizes the backing store
+    // and bounds the culling, the frame fixes the paintBox.
     //
-    // Observing the canvas is only safe because `updateCanvasSize` never writes
-    // its CSS size -- the element is stretched by its parent and only the
+    // Observing them is only safe because `updateCanvasSize` never writes the
+    // canvas's CSS size -- the element is stretched by its parent and only the
     // backing store is resized here, so this cannot feed back into itself.
     this.resizeObserver = new ResizeObserver(this.onResize);
     this.resizeObserver.observe(canvas);
+    if (this.frame !== canvas) this.resizeObserver.observe(this.frame);
 
     // Just to convince LS these properties exist
     this.width = 0;
     this.height = 0;
     this.dpr = 1;
     this.updateCanvasSize();
+
+    // Just to convince LS these properties exist
+    this.frameWidth = 0;
+    this.frameHeight = 0;
+    this.canvasOffset = { x: 0, y: 0 };
+    this.updateFrameBox();
 
     // Just to convince LS these properties exist
     this.paintBox = {
@@ -495,6 +520,7 @@ class CanvasScreen {
 
   onResize = () => {
     this.updateCanvasSize();
+    this.updateFrameBox();
     this.updatePaintBox();
     this.redraw();
   };
@@ -522,6 +548,34 @@ class CanvasScreen {
   }
 
   /**
+   * The frame's size, and where the canvas sits inside it.
+   *
+   * The two are measured together because the paintBox is letterboxed into the
+   * frame but consumed in **canvas-relative** coordinates, which is what screen
+   * space and every hit test are. Today's shell puts the visualization first in
+   * the row, so the offset is `(0, 0)`; measuring it rather than assuming it is
+   * what keeps the two spaces honest if the panes are ever reordered or given a
+   * gutter.
+   *
+   * Depends on `updateCanvasSize` having run. A `display:none` canvas returns an
+   * all-zero rect, so its offset within the frame is not measurable at all and
+   * `left - frameRect.left` would come out as `-frameRect.left` -- which would
+   * shift the graph by the width of everything left of the row. `content` mode
+   * is exactly that case, so the last known offset is kept instead, and the
+   * `ResizeObserver` fires again with a real rect when the pane comes back.
+   */
+  updateFrameBox() {
+    const frameRect = this.frame.getBoundingClientRect();
+    this.frameWidth = frameRect.width;
+    this.frameHeight = frameRect.height;
+
+    if (this.width > 0 && this.height > 0) {
+      const rect = this.canvas.getBoundingClientRect();
+      this.canvasOffset = { x: rect.left - frameRect.left, y: rect.top - frameRect.top };
+    }
+  }
+
+  /**
    * Turns a pointer event into a position on the canvas.
    *
    * The canvas used to be `fixed top-0 left-0` and full-screen, so
@@ -539,12 +593,20 @@ class CanvasScreen {
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
 
+  /**
+   * Letterboxes the viewBox into the **frame**, in canvas coordinates.
+   *
+   * Frame rather than canvas, so the result cannot depend on the layout mode or
+   * on where the divider is -- see the constructor. It therefore changes only
+   * when the row itself changes size, which in practice means a window resize,
+   * and that is the one place re-fitting the graph is wanted.
+   */
   updatePaintBox() {
-    // Both floored at 1. A pane can genuinely be zero-sized -- mid-drag, or for
-    // the frame before the flex row is laid out -- and a zero-sized paintBox
-    // makes every `toScreenPos` divide by zero and hand the canvas NaN.
-    const availWidth = Math.max(this.width, 1);
-    const availHeight = Math.max(this.height, 1);
+    // Both floored at 1. The row can genuinely be zero-sized for the frame
+    // before the flex layout runs, and a zero-sized paintBox makes every
+    // `toScreenPos` divide by zero and hand the canvas NaN.
+    const availWidth = Math.max(this.frameWidth, 1);
+    const availHeight = Math.max(this.frameHeight, 1);
 
     const viewBoxAR = this.viewBox.width / this.viewBox.height;
     const trueAR = availWidth / availHeight;
@@ -561,6 +623,12 @@ class CanvasScreen {
       paintBox.width = availHeight * viewBoxAR;
       paintBox.minX = (availWidth - paintBox.width) / 2;
     }
+
+    // Frame coordinates into canvas coordinates. In `split` mode the graph
+    // deliberately extends past the canvas: what the content pane covers is
+    // culled, and reaching it is a pan.
+    paintBox.minX -= this.canvasOffset.x;
+    paintBox.minY -= this.canvasOffset.y;
 
     this.paintBox = paintBox;
   }

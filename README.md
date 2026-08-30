@@ -56,4 +56,6 @@ npm run watch:vite
 
 #### Desktop
 
-- [x] graph shift with content slider, so that active note is (almost) always visible
+- [x] the graph does not shift when the content pane opens or closes: it is laid out against the
+      whole body row, so the pane covers part of it and you pan to what is underneath. (This
+      replaces the earlier idea of shifting the graph to keep the active note visible.)

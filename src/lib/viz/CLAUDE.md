@@ -77,9 +77,10 @@ That is why `destruct()` has to be complete — see below.
 
 **`AppShell` hides this pane in `content` mode, it does not unmount it** — `display:none`, never
 `{#if}`. Unmounting remounted `<svelte:component>`, which rebuilt `CanvasGraph` from scratch, so
-cycling the layout through `content` and back re-letterboxed the graph and threw away the user's
-zoom and pan. A hidden canvas measures `0 x 0`, which is already safe: `updatePaintBox` floors both
-axes at 1, and the `ResizeObserver` fires again with the real size when the pane returns.
+cycling the layout through `content` and back threw away the user's zoom and pan. A hidden canvas
+measures `0 x 0`, which is safe: the graph is letterboxed into the body row rather than into the
+canvas (see the coordinate spaces below), so the mapping survives the round trip untouched, and the
+`ResizeObserver` fires again with the real size when the pane returns.
 
 ## `force_graph/`
 
@@ -133,27 +134,53 @@ The one caveat: a new node landing left of or above the existing extent shifts e
 the same amount, because the bounding box is always re-originated. Nodes never move _relative to
 each other_.
 
-**2. paintBox space** — CSS pixels. The viewBox is letterboxed into the canvas while preserving
+**2. paintBox space** — CSS pixels. The viewBox is letterboxed into the **frame** while preserving
 aspect ratio, so `paintBox` is `{minX, minY, width, height}` describing where the graph actually
-sits inside it. Whichever axis is relatively tighter gets the full extent, the other is centred.
+sits. Whichever axis is relatively tighter gets the full extent, the other is centred.
 
-**The canvas _is_ the visible area.** It is a flex child of `VizPane`, sized by the shell, with
-nothing painted over it — so `updatePaintBox()` letterboxes into the whole canvas and there is no
-inset to subtract. This is the part that changed with the redesign: the canvas used to be
-`fixed top-0 left-0 w-screen h-screen` with the content pane laid over its right-hand side, and
-`CanvasScreen.insetRight` — fed from the pane's measured width — held how much of that edge was
-covered (`ISSUES.md` C13). `insetRight`, `setInsetRight` and the `contentSliderState.pixelWidth`
-chain that drove them are all gone. Nothing replaced them; the layout made the problem not exist.
+**The frame is the body row, not the canvas.** `CanvasScreen` finds it itself —
+`canvas.closest('[data-viz-frame]')`, the attribute `AppShell` puts on the row that holds both
+panes, falling back to the canvas when there is none — and `updateFrameBox()` measures it together
+with the canvas's offset inside it, which is what keeps `paintBox` in canvas coordinates.
 
-`updateCanvasSize()` therefore reads `canvas.getBoundingClientRect()`, not `window.innerWidth/
-innerHeight`, and the size is watched with a **`ResizeObserver`** rather than a `window` `resize`
-listener. The canvas changes size for three reasons now — the window resizing, the divider being
-dragged, and the layout mode changing — and only the first is a `resize` event. One observer covers
-all three.
+**That is what makes every coordinate independent of the layout mode**, and it is the whole reason
+the frame exists. The canvas is ~38% narrower in `split` than in `viz` and `0 x 0` in `content`,
+while the row is the same box in all three. Letterboxing into the canvas therefore changed the
+scale, changed the centring offset, and could flip which axis was letterboxed — under a d3
+transform that nothing adjusts — so the graph jumped every time the content pane opened or closed,
+amplified by `k` and anchored at the canvas's top-left corner. Worst of all on the click that
+_caused_ it: `onActivate` → `openNote` → `layout.reveal()` narrows the pane, so clicking a node in
+`viz` mode moved the graph out from under the cursor. Dragging the divider did it continuously.
 
-`availWidth` and `availHeight` are floored at 1. A pane can genuinely be zero-sized — mid-drag, or
-for the frame before the flex row is laid out — and a zero-sized paintBox makes every `toScreenPos`
-divide by zero and hand the canvas `NaN`.
+The consequence is deliberate and is the accepted cost: in `split` mode the graph runs **past the
+canvas's right edge**, so part of it sits behind the content pane and reaching it is a pan. `k = 1`
+now means "the whole graph fitted to the whole row", which is why `scaleExtent([1, 15])` cannot zoom
+out to fit the narrow pane and is not supposed to. This reverses the reasoning of `ISSUES.md` C13
+("roughly a third of the graph sits behind the content pane"), which is now the intended behaviour
+— **do not "fix" it back.** It is also not a return of C13's mechanism: `insetRight`,
+`setInsetRight` and the `contentSliderState.pixelWidth` chain that fed them stay gone. Nothing tells
+the renderer how much of it is covered; it measures the row it sits in, and the culling below drops
+whatever falls outside the canvas.
+
+`updateCanvasSize()` reads `canvas.getBoundingClientRect()`, not `window.innerWidth/innerHeight`,
+and both boxes are watched by one **`ResizeObserver`** rather than a `window` `resize` listener —
+neither is a `window`-sized element and most of what resizes them is not a `resize` event. They are
+watched for different things:
+
+- the **canvas** sizes the backing store and bounds the culling. It changes with the window, the
+  divider, and the layout mode, and none of that touches `paintBox` any more.
+- the **frame** fixes `paintBox`, and changes only when the window (or the toolbar's height) does.
+  A window resize does still re-letterbox the graph — that is the one place re-fitting is wanted.
+
+Two guards inside that:
+
+- `availWidth` and `availHeight` are floored at 1. The row can genuinely be zero-sized for the
+  frame before the flex layout runs, and a zero-sized paintBox makes every `toScreenPos` divide by
+  zero and hand the canvas `NaN`.
+- **the canvas offset is only re-measured while the canvas has a non-zero size.** A `display:none`
+  canvas returns an all-zero rect, so `rect.left - frameRect.left` would evaluate to
+  `-frameRect.left` and shift the graph by everything to the left of the row. `content` mode is
+  exactly that case; the last known offset is kept instead.
 
 **3. screen space** — paintBox after the d3 zoom transform `{x, y, k}`. Screen space is
 **canvas-relative**, and that is the second thing the redesign changed: it used to coincide with
@@ -220,16 +247,26 @@ one.
 
 #### `CanvasScreen` — coordinate spaces, sizing, zoom
 
-Owns `viewBox`, `paintBox`, `transform`, `dpr`, and the canvas element. Registers the
-`ResizeObserver` and the d3 zoom behaviour, and calls the `redraw` callback it was constructed
-with. It has no setters left: it observes its own element instead of being told about the world.
+Owns `viewBox`, `paintBox`, `transform`, `dpr`, the canvas element and the frame it is inset in.
+Registers the `ResizeObserver` and the d3 zoom behaviour, and calls the `redraw` callback it was
+constructed with. It has no setters left: it observes those two elements instead of being told about
+the world.
 
 `destruct()` disconnects the observer and drops d3's zoom listeners with
 `d3.select(canvas).on('.zoom', null)`.
 
-The zoom is clamped to `scaleExtent([1, 15])`. `k = 1` is the fit-to-canvas scale — the viewBox is
-already letterboxed into it — so there is nothing to see below it, and without the extent zooming
-out ran forever (`ISSUES.md` C12).
+The zoom is clamped to `scaleExtent([1, 15])`. `k = 1` is the **fit-to-frame** scale — the viewBox
+is already letterboxed into the row — so there is nothing to see below it, and without the extent
+zooming out ran forever (`ISSUES.md` C12). Note what that means in `split` mode: the fit is against
+the row, so zooming out stops with part of the graph still behind the content pane. Panning is the
+way to it, by decision; a lower bound derived from the visible canvas would put the scale back under
+the layout's control and bring the jump back with it.
+
+`transform` is **never rewritten from here** — `onResize` leaves it exactly as the user left it,
+which is the entire fix for the graph jumping. If you ever do need to move it programmatically, go
+through d3: it keeps its own copy of the transform on the element as `canvas.__zoom`, so assigning
+`this.transform` alone makes the next wheel or drag jump back to d3's stale copy. That means keeping
+the `zoomBehavior` from `addZoom` on `this` and calling `zoomBehavior.transform(selection, t)`.
 
 #### `GraphRenderer` — all drawing, no state
 
@@ -252,8 +289,11 @@ Draw order within a frame:
 5. the active and hovered nodes **again**, so they land on top
 
 Steps 1–4 are **culled against the visible box** — the whole canvas, computed
-once per frame by `visibleBox()`. Everything above the fit-to-canvas zoom draws
+once per frame by `visibleBox()`. Everything above the fit-to-frame zoom draws
 mostly off-screen, and all of it used to be painted anyway (`ISSUES.md` C4).
+Since the paintBox is letterboxed into the row rather than into the canvas, this
+is also what drops the part of the graph the content pane covers — the canvas is
+the visible area, but it is no longer the whole drawing surface.
 Each category gets its own slop, because each puts ink a different distance from
 the node's centre:
 
@@ -278,13 +318,14 @@ The hit-test grid is deliberately _not_ reused for this. It holds `nodes`, not
 frame, and the per-node loop is not what costs: the draw calls are. Measured on
 a 2000-node/6000-link graph in a 1600×900 viewport, culling takes the ink
 operations per frame from 44,000 to 10,609 at `k = 5` and to 3,904 at `k = 15`.
-At `k = 1` it changes nothing at all and costs about 7% of the frame's JS —
-the whole graph is on screen, so every test passes.
+At `k = 1` in `viz` mode it changes nothing at all and costs about 7% of the
+frame's JS — the whole graph is on screen, so every test passes. In `split` mode
+at `k = 1` it now drops the ~38% of the graph the content pane covers.
 
 ### What triggers a redraw
 
 - d3 zoom (`CanvasScreen.onZoom`) — on every wheel/drag event
-- the canvas changing size (`CanvasScreen.onResize`, from the `ResizeObserver`)
+- the canvas or the frame changing size (`CanvasScreen.onResize`, from the `ResizeObserver`)
 - `selection` changes (`CanvasGraph.onSelectionChange`)
 - `settings` changes (`CanvasGraph.onSettingsChange`)
 - `filter` changes (`CanvasGraph.onFilterChange`)

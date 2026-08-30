@@ -227,6 +227,13 @@ of it is covered by another — which is what the old arrangement (a full-screen
 `fixed right-0` pane painted over it, and the pane's measured width plumbed back into the
 renderer's `insetRight`) existed to work around.
 
+The body row carries one attribute for the force graph's benefit: **`data-viz-frame`**.
+`CanvasScreen` finds it with `closest()` and letterboxes the graph into the row rather than into its
+own canvas, so the graph's coordinates do not change when the panes are resized or the mode
+switches. That is a measurement the renderer takes for itself, not a revival of `insetRight`:
+nothing pushes a pane width into it, and what the content pane covers is culled rather than
+squeezed. See `viz/CLAUDE.md`'s coordinate-space section.
+
 `min-h-0` on the body row and `min-w-0` on each pane are **not optional**. A flex item refuses to
 shrink below its content's intrinsic size without them, and the scroll container inside
 `ContentPane` then never scrolls.
@@ -236,14 +243,14 @@ That is the whole tree; the redesign adds no more nodes.
 **Neither pane is ever unmounted.** `AppShell` hides the one the mode excludes with
 `display:none` and keeps it in the tree, because `{#if}` here throws away exactly what the user
 wants back: `VizPane` remounts `<svelte:component>`, which rebuilds `CanvasGraph` from scratch, so
-cycling the layout through content-only re-letterboxes the graph and loses the zoom and pan; and
-`ContentPane` drops every column's rendered note.
+cycling the layout through content-only would reset the transform to identity and lose the zoom and
+pan; and `ContentPane` drops every column's rendered note.
 
 Two consequences, both already handled:
 
-- A hidden canvas measures `0 x 0`. That is safe — `updatePaintBox` floors both axes at 1 — and
-  the `ResizeObserver` fires again with the real size when the pane comes back, so there is no
-  extra plumbing.
+- A hidden canvas measures `0 x 0`. That is safe — the graph is letterboxed into the body row, not
+  into the canvas, so the mapping survives the round trip — and the `ResizeObserver` fires again
+  with the real size when the pane comes back, so there is no extra plumbing.
 - `display:none` destroys the scroll boxes inside the content pane, and a recreated box is at the
   top. `AppShell` therefore passes `ContentPane` a `hidden` prop as well as the style, and
   `ContentPane` snapshots its tiles' offsets on the way out and restores them on the way back
