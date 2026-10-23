@@ -1,6 +1,4 @@
 <script>
-  import { page } from '$app/stores';
-
   import { useAppState, NOTES_INDEX, TILES } from '$lib/state/keys.js';
   import OverlayHost from '$lib/overlay/OverlayHost.svelte';
   import { createScrollMemory } from './scroll_memory.js';
@@ -77,27 +75,16 @@
 
   /**
    * `document.title` is owned here, not by `NoteContent`, because with N tiles
-   * mounted several copies of that component would fight over it. Here there
-   * is one title and it tracks the focused column — including when the focused
-   * column is *not* the route's note, in which case no `+page.svelte` renders
-   * at all and a route-level `<title>` would go stale.
+   * mounted several copies of that component would fight over it. It tracks the
+   * focused column, which is not always the route's note — and the route's
+   * pages render nothing now, so a route-level `<title>` has nowhere to live
+   * anyway.
    *
    * The titles come from `__graph.json`, so this is correct during prerender
    * too.
    */
   $: focusedSlug = $tiles.tiles[$tiles.focusIndex]?.slug ?? null;
   $: focusedTitle = focusedSlug ? notesIndex.titleOf(focusedSlug) : null;
-
-  /**
-   * Which tile, if any, may render `<slot/>`. The route only loaded data for
-   * its own note, so only a tile showing that note can use the page — and only
-   * the focused one, since the path follows focus.
-   */
-  $: pageSlug = $page.data?.note?.slug ?? null;
-  $: slotIndex =
-    pageSlug !== null && $tiles.tiles[$tiles.focusIndex]?.slug === pageSlug
-      ? $tiles.focusIndex
-      : -1;
 </script>
 
 <svelte:head>
@@ -117,11 +104,8 @@
         index={i}
         focused={i === $tiles.focusIndex}
         showFocus={$tiles.tiles.length > 1}
-        takesSlot={i === slotIndex}
         register={scroll.register}
-      >
-        <slot />
-      </Tile>
+      />
     {/each}
   {/if}
 

@@ -215,7 +215,7 @@ URL block writes them straight back from state the navigation never touched.
             ├─ Tile × N              flex-1 columns, TileDivider between them
             │  ├─ TileHeader         note title + close, shrink-0
             │  └─ (scroll container) flex-1 min-h-0 overflow-y-auto
-            │     └─ NoteContent     from <slot/> in the focused tile, else loadNote
+            │     └─ NoteContent     from getNote(tile.slug) — no column is special
             └─ OverlayHost           only when $overlay.kind; owns focus restore
                └─ Search | Filter | CommandOverlay
                   └─ OverlayShell    absolute inset-0, opaque, fills the pane
@@ -308,17 +308,21 @@ Four things in here are load-bearing:
   (`note/Note.svelte`) wrapped its `overflow-auto h-screen` div in the `{#key}`, which destroyed
   and recreated the scroller on every navigation. A box that did not exist a moment ago has no
   scroll position to restore, which is why scroll restoration could never work before.
-- **Exactly one tile may render `<slot/>`.** The route loaded data for its own note only, so the
-  focused tile whose slug matches `$page.data.note.slug` renders the route's `+page.svelte` — that
-  is what puts the real note into the prerendered HTML — and every other tile `{#await}`s
-  `loadNote(tile.slug)`. `ContentPane` computes the single `slotIndex`; two tiles taking the slot
-  would mount the route's page twice.
+- **Every tile renders its note the same way, and none of them is special.** It is one
+  `{#await getNote(tile.slug)}`, and `getNote` returns the note _itself_ once it is loaded, so the
+  then-branch renders synchronously — which is what puts the real note into the prerendered HTML and
+  what keeps a freshly split column from flashing. **The expression must return a stable reference
+  per slug**; see `notes_route.js` below for why, and do not inline an `async` call there again.
+  There used to be a second path: the focused tile whose slug matched `$page.data.note.slug`
+  rendered the route's `+page.svelte` through a chain of `<slot/>`s. That tile is gone along with
+  the chain, because _which_ tile it was moved on every split — so the column handing the slot over
+  was destroyed and rebuilt for a note that had not changed, which flickered and took its scroll
+  position with it.
 - **`ContentPane` owns `document.title`**, derived from the focused tile via `NOTES_INDEX`. It is
   not on `NoteContent`, where N mounted copies would fight over it, and not on the route's page
-  either: focus a column that is not the route's note and no `+page.svelte` renders at all, so a
-  route-level `<title>` would go stale. `src/app.html` deliberately has **no** `<title>` — a
-  hard-coded one sits before `%sveltekit.head%` and wins, which is why every prerendered note page
-  used to ship the title "Noteplot".
+  either — the pages render nothing now, so there is no page to put it on. `src/app.html`
+  deliberately has **no** `<title>` — a hard-coded one sits before `%sveltekit.head%` and wins,
+  which is why every prerendered note page used to ship the title "Noteplot".
 - **`min-h-0` on the scroll container and `min-w-0` on the tile.** Same rule as the shell: a flex
   item will not shrink below its content's intrinsic size without them, and nothing scrolls.
 
@@ -377,10 +381,30 @@ because capture is released first; keep that order.
 ### `notes_route.js`
 
 The only module at the top of `$lib` that is not a component. It holds the one
-`import.meta.glob('$lib/notes/*.json')` over the preprocessor's output and exports `loadNote(slug)`
-and `noteEntries()`, which both `[slug]` routes use — see `src/routes/CLAUDE.md`. Keep the glob
-here rather than in a route: having it in one place is what stops the two routes drifting apart
-again, and it is where the `__`-prefix convention for generated files is enforced.
+`import.meta.glob('$lib/notes/*.json')` over the preprocessor's output and exports `getNote(slug)`,
+`loadNote(slug)` and `noteEntries()` — see `src/routes/CLAUDE.md`. Keep the glob here rather than in
+a route: having it in one place is what stops the two routes drifting apart again, and it is where
+the `__`-prefix convention for generated files is enforced.
+
+**`getNote` is the frontend's entry point and `loadNote` is the routes'.** They share one
+`Map<slug, Note | Promise<Note>>`, which makes the second half of that split load-bearing: a
+route's `load` calls `loadNote`, so by the time `ContentPane` renders, the path's note is a _value_
+in the cache and the prerendered HTML contains the real note rather than a "Loading …" placeholder.
+Verify that against `build/<slug>.html`, not by reasoning about it.
+
+Three rules in `getNote`:
+
+- **The return value is stable per slug.** Svelte compiles `{#await expr}` with an identity guard
+  (`r !== (r = expr) && handle_promise(...)`), and `Tile` re-evaluates that expression on every
+  `$tiles` write — `tile` is an object prop, and `safe_not_equal` calls every object assignment a
+  change. So the old `{#await loadNote(tile.slug)}`, minting a fresh promise per call, tore the
+  resolved note down and remounted "Loading …" in **every** open column on every split, close and
+  focus change, and the collapsed content clamped each column's `scrollTop` to zero on the way.
+- **A miss returns a rejected promise, never a synchronous throw** — it is called from a template
+  expression, where a throw takes the render down with it. `loadNote` keeps the `error(404, …)`,
+  because only a `load` can turn that into a response.
+- **A rejection is evicted from the cache**, so the next render retries rather than being stuck in
+  `{:catch}` forever after one failed chunk fetch.
 
 It also exports `loadSearchNotes()`, a memoised lazy loader for `__search.json`. It returns the
 **same promise** every call, because `getSearchIndex` memoises the built index on the resolved

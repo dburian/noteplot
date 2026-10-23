@@ -53,16 +53,80 @@ for (const [filePath, loadModule] of Object.entries(noteModules)) {
 }
 
 /**
- * Loads one note's generated JSON, or 404s.
+ * Every note that has been asked for: the resolved JSON once it has arrived,
+ * the in-flight promise before that.
+ *
+ * @type {Map<string, Note | Promise<Note>>}
+ */
+const noteCache = new Map();
+
+/**
+ * The note if it is already loaded, else the promise for it.
+ *
+ * **The return value is stable per slug, and that is the whole point.** Svelte
+ * compiles `{#await expr}` with an identity guard -- `r !== (r = expr) &&
+ * handle_promise(...)` -- so an expression that mints a fresh promise on every
+ * call makes the await block destroy its resolved branch and remount the
+ * pending one. `Tile` re-evaluates that expression on every `$tiles` write,
+ * because `tile` is an object prop and Svelte's `safe_not_equal` calls every
+ * object assignment a change, so `{#await loadNote(slug)}` blanked every open
+ * column back to "Loading ..." on every split, close and focus change -- and
+ * with the content collapsed to one line the browser clamped that column's
+ * `scrollTop` to zero.
+ *
+ * Two consequences of returning a plain value once it is known, both wanted:
+ * the then-branch renders **synchronously**, which is what puts the real note
+ * in the prerendered HTML and what keeps a newly split column from flashing;
+ * and the one identity change from promise to value is safe, because
+ * `handle_promise` handed a non-promise while it is already showing the
+ * then-branch only assigns `info.resolved`.
+ *
+ * @param {string} slug a slug from `toSlug`, opaque -- never split it on `-`
+ * @returns {Note | Promise<Note>}
+ */
+export function getNote(slug) {
+  const cached = noteCache.get(slug);
+  if (cached) return cached;
+
+  const loadModule = notesBySlug.get(slug);
+  // A rejected promise, never a synchronous throw: this is called from a
+  // template expression, where a throw takes the whole render down. The tile
+  // renders its own `{:catch}`; the 404 belongs to the route path below.
+  if (!loadModule) return Promise.reject(new Error(`Note ${slug} not found.`));
+
+  const pending = loadModule().then(
+    (module) => {
+      noteCache.set(slug, module.default);
+      return module.default;
+    },
+    (err) => {
+      // Evict, so the next render retries rather than being stuck in `{:catch}`
+      // forever after one failed chunk fetch.
+      noteCache.delete(slug);
+      throw err;
+    }
+  );
+
+  noteCache.set(slug, pending);
+  return pending;
+}
+
+/**
+ * Loads one note's generated JSON, or 404s. The route path -- `error()` is a
+ * SvelteKit response, which only a `load` can produce.
+ *
+ * It goes through `getNote`, so **a route's own `load` warms the cache**, and
+ * that is what the prerender depends on: the server renders one tile whose slug
+ * is the path's, and by the time `ContentPane` runs, the note is a value rather
+ * than a promise.
  *
  * @param {string} slug a slug from `toSlug`, opaque -- never split it on `-`
  * @returns {Promise<Note>}
  */
 export async function loadNote(slug) {
-  const loadModule = notesBySlug.get(slug);
-  if (!loadModule) error(404, { message: `Note ${slug} not found.` });
+  if (!notesBySlug.has(slug)) error(404, { message: `Note ${slug} not found.` });
 
-  return (await loadModule()).default;
+  return getNote(slug);
 }
 
 /**

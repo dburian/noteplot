@@ -67,9 +67,9 @@ siblings with a draggable divider between them. The URL carries the whole layout
 `?tile=`, `?overlay=` and friends are documented in `src/routes/CLAUDE.md`.
 
 The content pane is itself **N columns side by side**, each holding one note in its own scroll
-container. Only the focused column shows the route's page; the others load their own note JSON.
-Nothing scrolls the window, so scroll restoration across back/forward is implemented by hand in
-`src/lib/content/scroll_memory.js`.
+container. Every column loads its own note the same way, through `notes_route.js`'s cache; the
+route's pages render nothing at all. Nothing scrolls the window, so scroll restoration across
+back/forward is implemented by hand in `src/lib/content/scroll_memory.js`.
 
 Search, filter and the command palette are **modal overlays over the content area**, not routes —
 `$lib/overlay/OverlayHost.svelte`, mounted inside the content pane so the toolbar stays clickable

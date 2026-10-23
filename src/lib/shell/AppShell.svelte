@@ -169,8 +169,6 @@
     {#if $layout.mode === 'split'}
       <PaneDivider {bodyEl} />
     {/if}
-    <ContentPane style={contentStyle} hidden={$layout.mode === 'viz'}>
-      <slot />
-    </ContentPane>
+    <ContentPane style={contentStyle} hidden={$layout.mode === 'viz'} />
   </div>
 </div>

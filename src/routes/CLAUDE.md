@@ -19,7 +19,7 @@ prerender** — any `window`, `localStorage` or `sessionStorage` access needs a 
 +error.svelte                status + message, link back to the index
 
 (app)/+layout.js             dynamically imports __graph.json, `prerender = true`
-(app)/+layout.svelte         <WithAppState nodes vizDescriptors><AppShell><slot/></AppShell>
+(app)/+layout.svelte         <WithAppState nodes vizDescriptors><AppShell/>  — no page slot
 ```
 
 The group was called `(graph)` and is now `(app)`: it is not "the graph group" any more, it is the
@@ -28,8 +28,13 @@ whole application. Route groups do not appear in URLs, so the rename changed no 
 `(app)/+layout.svelte` is a handful of lines. It mounts the single state provider
 (`$lib/state/WithAppState.svelte`, the only `setContext` call site in the app) and the shell
 (`$lib/shell/AppShell.svelte`, a toolbar strip over a flex row of visualization pane, divider and
-content pane). The page's own content lands in the layout `<slot/>`, which `AppShell` forwards
-into the content pane. See `src/lib/CLAUDE.md`.
+content pane). See `src/lib/CLAUDE.md`.
+
+**It renders no `<slot/>`, and the pages under it are empty files.** A page used to reach the
+content pane through a chain of three of them and be rendered by one column; see the route table
+below for what replaced it. A page that needs markup of its own has to re-introduce a target for it
+_and_ decide where in the shell it goes, which is exactly the decision that chain was making
+implicitly.
 
 It is also the **only** place `$lib/viz/registry.js` meets `$lib/state/`: it passes the registry's
 descriptors in as `vizDescriptors`, so `createVizState` learns each visualization's
@@ -46,13 +51,20 @@ navigation either way, so nothing else changes.
 | Route                | Renders        | Behaviour                                                 |
 | -------------------- | -------------- | --------------------------------------------------------- |
 | `(app)/+page.svelte` | _(empty file)_ | the shell with no note open — `tiles: []`                 |
-| `(app)/[slug]`       | `NoteContent`  | the note in the content pane, alongside the visualization |
-| `(app)/notes/[slug]` | `NoteContent`  | **note only** — the pathname seeds `layout: 'content'`    |
+| `(app)/[slug]`       | _(empty file)_ | the note in the content pane, alongside the visualization |
+| `(app)/notes/[slug]` | _(empty file)_ | **note only** — the pathname seeds `layout: 'content'`    |
 
-A page's `+page.svelte` reaches the content pane through two `<slot/>`s and is rendered by **at
-most one column** — the focused one, when its slug matches the route's note. Every other column
-loads its own JSON through `loadNote`. That is deliberate: it is what keeps the prerendered HTML
-full of the real note while still allowing N columns. See `content/` in `src/lib/CLAUDE.md`.
+**Every `+page.svelte` here is empty; the `+page.js` files do all the work.** A route's `load` still
+returns `{note}` — `WithAppState` reads it to seed the selection, and calling `loadNote` is what puts
+the note into `notes_route.js`'s cache — but nothing renders it from there. Each column of the
+content pane renders its own note out of that cache, so **the prerendered HTML is full of the real
+note because `ContentPane` resolves the path's note synchronously**, not because a page component
+was threaded into one column.
+
+That threading is what was removed, and why: the column holding the page was the one whose slug
+matched `$page.data.note.slug`, which moved on every split, so the column handing it over was
+destroyed and rebuilt for a note that had not changed — a visible flicker plus a lost scroll
+position. See `content/` and `notes_route.js` in `src/lib/CLAUDE.md`.
 
 `/search` and `/filter` **are gone**. Search, filter and the command palette are modal overlays
 over the content area, reachable from anywhere and encoded in `?overlay=`. Their route directories
@@ -122,10 +134,16 @@ generated JSON:
 
 ```js
 const noteModules = import.meta.glob('$lib/notes/*.json'); // slug -> lazy loader
-export async function loadNote(slug); //  error(404) on a miss
+export function getNote(slug); //         Note | Promise<Note>, memoised per slug
+export async function loadNote(slug); //  error(404) on a miss; warms the same cache
 export function noteEntries(); //         [{slug}, ...] for prerendering
 export function loadSearchNotes(); //     the memoised __search.json promise
 ```
+
+`getNote` is what the content pane's columns call, and the two share one cache — which is the link
+between a route's `load` and a prerendered page having the note in it. Its rules are in
+`src/lib/CLAUDE.md`; the one to know here is that **it returns the same reference for the same
+slug**, and an `async` function cannot.
 
 It also holds the `Note` typedef — the frontend's description of what `note_pipeline.js` writes
 into each `<slug>.json`. It is a description and not a contract: nothing validates it, so it has
@@ -175,8 +193,9 @@ changes.
 `src/app.html` carries **no** `<title>`. A hard-coded one sits before `%sveltekit.head%` and
 browsers take the first, so every prerendered note page shipped the title "Noteplot" and only got
 its real one on hydration. `$lib/content/ContentPane.svelte` owns the title now and emits one in
-every state, including "no note open". `+error.svelte` renders outside the `(app)` layout, so the
-content pane is not mounted there and it carries its own.
+every state, including "no note open" — and it has to, since the pages render nothing at all.
+`+error.svelte` renders outside the `(app)` layout, so the content pane is not mounted there and it
+carries its own.
 
 ## Slugs
 
