@@ -172,7 +172,7 @@ watched for different things:
 - the **frame** fixes `paintBox`, and changes only when the window (or the toolbar's height) does.
   A window resize does still re-letterbox the graph — that is the one place re-fitting is wanted.
 
-Two guards inside that:
+Four guards inside that, and the last two are what keep a mode change from blanking the canvas:
 
 - `availWidth` and `availHeight` are floored at 1. The row can genuinely be zero-sized for the
   frame before the flex layout runs, and a zero-sized paintBox makes every `toScreenPos` divide by
@@ -180,7 +180,16 @@ Two guards inside that:
 - **the canvas offset is only re-measured while the canvas has a non-zero size.** A `display:none`
   canvas returns an all-zero rect, so `rect.left - frameRect.left` would evaluate to
   `-frameRect.left` and shift the graph by everything to the left of the row. `content` mode is
-  exactly that case; the last known offset is kept instead.
+  exactly that case; the last known offset is kept instead. The test is on the rect `updateFrameBox`
+  measures for itself, **not** on the stored `width`/`height` — those now survive a hide (next
+  bullet), so testing them would let the shift back in.
+- **`updateCanvasSize` returns early on a zero-sized rect**, keeping the last known size — same
+  case, same reasoning. Writing `canvas.width = 0` would _discard the bitmap_, so the round trip
+  through `content` mode blanked the graph on the way out and again on the way back. Nothing is
+  visible to draw into meanwhile, so the stale size costs nothing and the painted graph survives.
+- **the backing store is only written when the device-pixel size actually changed.** Every
+  assignment to `canvas.width` or `canvas.height` is a clear, even one that writes the same number,
+  and the observer fires for the frame as well as for the canvas.
 
 **3. screen space** — paintBox after the d3 zoom transform `{x, y, k}`. Screen space is
 **canvas-relative**, and that is the second thing the redesign changed: it used to coincide with
@@ -248,8 +257,9 @@ one.
 #### `CanvasScreen` — coordinate spaces, sizing, zoom
 
 Owns `viewBox`, `paintBox`, `transform`, `dpr`, the canvas element and the frame it is inset in.
-Registers the `ResizeObserver` and the d3 zoom behaviour, and calls the `redraw` callback it was
-constructed with. It has no setters left: it observes those two elements instead of being told about
+Registers the `ResizeObserver` and the d3 zoom behaviour, and calls the two redraw callbacks it was
+constructed with — the coalesced one for zoom, the synchronous one for resize (see _What triggers a
+redraw_). It has no setters left: it observes those two elements instead of being told about
 the world.
 
 `destruct()` disconnects the observer and drops d3's zoom listeners with
@@ -331,11 +341,19 @@ at `k = 1` it now drops the ~38% of the graph the content pane covers.
 - `filter` changes (`CanvasGraph.onFilterChange`)
 - the `prefers-color-scheme` media query (`GraphRenderer.onDarkMode`)
 
-They all call `draw()`, which is **not** the painting code: it schedules `drawNow()` on a
-`requestAnimationFrame` and holds the pending frame id, so the several requests that routinely land
-within one frame collapse into a single paint (`ISSUES.md` C2). `destruct()` cancels a pending
-frame; `deferDraw` still suppresses drawing outright during construction. Anything that must paint
-synchronously has to call `drawNow()` and know why.
+They all call `draw()` — **except the resize, which must not**. `draw()` is not the painting code:
+it schedules `drawNow()` on a `requestAnimationFrame` and holds the pending frame id, so the several
+requests that routinely land within one frame collapse into a single paint (`ISSUES.md` C2).
+`destruct()` cancels a pending frame; `deferDraw` still suppresses drawing outright during
+construction.
+
+**`CanvasScreen.onResize` goes through `drawSync` instead, and that is load-bearing.**
+`updateCanvasSize` clears the bitmap, and a `ResizeObserver` callback runs after layout but _before_
+that frame is painted — so deferring the repaint to the next frame painted one empty canvas on every
+resize notification. That is what the flicker on every layout-mode change was, twice over for a trip
+through `content` mode, and it is why the graph lagged a frame behind the divider for the whole of a
+drag. `drawSync` drops an already-scheduled frame and paints now; `CanvasGraph` hands it to
+`CanvasScreen` as a fourth constructor argument beside `draw`. Nothing else should use it.
 
 Three of those sources are also quiet at the source, so most of the events never reach `draw()` at
 all: each store subscription compares the new state object by **reference** and returns early if it

@@ -419,9 +419,10 @@ class CanvasScreen {
   /**
    * @param {[Number, Number, Number, Number] | null} viewBox
    * @param {HTMLCanvasElement} canvas
-   * @param {() => void} redrawFn
+   * @param {() => void} redrawFn coalesced to one paint per frame
+   * @param {() => void} redrawNowFn paints in the current frame; see `onResize`
    */
-  constructor(viewBox, canvas, redrawFn) {
+  constructor(viewBox, canvas, redrawFn, redrawNowFn) {
     // `graph_pipeline.js` always writes four finite numbers now, but a
     // `__graph.json` left over from an older build can still hold `null`.
     const [minX, minY, width, height] = viewBox || [0, 0, 1, 1];
@@ -432,6 +433,7 @@ class CanvasScreen {
       k: 1
     };
     this.redraw = redrawFn;
+    this.redrawNow = redrawNowFn;
 
     this.canvas = canvas;
     // The box the graph is laid out against: the whole visualization+content
@@ -518,11 +520,22 @@ class CanvasScreen {
     this.redraw();
   };
 
+  /**
+   * **The one redraw source that must paint synchronously.**
+   *
+   * `updateCanvasSize` clears the bitmap (writing `canvas.width` resets it to
+   * transparent), and a `ResizeObserver` callback runs after layout but
+   * *before* that frame is painted. Scheduling the repaint with
+   * `requestAnimationFrame` therefore put it in the *next* frame, so every
+   * resize notification painted one empty canvas: the graph vanished and came
+   * back on each layout-mode change, twice on a round trip through `content`
+   * mode, and lagged the divider by a frame for the whole of a drag.
+   */
   onResize = () => {
     this.updateCanvasSize();
     this.updateFrameBox();
     this.updatePaintBox();
-    this.redraw();
+    this.redrawNow();
   };
 
   /**
@@ -539,12 +552,28 @@ class CanvasScreen {
    */
   updateCanvasSize() {
     const rect = this.canvas.getBoundingClientRect();
+
+    // A `display:none` canvas measures `0 x 0` -- `content` mode is exactly
+    // that -- and resizing the backing store to zero *discards the bitmap*, so
+    // the pane came back blank for a frame on the way out and another on the
+    // way in. Keeping the last known size instead leaves the painted graph
+    // intact, so the round trip through `content` mode draws nothing at all.
+    // Same reasoning as `updateFrameBox`'s guard on the canvas offset, and safe
+    // for the same reason: nothing is visible to draw into meanwhile.
+    if (rect.width === 0 || rect.height === 0) return;
+
     this.width = rect.width;
     this.height = rect.height;
     this.dpr = window.devicePixelRatio;
 
-    this.canvas.width = Math.round(this.width * this.dpr);
-    this.canvas.height = Math.round(this.height * this.dpr);
+    const backingWidth = Math.round(this.width * this.dpr);
+    const backingHeight = Math.round(this.height * this.dpr);
+
+    // Only when they actually differ. The observer fires for the frame as well
+    // as for the canvas, and an assignment here is a clear even when the value
+    // is unchanged.
+    if (this.canvas.width !== backingWidth) this.canvas.width = backingWidth;
+    if (this.canvas.height !== backingHeight) this.canvas.height = backingHeight;
   }
 
   /**
@@ -557,20 +586,26 @@ class CanvasScreen {
    * what keeps the two spaces honest if the panes are ever reordered or given a
    * gutter.
    *
-   * Depends on `updateCanvasSize` having run. A `display:none` canvas returns an
-   * all-zero rect, so its offset within the frame is not measurable at all and
-   * `left - frameRect.left` would come out as `-frameRect.left` -- which would
-   * shift the graph by the width of everything left of the row. `content` mode
-   * is exactly that case, so the last known offset is kept instead, and the
-   * `ResizeObserver` fires again with a real rect when the pane comes back.
+   * A `display:none` canvas returns an all-zero rect, so its offset within the
+   * frame is not measurable at all and `left - frameRect.left` would come out as
+   * `-frameRect.left` -- which would shift the graph by the width of everything
+   * left of the row. `content` mode is exactly that case, so the last known
+   * offset is kept instead, and the `ResizeObserver` fires again with a real
+   * rect when the pane comes back.
+   *
+   * The test is on the **rect measured here**, not on `this.width`, and no
+   * longer depends on `updateCanvasSize` having run: that used to zero the size
+   * whenever the canvas was hidden, but it now keeps the last known one so the
+   * bitmap survives a hide, and reusing it as the hidden-ness test would have
+   * brought the shift back.
    */
   updateFrameBox() {
     const frameRect = this.frame.getBoundingClientRect();
     this.frameWidth = frameRect.width;
     this.frameHeight = frameRect.height;
 
-    if (this.width > 0 && this.height > 0) {
-      const rect = this.canvas.getBoundingClientRect();
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
       this.canvasOffset = { x: rect.left - frameRect.left, y: rect.top - frameRect.top };
     }
   }
@@ -719,7 +754,7 @@ export class CanvasGraph {
     }
 
     this.renderer = new GraphRenderer(this.draw);
-    this.screen = new CanvasScreen(viewBox, canvas, this.draw);
+    this.screen = new CanvasScreen(viewBox, canvas, this.draw, this.drawSync);
 
     this.grid = this.constructGrid();
     this.fillGrid();
@@ -1008,6 +1043,24 @@ export class CanvasGraph {
       this.pendingFrame = null;
       this.drawNow();
     });
+  };
+
+  /**
+   * Paints in the current frame, dropping a paint that was already scheduled.
+   *
+   * Only `CanvasScreen.onResize` uses it, and only because the bitmap has just
+   * been cleared and the browser has not painted yet -- see the comment there.
+   * Everything else wants the coalescer.
+   */
+  drawSync = () => {
+    if (this.deferDraw) return;
+
+    if (this.pendingFrame !== null) {
+      cancelAnimationFrame(this.pendingFrame);
+      this.pendingFrame = null;
+    }
+
+    this.drawNow();
   };
 
   /** Paints a frame immediately. Everything else goes through `draw`. */
