@@ -2,7 +2,6 @@
   import { useAppState, NOTES_INDEX, TILES } from '$lib/state/keys.js';
   import OverlayHost from '$lib/overlay/OverlayHost.svelte';
   import { createScrollMemory } from './scroll_memory.js';
-  import EmptyState from './EmptyState.svelte';
   import Tile from './Tile.svelte';
   import TileDivider from './TileDivider.svelte';
 
@@ -92,22 +91,18 @@
 </svelte:head>
 
 <div class="relative h-full min-w-0 flex flex-row" {style}>
-  {#if $tiles.tiles.length === 0}
-    <EmptyState />
-  {:else}
-    {#each $tiles.tiles as tile, i (tile.id)}
-      {#if i > 0}
-        <TileDivider />
-      {/if}
-      <Tile
-        {tile}
-        index={i}
-        focused={i === $tiles.focusIndex}
-        showFocus={$tiles.tiles.length > 1}
-        register={scroll.register}
-      />
-    {/each}
-  {/if}
+  {#each $tiles.tiles as tile, i (tile.id)}
+    {#if i > 0}
+      <TileDivider />
+    {/if}
+    <Tile
+      {tile}
+      index={i}
+      focused={i === $tiles.focusIndex}
+      showFocus={$tiles.tiles.length > 1}
+      register={scroll.register}
+    />
+  {/each}
 
   <OverlayHost />
 </div>

@@ -50,7 +50,7 @@ navigation either way, so nothing else changes.
 
 | Route                | Renders        | Behaviour                                                 |
 | -------------------- | -------------- | --------------------------------------------------------- |
-| `(app)/+page.svelte` | _(empty file)_ | the shell with no note open — `tiles: []`                 |
+| `(app)/+page.svelte` | _(empty file)_ | no note open — `tiles: []`, so only the visualization     |
 | `(app)/[slug]`       | _(empty file)_ | the note in the content pane, alongside the visualization |
 | `(app)/notes/[slug]` | _(empty file)_ | **note only** — the pathname seeds `layout: 'content'`    |
 

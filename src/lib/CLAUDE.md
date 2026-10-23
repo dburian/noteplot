@@ -293,11 +293,11 @@ sees only `Tab` for the same reason.
 ### `content/`
 
 The right-hand area: `ContentPane.svelte`, `Tile.svelte`, `TileHeader.svelte`,
-`TileDivider.svelte`, `EmptyState.svelte` and `scroll_memory.js`.
+`TileDivider.svelte` and `scroll_memory.js`.
 
 `ContentPane` is a flex row of `Tile`s, one per entry in `$tiles.tiles`, sharing the space equally.
-Zero tiles is a legal state, not an error — it is the bare-visualization `/` route — and renders
-`EmptyState`. `TileDivider` is purely visual; per-column resizing is out of scope, but it is
+Zero tiles is a legal state, not an error — it is the bare-visualization `/` route — and the shell
+hides the whole pane for it (see `shell/` below), so `ContentPane` has no empty state. `TileDivider` is purely visual; per-column resizing is out of scope, but it is
 deliberately the same `shrink-0 w-1` box as `shell/PaneDivider.svelte` so making it draggable later
 is adding handlers rather than redoing the layout.
 
@@ -364,6 +364,15 @@ the row and left a blank strip of body-row background next to the graph, which r
 painted over it. `content` mode had the mirror at 38.2%. `split` was always right and hid it: `f`
 and `1 - f` sum to exactly 1. `vizFraction` still stores what the user dragged to; it is only the
 _grow factor_ that is overridden, and only in the two single-pane modes.
+
+**The shell lays out `visibleMode(...)`, not `$layout.mode`.** With no tiles and no overlay open the
+content pane has nothing to show, so `layout.js`'s `visibleMode` reports `viz` and the graph takes
+the whole row. The stored mode is untouched — it is the user's choice and lives in `?layout=` — so
+opening a note brings their split or content layout back by itself, with no snap-back logic. The
+overlay term is load-bearing: `OverlayHost` is mounted inside the content pane, so search opened
+from `/` must bring the pane up. `toolbar/VizSection` uses the same helper to decide whether the
+visualization's controls are on screen. Cycling the layout at zero tiles therefore changes the
+switcher's glyph but not the view.
 
 The divider uses **pointer capture** — `setPointerCapture` on `pointerdown`, release on
 `pointerup` — rather than attaching listeners to `document.body`. The component it replaces
@@ -606,8 +615,7 @@ Neither of these existed before; the dialog claimed `aria-modal` and enforced no
 
 `OverlayEmpty` is the idle / "searching …" / "no match" block. Those were a `px-3 py-6` paragraph
 pinned to the top, which looks mislaid in a pane six times the height of the old card; it now
-centres them with the same `grid place-content-center` idiom as `content/EmptyState.svelte`, the
-other legitimately-empty surface in the content area.
+centres them with `grid place-content-center`.
 
 `row_style.js` holds the one `border-l-2` highlight pair, which `SearchMatch` and the palette's
 rows had a copy of each. Literal strings in a `.js` file are still literal to Tailwind's content
@@ -708,8 +716,8 @@ Three things in here are easy to get wrong:
   the strip is on screen in every mode and a new column is invisible in `viz`.
 - **Split and Close are absent when no note is open.** Both act on the focused column and there is
   none; `tiles.splitRight` is a no-op at zero tiles rather than minting a tile with an empty slug,
-  which would push a "no note here" state into every consumer to describe what `EmptyState`
-  already covers.
+  which would push a "no note here" state into every consumer to describe what hiding the
+  content pane already covers.
 
 #### The button stack
 

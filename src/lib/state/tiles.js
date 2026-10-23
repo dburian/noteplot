@@ -31,7 +31,7 @@ function makeTile(slug) {
 /**
  * The content area's columns. Zero tiles is a legal state and means "no note
  * open" — the bare-visualization `/` route. It is not an error case; the
- * content pane renders an empty state for it.
+ * shell hides the content pane for it (`layout.js`'s `visibleMode`).
  *
  * @param {{slugs?: string[], focusIndex?: number}} [initial]
  * @returns {TilesStore}

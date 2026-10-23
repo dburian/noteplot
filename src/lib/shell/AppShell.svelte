@@ -1,5 +1,6 @@
 <script>
   import { useAppState, LAYOUT, OVERLAY, TILES } from '$lib/state/keys.js';
+  import { visibleMode } from '$lib/state/layout.js';
   import Toolbar from '$lib/toolbar/Toolbar.svelte';
   import VizPane from '$lib/viz/VizPane.svelte';
   import ContentPane from '$lib/content/ContentPane.svelte';
@@ -150,11 +151,17 @@
    * In `split` the two factors are `f` and `1 - f`, which sum to exactly 1, so
    * that mode was always correct and hid the bug.
    */
-  $: vizGrow = $layout.mode === 'viz' ? 1 : $layout.vizFraction;
-  $: contentGrow = $layout.mode === 'content' ? 1 : 1 - $layout.vizFraction;
+  /**
+   * Everything below reads `shown`, not `$layout.mode`: with no note open the
+   * content pane is hidden whatever the stored mode is. See `visibleMode`.
+   */
+  $: shown = visibleMode($layout.mode, $tiles.tiles.length > 0, !!$overlay.kind);
 
-  $: vizStyle = $layout.mode === 'content' ? 'display: none' : `flex: ${vizGrow} 1 0%`;
-  $: contentStyle = $layout.mode === 'viz' ? 'display: none' : `flex: ${contentGrow} 1 0%`;
+  $: vizGrow = shown === 'viz' ? 1 : $layout.vizFraction;
+  $: contentGrow = shown === 'content' ? 1 : 1 - $layout.vizFraction;
+
+  $: vizStyle = shown === 'content' ? 'display: none' : `flex: ${vizGrow} 1 0%`;
+  $: contentStyle = shown === 'viz' ? 'display: none' : `flex: ${contentGrow} 1 0%`;
 </script>
 
 <svelte:window on:keydown={onKeydown} />
@@ -166,9 +173,9 @@
   <Toolbar />
   <div bind:this={bodyEl} data-viz-frame class="flex-1 min-h-0 flex flex-row">
     <VizPane style={vizStyle} />
-    {#if $layout.mode === 'split'}
+    {#if shown === 'split'}
       <PaneDivider {bodyEl} />
     {/if}
-    <ContentPane style={contentStyle} hidden={$layout.mode === 'viz'} />
+    <ContentPane style={contentStyle} hidden={shown === 'viz'} />
   </div>
 </div>

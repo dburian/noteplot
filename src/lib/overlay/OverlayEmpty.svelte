@@ -4,9 +4,8 @@
    * …", and "no match".
    *
    * A whole pane makes the small top-anchored `py-6` paragraph these used to be
-   * look mislaid, so this centres them in the upper part of the pane instead —
-   * the same `grid place-content-center` idiom as `content/EmptyState.svelte`,
-   * which is the other "this box is legitimately empty" surface in the app.
+   * look mislaid, so this centres them in the upper part of the pane instead,
+   * with `grid place-content-center`.
    *
    * `min-h-[40vh]` rather than filling the body: the block should sit where the
    * first results would have been, not float in the middle of a tall pane.

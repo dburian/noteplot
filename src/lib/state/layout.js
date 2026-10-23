@@ -123,3 +123,25 @@ export function createLayoutState(initial = {}) {
 
   return { subscribe, cycle, setMode, reveal, setVizFraction, confirmFraction };
 }
+
+/**
+ * The mode the shell actually *shows*, which is not always the stored one.
+ *
+ * With no note open and no overlay up, the content pane would have nothing to
+ * show, so it is hidden and the visualization takes the whole row — whatever
+ * `mode` says. `mode` itself is left alone: it is the user's choice and lives
+ * in `?layout=`, so opening a note brings their split or content mode back
+ * without anything having to remember it.
+ *
+ * The overlay term is there because `OverlayHost` is mounted inside the content
+ * pane: search opened from `/` has to bring the pane up to be seen at all.
+ *
+ * @param {LayoutMode} mode
+ * @param {boolean} hasTiles
+ * @param {boolean} overlayOpen
+ * @returns {LayoutMode}
+ */
+export function visibleMode(mode, hasTiles, overlayOpen) {
+  if (mode === 'viz' || hasTiles || overlayOpen) return mode;
+  return 'viz';
+}
