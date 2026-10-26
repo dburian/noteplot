@@ -242,6 +242,7 @@ class GraphRenderer {
 
       this.drawNode(node, screen, isHovered(node), isSelected(node));
       this.drawNodeLabel(node, screen, isHovered(node), isSelected(node));
+      if (settings.showTagsGlow) this.drawNodeTags(node, glow, screen);
     }
 
     if (ticks) this.drawTimeLabels(ticks, screen);
@@ -443,6 +444,53 @@ class GraphRenderer {
     if (node.dateSource === 'mtime' && !hovered && !selected) ctx.globalAlpha = 0.45;
     ctx.strokeText(node.title, x + nW, y);
     ctx.fillText(node.title, x + nW, y);
+    ctx.restore();
+  }
+
+  /**
+   * The node's tags, one line below its label, each in its glow colour and
+   * separated by ` | `, so the glow can be read. Only ever called for the
+   * hovered and the active node, whose labels are drawn enlarged -- the offsets
+   * here match that size.
+   *
+   * Reads the same `matter.tags` and `glow.colors` as the glow itself, so the
+   * two cannot disagree. Nodes that are not notes (a slug with `/`, e.g. the tag
+   * graph's `tag/<name>`) are skipped: their only tag is themselves.
+   *
+   * @param {Node} node
+   * @param {Glow} glow
+   * @param {CanvasScreen} screen
+   */
+  drawNodeTags(node, glow, screen) {
+    if (node.slug.includes('/')) return;
+    const tags = (node.matter?.tags || []).filter((tag) => glow.colors.has(tag));
+    if (tags.length == 0) return;
+
+    const { x, y } = screen.toScreenPos(node);
+    const titleFontSize = 12 * 1.3;
+    const variant = this.theme.darkMode ? 'dark' : 'light';
+
+    const ctx = screen.ctx;
+    ctx.save();
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = this.theme.background;
+    ctx.lineWidth = 4;
+    ctx.font = '11px sans-serif';
+
+    let tagX = x + this.theme.nodeWidth * 1.8;
+    const tagY = y + titleFontSize * 1.1;
+    tags.forEach((tag, i) => {
+      /** @type {[string, string][]} */
+      const pieces = [[tag, glow.colors.get(tag)?.[variant] ?? this.theme.foreground]];
+      if (i > 0) pieces.unshift([' | ', this.theme.muted]);
+
+      for (const [text, color] of pieces) {
+        ctx.fillStyle = color;
+        ctx.strokeText(text, tagX, tagY);
+        ctx.fillText(text, tagX, tagY);
+        tagX += ctx.measureText(text).width;
+      }
+    });
     ctx.restore();
   }
 

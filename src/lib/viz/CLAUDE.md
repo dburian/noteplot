@@ -327,7 +327,8 @@ Draw order within a frame:
    note
 3. all nodes
 4. all labels, but only when `transform.k > 2`
-5. the active and hovered nodes **again**, so they land on top
+5. the active and hovered nodes **again**, so they land on top, each with its tags line under
+   its label when `showTagsGlow` is on (see _Tag glow_)
 6. the date labels, in an opaque, borderless band along the canvas bottom (only with a `timeAxis`)
 
 **The date axis** (`timeTicks`) converts the visible canvas x-range back into time through
@@ -443,6 +444,13 @@ the saturation differs (30% / 50%) and the variant is picked once per node from 
 preserved, precomputing it changed nothing but the cost.
 
 Nodes with no tags get no glow.
+
+**The glow is labelled for the hovered and the active note.** With `showTagsGlow` on,
+`drawNodeTags` writes the note's tags one line below its title, each in its glow colour, with
+`theme.muted` `|` separators and the title's background-coloured halo. It reads the same
+`matter.tags` and `glow.colors` the cloud does, so text and glow cannot disagree. Nodes that are
+not notes (a slug containing `/` — the tag graph's `tag/<name>`) are skipped: their only tag is
+themselves.
 
 The offsets come from `mulberry32` seeded with an FNV-1a hash of the node's **slug**, not from
 `Math.random()`, so a node's cloud is the same on every page load (`ISSUES.md` C14). Seeding per
