@@ -423,8 +423,8 @@ class CanvasScreen {
    * @param {() => void} redrawNowFn paints in the current frame; see `onResize`
    */
   constructor(viewBox, canvas, redrawFn, redrawNowFn) {
-    // `graph_pipeline.js` always writes four finite numbers now, but a
-    // `__graph.json` left over from an older build can still hold `null`.
+    // The preprocessor's graph emitters always write four finite numbers, but a
+    // graph file left over from an older build can still hold `null`.
     const [minX, minY, width, height] = viewBox || [0, 0, 1, 1];
     this.viewBox = { minX, minY, width, height };
     this.transform = {
@@ -733,7 +733,7 @@ export class CanvasGraph {
     this.pendingFrame = null;
     for (const node of nodes) this.nodes.set(node.slug, node);
 
-    // `__graph.json` carries a link as a pair of slugs. A file from a build
+    // A graph file carries a link as a pair of slugs. A file from a build
     // before that change holds embedded node objects instead, and rejecting it
     // outright would be fatal -- the same reasoning as the A17 fix -- so both
     // shapes resolve through `nodes`. Either way the endpoints end up as

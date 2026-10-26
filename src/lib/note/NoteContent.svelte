@@ -13,8 +13,8 @@
    *
    * **One `note` prop, not a spread of its fields.** Every call site has the
    * whole note JSON and used to `{...note}` it in, which meant declaring a prop
-   * per key — including `title` and `images`, which nothing here renders
-   * (the image URLs are already baked into `content`). Undeclared keys in a
+   * per key — including `title` and `path`, which nothing here renders.
+   * Undeclared keys in a
    * spread produce an "unknown prop" warning per note; declared-and-unused ones
    * produce a compiler warning. Taking the object sidesteps both.
    *
@@ -41,7 +41,7 @@
         <NoteMetaContent {...metaProps} />
       {/if}
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-      {@html note.content}
+      {@html note.html}
     </WithHoverableLinks>
 
     <style>

@@ -37,17 +37,17 @@ returns `{ subscribe, ...named actions }` and no bare `set`, following the exist
 
 ### The stores
 
-| Key (`state/keys.js`) | Module           | Value                                    | Notes                                                           |
-| --------------------- | ---------------- | ---------------------------------------- | --------------------------------------------------------------- |
-| `NOTES_INDEX`         | `notes_index.js` | `{bySlug, all, titleOf}`                 | not a store — a static lookup built from `__graph.json`'s nodes |
-| `SELECTION`           | `selection.js`   | `{activeNote, hoveredNote}`              | `{slug,title}` refs only (ISSUES.md B9)                         |
-| `LAYOUT`              | `layout.js`      | `{mode, vizFraction, lastSplitFraction}` | `mode` is `'split'｜'viz'｜'content'`                           |
-| `TILES`               | `tiles.js`       | `{tiles: [{id, slug}], focusIndex}`      | zero tiles is legal and means "no note open"                    |
-| `HISTORY`             | `history.js`     | `{recent: [{slug,title}]}`               | max 8, deduped, `sessionStorage`                                |
-| `OVERLAY`             | `overlay.js`     | `{kind, query}`                          | `kind` is `null｜'search'｜'filter'｜'commands'`                |
-| `PREFS`               | `prefs.js`       | `{showMeta}`                             | `localStorage`                                                  |
-| `VIZ`                 | `viz.js`         | `{activeId, settings: {[vizId]: {...}}}` | `localStorage`; per-visualization settings slices               |
-| `FILTER`              | `filter.js`      | `{query, results}`                       | moved verbatim from `search/WithFilterContext.svelte`           |
+| Key (`state/keys.js`) | Module           | Value                                    | Notes                                                 |
+| --------------------- | ---------------- | ---------------------------------------- | ----------------------------------------------------- |
+| `NOTES_INDEX`         | `notes_index.js` | `{bySlug, all, titleOf}`                 | not a store — a static lookup built from `index.json` |
+| `SELECTION`           | `selection.js`   | `{activeNote, hoveredNote}`              | `{slug,title}` refs only (ISSUES.md B9)               |
+| `LAYOUT`              | `layout.js`      | `{mode, vizFraction, lastSplitFraction}` | `mode` is `'split'｜'viz'｜'content'`                 |
+| `TILES`               | `tiles.js`       | `{tiles: [{id, slug}], focusIndex}`      | zero tiles is legal and means "no note open"          |
+| `HISTORY`             | `history.js`     | `{recent: [{slug,title}]}`               | max 8, deduped, `sessionStorage`                      |
+| `OVERLAY`             | `overlay.js`     | `{kind, query}`                          | `kind` is `null｜'search'｜'filter'｜'commands'`      |
+| `PREFS`               | `prefs.js`       | `{showMeta}`                             | `localStorage`                                        |
+| `VIZ`                 | `viz.js`         | `{activeId, settings: {[vizId]: {...}}}` | `localStorage`; per-visualization settings slices     |
+| `FILTER`              | `filter.js`      | `{query, results}`                       | moved verbatim from `search/WithFilterContext.svelte` |
 
 Three invariants in there are load-bearing and easy to "simplify" away:
 
@@ -415,24 +415,24 @@ Three rules in `getNote`:
 - **A rejection is evicted from the cache**, so the next render retries rather than being stuck in
   `{:catch}` forever after one failed chunk fetch.
 
-It also exports `loadSearchNotes()`, a memoised lazy loader for `__search.json`. It returns the
+It also exports `loadSearchNotes()`, a memoised lazy loader for `search.json`. It returns the
 **same promise** every call, because `getSearchIndex` memoises the built index on the resolved
 array's identity.
 
 ### `note/`
 
 Renders a loaded note JSON. `NoteContent.svelte` takes the whole note as **one `note` prop** —
-not a `{...note}` spread of its fields — and `{@html note.content}`s the preprocessor's output
+not a `{...note}` spread of its fields — and `{@html note.html}`s the preprocessor's output
 inside `Prose`. The spread meant declaring a prop per key of the generated JSON, including `title`
-and `images`, which nothing in there renders; an undeclared key in a spread warns at runtime and a
+and `path`, which nothing in there renders; an undeclared key in a spread warns at runtime and a
 declared-unused one warns at compile time, and the object sidesteps both. The shape is the `Note`
-typedef in `$lib/notes_route.js`, which is the frontend's description of what `note_pipeline.js`
+typedef in `$lib/notes_route.js`, which is the frontend's description of what `emitters/notes.js`
 writes. `NoteMetaContent.svelte` is the
 metadata block (references, backlinks, tags, reading time), gated on `$prefs.showMeta` — the
 toolbar's Metadata toggle. `WithHoverableLinks.svelte` reaches into the rendered HTML, finds
 `a[data-slug]` and wires hover events to the `SELECTION` store, so hovering a link in prose
 highlights the node in the visualization and vice versa — the `data-slug` attribute is injected
-back in `unify_pipelines.js`'s `addLinks`.
+back in `preprocessor/parse/plugins.js`'s `addLinks`.
 
 **Everything in here is now mounted once per open column, and two habits had to go because of it:**
 
@@ -506,9 +506,9 @@ when Ctrl/Cmd/Shift is held, which is a request for a new tab and the browser's 
 It is four lines now, not one: title with the note's directory right-aligned, tag chips, a
 match-centred snippet, and the `showMeta` readout. Three things in it will bite:
 
-- **The directory comes from `match.note.path`**, the field `search_index_pipeline.js` writes. It
+- **The directory comes from `match.note.path`**, the field `emitters/search.js` writes. It
   is _not_ derived from the slug — see the root `CLAUDE.md`. Guard it: `path` is `?? ''` because an
-  `__search.json` generated before the field existed must still render.
+  `search.json` generated before the field existed must still render.
 - **The whitespace inside the snippet `{#each}` is load-bearing.** Svelte collapses a run of
   whitespace in a text node to one space, so laying `{#if}`, `{#each}` and `</strong>` out on tidy
   separate lines renders `convexity` as `convex ity`. There is a comment above it saying so; if you
@@ -637,7 +637,7 @@ That last cell is why `ContentSection`'s filter badge tracks `$filter.query` rat
 `$overlay.kind`, and why a "Clear filter" command exists at all.
 
 Both funnel every open through `openNote(tiles, layout, slug, {where})` — never `goto` — and both hold a
-monotonic `latest` counter, because each run awaits twice (the lazy `__search.json` import, then
+monotonic `latest` counter, because each run awaits twice (the lazy `search.json` import, then
 `index.ready()`) and nothing orders two in-flight keystrokes. Only the newest run may write its
 results. Both also pass `loadSearchNotes()`'s resolved array to `getSearchIndex` **untouched**; a
 copy or a spread re-indexes the corpus (ISSUES.md B3).
@@ -755,7 +755,7 @@ where they were far enough apart for nobody to notice — they are adjacent now.
 `src/lib/graph/`. It has its own `CLAUDE.md`; **read it before touching the renderer.**
 
 `registry.js` is the enumeration the toolbar's switcher lists and the pane renders from. A
-descriptor is `{id, label, View, Controls, defaultSettings}`; `getVisualization(id)` falls back to
+descriptor is `{id, label, dataId, View, Controls, defaultSettings}`; `getVisualization(id)` falls back to
 the first entry rather than returning `undefined`, because `viz.activeId` is restored from
 localStorage and can name a visualization that has since been renamed away. `Controls` may be
 `null` and `VizSection` guards on it.
@@ -766,13 +766,15 @@ The state layer never imports this file. `(app)/+layout.svelte` passes `visualiz
 those defaults.
 
 `VizPane` supplies the visualization's `callbacks` — `{onActivate, onHover}` — rather than letting
-the renderer reach for a router or a store. `onActivate` is `openNote(tiles, layout, slug)`; `onHover` is
+the renderer reach for a router or a store. `onActivate` is `openNote(tiles, layout, slug)`, guarded
+on `NOTES_INDEX.bySlug.has(slug)` because a graph may hold nodes that are not notes; `onHover` is
 `selection.hover(toNoteRef(node))`, and the `toNoteRef` is what keeps a graph node's `x`, `y` and
 `matter` out of the store (ISSUES.md B9). `callbacks` must stay a `const`: `CanvasGraph` captures
 it once at mount.
 
-`VizPane` also reads `$page.data` for `{nodes, links, viewBox}` rather than having them threaded
-down, so `AppShell` has no data to forward.
+`VizPane` also loads the active visualization's data itself — `getVizData(active.dataId)` from
+`viz/data.js`, one lazy chunk per `generated/viz/<dataId>.json` — rather than having it threaded
+down, so `AppShell` has no data to forward. See `viz/CLAUDE.md`.
 
 ### `adaptive/`
 
@@ -796,7 +798,7 @@ can.
 ## `Prose.svelte` and the max-width mechanism
 
 Note width is controlled across _both halves of the app_. The preprocessor's
-`rehypeWrapTextElems` plugin (`unify_pipelines.js`) wraps every top-level element except
+`rehypeWrapTextElems` plugin (`preprocessor/parse/plugins.js`) wraps every top-level element except
 `mjx-container` in `<div class="prose-high-level-tag">`; `Prose.svelte` gives that class
 `max-width: 65ch; margin: auto`. The result is centred, readable text with maths and other wide
 blocks allowed to overflow full-width.

@@ -5,7 +5,7 @@
   /**
    * A tile's title bar: which note this column holds, and a close button.
    *
-   * The title comes from `NOTES_INDEX` (built from `__graph.json`) rather than
+   * The title comes from `NOTES_INDEX` (built from `index.json`) rather than
    * from the note's own JSON, so the header is right immediately — before a new
    * column's `getNote` has resolved, and without a second copy of the note's
    * data.

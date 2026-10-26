@@ -10,55 +10,88 @@ force-directed graph next to a reading pane, and builds to a fully static site.
 ## Architecture: two halves joined by generated JSON
 
 Noteplot is **not** a single app. It is a build-time Node preprocessor and a SvelteKit static
-site that communicate only through JSON files written to `src/lib/notes/`.
+site that communicate only through JSON files written to `src/lib/generated/`.
 
-### Half 1 — the preprocessor (plain Node `.js` at the repo root)
+### Half 1 — the preprocessor (`preprocessor/`, plain Node)
 
 ```
-index.js                     commander CLI: `watch` | `build`
-  └─ note_preprocessor.js    NotesUpdater — walks / watches the note directory,
-                             debounces events (2s), collapses them to one per
-                             path, then runs each pipeline in sequence,
-                             threading one result object through them
-       ├─ note_pipeline.js          markdown → HTML  →  src/lib/notes/<slug>.json
-       ├─ graph_pipeline.js         d3 force layout  →  src/lib/notes/__graph.json
-       └─ search_index_pipeline.js  markdown → text  →  src/lib/notes/__search.json
-
-unify_pipelines.js           shared unified/remark/rehype plugin stacks + toSlug()
+index.js                          commander CLI: `watch` | `build`
+  └─ preprocessor/index.js        preprocess(): scan → parse → corpus → emitters
+       ├─ scan.js                 startup walk + `watcher`; coalesces events, serialises batches
+       ├─ parse/                  one note → one NoteRecord (pure; cached; worker pool)
+       ├─ corpus.js               all records + derived backlinks; apply() → ChangeSet
+       ├─ emitters/               one per output; the registry is emitters/index.js
+       ├─ writer.js               skip-identical, atomic writes; prunes stale output
+       └─ cache.js                .cache/noteplot/: parsed records, graph positions, manifest
 ```
 
-The pipeline contract is implicit and undocumented in code, so note it here: `NotesUpdater.on()`
-calls `pipeline.on(events, previousResult)` on each pipeline in array order and passes the
-return value to the next. Only `NotePipeline` produces anything new (`{notes, changes}`); the
-other two read it and return it unchanged. **Order matters** — `GraphPipeline` and
-`SearchIndexPipeline` both depend on `NotePipeline` having run first.
+The contracts are JSDoc typedefs in `preprocessor/types.js`; read that file first. A batch flows
+like this:
 
-`changes` is a `slug → Set<changed key>` map, and it is not only an output: `NotePipeline` reads it
-back to decide which **neighbours** to rewrite. A note's JSON embeds `{slug, title}` for each of its
-links and backlinks, so one edit can invalidate files that did not change — the targets a link was
-removed from, the sources of a deleted note, and, when a title changes, both sides of every edge.
-`on()` therefore writes `toSave ∪ diffs.keys() ∪ resave`, not just the notes whose files moved
-(`ISSUES.md` A6, A20). `GraphPipeline` iterates `events`, so the extra entries never reach it.
+1. **Parse.** `NoteParser` reads each path, hashes it, and looks the hash up in the record cache.
+   Misses go through `parse/parse_note.js`. It parses the Markdown **once**, then clones the tree
+   into an HTML branch (MathJax, Shiki, figures) and a plaintext branch (for search). The result is
+   a `NoteRecord`: a pure function of the file's bytes, its path, and the config. Nothing in
+   `parse/` reads another note, and nothing in it logs. Warnings come back as data, because this
+   code also runs in worker threads.
+2. **Corpus.** `Corpus.apply({upserts, removals})` is the only mutation. It owns `backlinks` and
+   returns a `ChangeSet`: `added`, `removed`, `changed` (slug → which fields differ, with
+   `backlinks` marked on link targets), `neighbours` (notes whose JSON embeds a title that moved),
+   and `previous` (the old records). Whether a note is new is decided here, not from the watcher's
+   event type.
+3. **Emitters.** Each one declares `deps` (record fields). The orchestrator runs it when the batch
+   is cold, when a note was added or removed, or when a changed field is in `deps`. Emitters only
+   read the corpus, so they run concurrently. A body-only edit therefore rewrites that note's JSON
+   and `search.json`, and leaves the graphs alone.
 
-`NotePipeline` owns a second cross-note map, `imageRefs` (`destPath → Set<slug>`). An image's copy
-in `static/note_imgs/` is named after the **image's** path, not the referring note's, so two notes
-embedding the same file share one copy; the copy is removed only when the last referrer drops it.
-Without that, either note losing the image deleted it out from under the other. `updateAll()` also
-calls `pruneOrphanImages()` once the startup scan has finished, which is the only thing that ever
-removes an image dropped while the preprocessor was not running — and it is skipped after a failed
-batch, when the map is incomplete.
+**Adding an output is one entry in `preprocessor/emitters/index.js`.** A new graph is a
+`defineGraphEmitter({id, deps, build, layout})` (see `emitters/graph/tags.js`). `build` maps the
+corpus to `{nodes, links}`, and `define_graph.js` handles position persistence, pinning, the
+layout and the output file. A matching visualization is a descriptor in `src/lib/viz/registry.js`
+whose `dataId` is the graph's `id`. Graph nodes that are not notes need a slug containing `/`,
+which `toSlug` can never produce. `VizPane` opens only nodes that are notes.
 
-`unify_pipelines.js` exports two pipeline builders:
+Neighbour rewrites are why `changed`/`neighbours` exist. A note's JSON embeds `{slug, title}` for
+each of its links and backlinks, so one edit can invalidate files that did not change: the targets
+a link was removed from, the sources of a deleted note, and, when a title changes, both sides of
+every edge (`ISSUES.md` A6, A20). `emitters/notes.js` rewrites all of them.
 
-- `createRehypePipeline` — the full markdown → HTML path (MathJax, Shiki, figures, image
-  copying, link/backlink collection). Used by `NotePipeline`.
-- `createRetextPipeline` — markdown → stripped plaintext, for the search index. Used by
-  `SearchIndexPipeline`, which **re-reads and re-parses every file from disk** rather than
-  reusing `NotePipeline`'s work.
+Images: an image's copy in `static/note_imgs/` is named after the **image's** path, not the
+referring note's, so two notes embedding the same file share one copy. `emitters/assets.js` keeps
+the set of destinations the whole corpus refers to and removes a copy only when it leaves that set.
+It copies only what is missing or older than its source. Image files are not watched: an image
+edited in place is picked up on the next start, or the next save of a note that embeds it.
+
+**Performance, as measured on `test_notes` (135 notes):**
+
+- The old pipeline took ~18.5 s per start, ~14 s of it in the force layout.
+- Now a warm start (cache present, nothing changed) takes ~60 ms and writes no files.
+- A cold start is dominated by the full force layout: ~18 s per graph, with the graphs running in
+  parallel in worker threads (`emitters/graph/layout.js` `runLayout`).
+- Positions persist per note root, so only nodes without a position are relaxed (100 ticks among
+  the pinned ones).
+- Parsing costs ~3 s of MathJax/Shiki start-up, then ~5–7 ms per note. Worker threads repay their
+  own start-up only above ~300 cold misses (`PARSE_POOL_THRESHOLD`).
+- In `watch`, a save reaches its JSON in ~0.5 s. The parser is warmed once `watcher` is ready, so
+  the first save does not pay the start-up.
+
+The record cache is keyed on a fingerprint of the parser's own source files and
+`package-lock.json`, so editing a plugin or upgrading a dependency invalidates it by itself. It is
+also keyed on `imgUrl` (so `--base-path` invalidates), the note's absolute path, and its bytes.
+Deleting `.cache/` is always safe; it costs one cold start.
+
+Every startup scan (`build` and `watch`) is followed by sweeps that delete what the corpus does not account for:
+`writer.pruneUnemitted()` (JSON of notes deleted while the preprocessor was down), each emitter's
+`afterColdScan` (orphaned images), and stale cache records. All of them are **skipped if any note
+failed to parse**, because the corpus is then incomplete. One bad note costs that note, not the
+batch.
 
 ### Half 2 — the SvelteKit site (`src/`)
 
-Reads the generated JSON with dynamic `import()` inside `load`, and prerenders one page per note.
+Reads the generated JSON through lazy `import()`s, and prerenders one page per note.
+`(app)/+layout.js` loads only `index.json`. Notes come through `notes_route.js`, and each
+visualization's data through `$lib/viz/data.js`, keyed by the descriptor's `dataId`, so only the
+graph on screen is fetched.
 
 The shape is a conventional application shell: `src/routes/(app)/+layout.svelte` mounts one state
 provider (`$lib/state/WithAppState.svelte`) and one shell (`$lib/shell/AppShell.svelte`) — a
@@ -82,14 +115,17 @@ deleted rather than carried along, and a mobile shell is a later effort.
 
 ### Generated output — never hand-edit, never commit
 
-| Path                          | Contents                                                                       |
-| ----------------------------- | ------------------------------------------------------------------------------ |
-| `src/lib/notes/<slug>.json`   | one per note: HTML content, title, links, backlinks, frontmatter, reading time |
-| `src/lib/notes/__graph.json`  | `{viewBox, nodes, links}` — node positions; links are `{source, target}` slugs |
-| `src/lib/notes/__search.json` | array of `{slug, path, title, content, matter}` plaintext records              |
-| `static/note_imgs/`           | images copied out of the note directory                                        |
+| Path                                  | Contents                                                                             |
+| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `src/lib/generated/notes/<slug>.json` | one per note: `html`, title, links, backlinks, matter, reading time, path(s)         |
+| `src/lib/generated/index.json`        | `[{slug, title, path, matter}]` — the frontend's `NOTES_INDEX`                       |
+| `src/lib/generated/search.json`       | `[{slug, path, title, content, matter}]` plaintext records                           |
+| `src/lib/generated/viz/<id>.json`     | one per graph emitter: `{viewBox, nodes, links}`; links are `{source, target}` slugs |
+| `static/note_imgs/`                   | images copied out of the note directory                                              |
+| `.cache/noteplot/`                    | parsed records, graph positions, the write manifest — disposable                     |
 
-Both directories are gitignored and are created on demand by `NotePipeline._setupPaths`.
+All three are gitignored and created on demand. Each kind of output has its own directory, so no
+filename prefix is reserved (the old `__graph.json` / `__search.json` convention is gone).
 
 ## Running it
 
@@ -117,7 +153,7 @@ npm run preview
 ```
 
 `npm run dev` / `npm run build` run **vite alone** and will fail or serve stale data unless the
-preprocessor has already populated `src/lib/notes/`. Prefer the `index.js` entry points.
+preprocessor has already populated `src/lib/generated/`. Prefer the `index.js` entry points.
 
 `--host` is a **global** option (declared on the program, not on `watch`), so every command
 accepts it; only `watch` uses it, where it becomes vite's `server.host`. A bare `--host` binds
@@ -131,11 +167,11 @@ the same footgun.
 from what the preprocessor wrote, so vite would otherwise fail with a confusing message about
 uncrawled routes (`ISSUES.md` A18). `watch` accepts an empty directory and waits.
 
-> **The watcher's `ignore` predicate is subtle.** `NotesUpdater._isIgnored` is handed three
+> **The watcher's `ignore` predicate is subtle.** `NoteScanner.isIgnored` (`preprocessor/scan.js`) is handed three
 > different shapes of path — absolute (from `watcher` and `tiny-readdir`), relative to the watched
 > directory (from Node's own `fs.watch`, which is how every file event arrives), and ancestors of
 > the note root. Any change to it must handle all three; getting this wrong silently drops every
-> event. See `ISSUES.md` A0. It is also the filter `updateAll()` applies during the startup scan,
+> event. See `ISSUES.md` A0. It is also the filter `listNotes()` applies during the startup scan,
 > so the scan and the watcher cannot disagree about what a note is (`ISSUES.md` A15).
 
 ### Sub-path deploys
@@ -202,30 +238,28 @@ virtual module is not.
 
 ## Repo map
 
-| Path                       | Role                                                                   |
-| -------------------------- | ---------------------------------------------------------------------- |
-| `index.js`                 | CLI entry point (`bin: noteplot`)                                      |
-| `note_preprocessor.js`     | watcher, debouncing, pipeline orchestration, `saveJSON`                |
-| `note_pipeline.js`         | per-note JSON, link/backlink enrichment, change diffing, `isDeepEqual` |
-| `graph_pipeline.js`        | d3 force simulation, position pinning, viewBox fitting                 |
-| `search_index_pipeline.js` | plaintext search index                                                 |
-| `unify_pipelines.js`       | shared remark/rehype plugins, `toSlug`, the shared `logger`            |
-| `src/routes/`              | pages and data loading — see `src/routes/CLAUDE.md`                    |
-| `src/lib/`                 | components and state — see `src/lib/CLAUDE.md`                         |
-| `src/lib/state/`           | the stores and the URL contract — see `src/lib/CLAUDE.md`              |
-| `src/lib/shell/`           | the flex application shell and the pane divider                        |
-| `src/lib/content/`         | the content pane's columns, and their scroll memory                    |
-| `src/lib/toolbar/`         | the three-section top strip and its button stack                       |
-| `src/lib/overlay/`         | the modal host and the search / filter / command screens               |
-| `src/lib/commands/`        | the command registry and its subsequence matcher                       |
-| `src/lib/search/`          | the shared input, result row, and the memoised minisearch index        |
-| `src/lib/viz/`             | the registry, the pane that hosts it, and the force graph renderer     |
-| `static/`                  | favicons, manifest, and generated `note_imgs/`                         |
-| `.tmux`                    | the author's dev session bootstrap; not part of the build              |
+| Path                     | Role                                                                  |
+| ------------------------ | --------------------------------------------------------------------- |
+| `index.js`               | CLI entry point (`bin: noteplot`)                                     |
+| `preprocessor/`          | the build-time half — see "Half 1" above; contracts in `types.js`     |
+| `preprocessor/parse/`    | remark/rehype plugins, the single-parse `NoteRecord` builder, workers |
+| `preprocessor/emitters/` | one module per output; `index.js` is the registry                     |
+| `src/routes/`            | pages and data loading — see `src/routes/CLAUDE.md`                   |
+| `src/lib/`               | components and state — see `src/lib/CLAUDE.md`                        |
+| `src/lib/state/`         | the stores and the URL contract — see `src/lib/CLAUDE.md`             |
+| `src/lib/shell/`         | the flex application shell and the pane divider                       |
+| `src/lib/content/`       | the content pane's columns, and their scroll memory                   |
+| `src/lib/toolbar/`       | the three-section top strip and its button stack                      |
+| `src/lib/overlay/`       | the modal host and the search / filter / command screens              |
+| `src/lib/commands/`      | the command registry and its subsequence matcher                      |
+| `src/lib/search/`        | the shared input, result row, and the memoised minisearch index       |
+| `src/lib/viz/`           | the registry, the pane that hosts it, and the force graph renderer    |
+| `static/`                | favicons, manifest, and generated `note_imgs/`                        |
+| `.tmux`                  | the author's dev session bootstrap; not part of the build             |
 
 ## Slugs
 
-`toSlug(fullPath, noteRoot)` in `unify_pipelines.js` turns a file path into a URL slug. Slugs are
+`toSlug(fullPath, noteRoot)` in `preprocessor/slug.js` turns a file path into a URL slug. Slugs are
 the primary key everywhere — in filenames, graph nodes, links, backlinks, search records, and URLs
 — so the encoding has to be **injective**: strip the extension, then replace `~` with `~~`, then
 `-` with `~-`, then `path.sep` with `-`. So `-` is the separator stand-in, `~` escapes it, and `_`
@@ -245,8 +279,8 @@ nothing should. Doubling the delimiter (`-` → `--`) looks equivalent but is am
 boundaries; see `ISSUES.md` A13.
 
 If you need a note's **location** — the search results show one — take it from the `path` field
-`search_index_pipeline.js` writes into `__search.json`, which is the file's path relative to the
-note root with `/` separators. That field exists precisely so nothing has to invert `toSlug`:
+the preprocessor writes into `search.json` and `index.json` (`toDisplayPath` in
+`preprocessor/slug.js`), which is the file's path relative to the note root with `/` separators. That field exists precisely so nothing has to invert `toSlug`:
 `edge/a-b.md` slugs to `edge-a~-b`, and a naive `split('-')` gets it wrong in a way that looks
 right on most notes.
 

@@ -9,12 +9,15 @@
 src/lib/viz/
   registry.js                 the enumeration; `visualizations` and `getVisualization(id)`
   VizPane.svelte              the host: picks a descriptor, renders its View, supplies callbacks
+  data.js                     getVizData(dataId): the lazy, memoised generated/viz/*.json loader
   CLAUDE.md                   this file
   force_graph/
     index.js                  the Visualization descriptor — the only export the registry uses
     ForceGraphView.svelte     a <canvas> + onMount → new CanvasGraph(...)
     ForceGraphControls.svelte the two toolbar toggles
     canvas_graph.js           the renderer: three classes, no Svelte
+  tag_graph/
+    index.js                  descriptor only: the force graph's View over viz/tags.json
 ```
 
 ## The registry contract
@@ -25,12 +28,15 @@ A visualization is one descriptor in `registry.js`'s `visualizations` array:
 | ----------------- | ---------------------------------------------------------------------- |
 | `id`              | stable; the `viz.settings` key and what is persisted to `localStorage` |
 | `label`           | shown in the toolbar switcher                                          |
+| `dataId`          | which `src/lib/generated/viz/<dataId>.json` `View` gets as `data`      |
 | `View`            | Svelte component, props `{data, settings, callbacks}`                  |
 | `Controls`        | Svelte component rendered into the toolbar, no props; may be `null`    |
 | `defaultSettings` | the **only** definition of this visualization's defaults               |
 
-Adding a second visualization is writing a directory next to `force_graph/` and pushing its
-descriptor into that array. Nothing in the shell, the toolbar or the state layer names a
+Adding a visualization is writing a directory next to `force_graph/` and pushing its descriptor
+into that array. If it needs generated data, add a graph emitter in `preprocessor/emitters/` whose
+`id` is the descriptor's `dataId` — see "Half 1" in the root `CLAUDE.md`. `tag_graph/` is the
+smallest example: a descriptor reusing the force graph's `View` and `Controls` over `viz/tags.json`. Nothing in the shell, the toolbar or the state layer names a
 visualization — `VizSwitcher` enumerates the registry, `VizSection` renders `active.Controls`, and
 `VizPane` renders `active.View`.
 
@@ -49,8 +55,17 @@ Three rules hold that decoupling up:
 
 ## `VizPane.svelte`
 
-Reads `$page.data` for `{nodes, links, viewBox}` — `(app)/+layout.js` loads `__graph.json`, so it
-is already there, and `AppShell` stays a pure layout component with nothing to forward.
+Loads the active descriptor's data with `getVizData(active.dataId)` from `data.js` — a lazy
+`import.meta.glob` over `generated/viz/*.json`, so each graph is its own chunk and only the one on
+screen is fetched. `AppShell` stays a pure layout component with nothing to forward.
+
+`getVizData` returns **the same reference per id** — the promise, then the value — for the same
+reason `getNote` does: `VizPane` renders inside an `{#await}`, which tears its then-branch down on
+every new promise, and here that would rebuild `CanvasGraph` and lose the zoom.
+
+The view is wrapped in **`{#key active.id}`**. `<svelte:component>` remounts only when `this`
+changes, and the link and tag graphs share `ForceGraphView` — without the key, switching between
+them would keep the old `CanvasGraph`, which has no update path from props, drawing the old graph.
 
 It supplies `callbacks`, which is the whole of what a visualization may do to the app:
 
@@ -58,7 +73,9 @@ It supplies `callbacks`, which is the whole of what a visualization may do to th
 { onActivate(slug), onHover(node) }
 ```
 
-`onActivate` is `openNote(tiles, layout, slug)` — the tile mutation and the layout reveal, as
+`onActivate` is `openNote(tiles, layout, slug)`, **only for slugs in `NOTES_INDEX`**: a graph may
+hold nodes that are not notes (the tag graph's `tag/<name>` nodes), and opening one would put a 404
+into a column. Otherwise it is the tile mutation and the layout reveal, as
 every navigation source must be, and _not_ a `goto`: the path follows the focused tile from one
 block in `WithAppState` (see `src/lib/CLAUDE.md`). The `layout` argument is what makes a node click
 work in `viz` mode at all — the content pane is hidden there, so without it the note would open
@@ -116,21 +133,21 @@ you find references, they are stale.
 
 Every position passes through three spaces, and `CanvasScreen` owns all conversions between them.
 
-**1. viewBox space** — layout coordinates produced by `graph_pipeline.js`. Node `x`/`y` come
+**1. viewBox space** — layout coordinates produced by the preprocessor's graph emitters
+(`preprocessor/emitters/graph/`). Node `x`/`y` come
 straight from the d3 force simulation, translated so the bounding box starts at the origin, with
-10% padding added around it. `__graph.json`'s `viewBox` is `[minX, minY, width, height]`, mirroring
+10% padding added around it. A graph file's `viewBox` is `[minX, minY, width, height]`, mirroring
 the SVG attribute it is named after. Nothing about this space depends on the browser.
 
-`width` and `height` are always positive: `graph_pipeline.js` floors both at `MIN_VIEW_BOX_SIZE`
+`width` and `height` are always positive: `graph/layout.js`'s `fitViewBox` floors both at `MIN_VIEW_BOX_SIZE`
 and emits a default box for an empty collection. The frontend divides by them and sizes the
 hit-test grid from them, so a zero would be fatal — see `ISSUES.md` A17.
 
-Within a running watch session this space is **stable**. `graph_pipeline.js` keeps the positions it
-has computed in memory and pins every node that has one (`fx`/`fy`) whenever the simulation re-runs,
-so only new nodes relax; the pins are stripped before serialising, which is why nothing in
-`__graph.json` mentions them. Positions are deliberately **not** persisted, so restarting the
-preprocessor re-lays the whole graph from scratch — intended, not a regression (`ISSUES.md` A14).
-The one caveat: a new node landing left of or above the existing extent shifts every coordinate by
+This space is **stable across runs**. `define_graph.js` persists every graph's positions in the
+preprocessor cache (per note root) and pins every node that has one (`fx`/`fy`), so only new nodes
+relax; the pins are stripped before serialising, which is why nothing in the graph file mentions
+them. A full re-layout happens only when no node has a position — the first run, or after
+`.cache/` is deleted (`ISSUES.md` A14). The one caveat: a new node landing left of or above the existing extent shifts every coordinate by
 the same amount, because the bounding box is always re-originated. Nodes never move _relative to
 each other_.
 
@@ -241,7 +258,7 @@ store subscriptions, both canvas listeners (matching the `pointermove` name exac
 `screen.destruct()` and `renderer.destruct()`. This is no longer theoretical: swapping
 visualizations unmounts the view.
 
-`__graph.json` stores a link as a pair of **slugs**, so the constructor resolves both endpoints
+A graph file stores a link as a pair of **slugs**, so the constructor resolves both endpoints
 against `nodes` and stores `{source, target}` node _references_ — so a node and its links cannot
 disagree. A link whose endpoints are missing is skipped, and a link from a build before the
 `ISSUES.md` B1 fix, which carries embedded node objects instead of slugs, resolves through the same
@@ -405,7 +422,7 @@ The offsets come from `mulberry32` seeded with an FNV-1a hash of the node's **sl
 `Math.random()`, so a node's cloud is the same on every page load (`ISSUES.md` C14). Seeding per
 node rather than once per run is what makes it independent of the collection: adding a note does not
 reshuffle everything else. Same argument as node positions in A14, but solved in the frontend —
-serialising 20 pixel records per node into a `__graph.json` that every page loads costs more than
+serialising 20 pixel records per node into a graph file costs more than
 the hash does.
 
 ## Type definitions

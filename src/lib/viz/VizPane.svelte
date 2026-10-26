@@ -1,10 +1,9 @@
 <script>
-  import { page } from '$app/stores';
-
-  import { useAppState, LAYOUT, SELECTION, TILES, VIZ } from '$lib/state/keys.js';
+  import { useAppState, LAYOUT, NOTES_INDEX, SELECTION, TILES, VIZ } from '$lib/state/keys.js';
   import { openNote } from '$lib/state/navigate.js';
   import { toNoteRef } from '$lib/state/selection.js';
   import { getVisualization } from './registry.js';
+  import { getVizData } from './data.js';
 
   /**
    * The visualization host: a registry lookup and the active descriptor's
@@ -14,9 +13,11 @@
    * point — the canvas inside measures itself from its own element rather than
    * from the window, and needs no inset.
    *
-   * **Swapping visualizations is destroy-and-recreate.** `<svelte:component>`
-   * remounts on change, which is exactly right: the force graph's `CanvasGraph`
-   * is built once in `onMount` and has no update path from props.
+   * **Swapping visualizations is destroy-and-recreate**, keyed on the
+   * descriptor's `id`. `<svelte:component>` alone would not do it: the link and
+   * tag graphs share one `View`, so switching between them leaves `this`
+   * unchanged and the `CanvasGraph` built in `onMount` -- which has no update
+   * path from props -- would keep drawing the old graph.
    */
 
   /** Flex sizing handed down by `AppShell`. @type {string} */
@@ -28,19 +29,19 @@
   const selection = /** @type {import('$lib/state/selection.js').SelectionStore} */ (
     useAppState(SELECTION)
   );
+  const notesIndex = /** @type {import('$lib/state/notes_index.js').NotesIndex} */ (
+    useAppState(NOTES_INDEX)
+  );
 
   $: active = getVisualization($viz.activeId);
 
   /**
-   * `__graph.json`, straight off the layout's `load`. Read here rather than
-   * threaded down from `(app)/+layout.svelte` so `AppShell` stays a pure layout
-   * component with no data to forward.
+   * The active visualization's own generated file, loaded here rather than by
+   * a route so only the visualization on screen is fetched, and so `AppShell`
+   * stays a pure layout component with no data to forward. `getVizData`
+   * returns a stable reference per id, which the `{#await}` below needs.
    */
-  $: data = {
-    nodes: $page.data?.nodes ?? [],
-    links: $page.data?.links ?? [],
-    viewBox: $page.data?.viewBox ?? null
-  };
+  $: data = active.dataId ? getVizData(active.dataId) : {};
 
   // Falls back to the descriptor's own defaults: `viz.settings` is seeded from
   // localStorage, which can predate a visualization being registered.
@@ -54,9 +55,14 @@
    * and a reactive rebuild would leave it holding a stale copy.
    */
   const callbacks = {
-    /** @param {string} slug */
+    /**
+     * Only notes open. A graph may hold nodes that are not notes -- the tag
+     * graph's tags -- and opening one would put a 404 into a column.
+     *
+     * @param {string} slug
+     */
     onActivate: (slug) => {
-      openNote(tiles, layout, slug);
+      if (notesIndex.bySlug.has(slug)) openNote(tiles, layout, slug);
     },
     /** @param {{slug: string, title: string} | null} node */
     onHover: (node) => selection.hover(toNoteRef(node))
@@ -65,7 +71,18 @@
 
 <div class="relative h-full min-w-0 overflow-hidden" {style}>
   {#if active.View}
-    <svelte:component this={active.View} {data} {settings} {callbacks} />
+    {#key active.id}
+      {#await data then resolved}
+        <svelte:component this={active.View} data={resolved} {settings} {callbacks} />
+      {:catch error}
+        <div
+          class="grid h-full place-content-center text-sm select-none
+                 text-muted-light dark:text-muted-dark"
+        >
+          {error.message}
+        </div>
+      {/await}
+    {/key}
   {:else}
     <div
       class="grid h-full place-content-center text-sm select-none

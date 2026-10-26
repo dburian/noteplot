@@ -47,7 +47,7 @@
 
   /**
    * The note's directory, from the `path` the preprocessor writes into
-   * `__search.json`. It is **not** derived from the slug: slugs are opaque and
+   * `search.json`. It is **not** derived from the slug: slugs are opaque and
    * nothing reverse-parses one (see the root `CLAUDE.md`). Empty at the root of
    * the collection, and empty against an index built before the field existed.
    */

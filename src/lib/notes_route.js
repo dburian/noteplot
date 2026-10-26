@@ -1,10 +1,11 @@
 import { error } from '@sveltejs/kit';
 
 /**
- * One note as `NotePipeline` writes it to `src/lib/notes/<slug>.json`. The
- * shape is defined by the preprocessor, so this typedef is a description of
- * generated data, not a contract the frontend can enforce -- keep it in step
- * with `note_pipeline.js` by hand.
+ * One note as the preprocessor's notes emitter writes it to
+ * `src/lib/generated/notes/<slug>.json`. The shape is defined by the
+ * preprocessor, so this typedef is a description of generated data, not a
+ * contract the frontend can enforce -- keep it in step with
+ * `preprocessor/emitters/notes.js` by hand.
  *
  * `links` and `backlinks` embed the neighbour's `title` as well as its slug,
  * which is why one edit can invalidate files that did not change; see the root
@@ -13,11 +14,11 @@ import { error } from '@sveltejs/kit';
  * @typedef {{
  *   slug: string,
  *   title: string,
- *   content: string,
+ *   html: string,
  *   links: Array<{slug: string, title: string}>,
  *   backlinks: Array<{slug: string, title: string}>,
- *   images: string[],
  *   matter: Record<string, any>,
+ *   path: string,
  *   noteRoot: string,
  *   originalPath: string,
  *   readingTime: {text: string, minutes: number, time: number, words: number},
@@ -36,19 +37,15 @@ import { error } from '@sveltejs/kit';
  * what a dynamic `import()` on a template literal already compiled to.
  */
 const noteModules = /** @type {Record<string, () => Promise<{default: Note}>>} */ (
-  import.meta.glob('$lib/notes/*.json')
+  import.meta.glob('$lib/generated/notes/*.json')
 );
 
 /** @type {Map<string, () => Promise<{default: Note}>>} */
 const notesBySlug = new Map();
 for (const [filePath, loadModule] of Object.entries(noteModules)) {
+  // The notes have `generated/notes/` to themselves, so every file in it is a
+  // note -- there is no reserved prefix to filter out any more.
   const slug = filePath.slice(filePath.lastIndexOf('/') + 1, -'.json'.length);
-
-  // `__graph.json` and `__search.json` live in the same directory and are not
-  // notes. This is the one place that convention is enforced -- see
-  // `src/routes/CLAUDE.md`.
-  if (slug.startsWith('__')) continue;
-
   notesBySlug.set(slug, loadModule);
 }
 
@@ -140,7 +137,7 @@ export function noteEntries() {
  * The plaintext of every note, for the search and filter overlays.
  *
  * Dynamic, for the same reason as the glob above: a static import of
- * `__search.json` gets inlined into the bundle (ISSUES.md B2). It used to live
+ * `search.json` gets inlined into the bundle (ISSUES.md B2). It used to live
  * in the `/search` and `/filter` routes' `load`s, which are gone -- the
  * overlays are reachable from anywhere now, so the fetch has to be lazy rather
  * than route-scoped.
@@ -155,7 +152,7 @@ let searchNotesPromise = null;
 
 export function loadSearchNotes() {
   if (!searchNotesPromise) {
-    searchNotesPromise = import('$lib/notes/__search.json').then((m) => m.default);
+    searchNotesPromise = import('$lib/generated/search.json').then((m) => m.default);
   }
 
   return searchNotesPromise;

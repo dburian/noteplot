@@ -3,7 +3,7 @@ import { loadSearchNotes } from '$lib/notes_route.js';
 /**
  * The built search index, fetched and constructed on first use.
  *
- * Both halves are deliberately lazy. `__search.json` is the plaintext of every
+ * Both halves are deliberately lazy. `search.json` is the plaintext of every
  * note (ISSUES.md B2), and `search_index.js` pulls in `minisearch` — neither is
  * wanted by a visitor who never opens an overlay, and the overlays are mounted
  * by `(app)/+layout.svelte`, whose chunk loads on **every** page. A static

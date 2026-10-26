@@ -18,7 +18,7 @@
    * that sized itself would make the `ResizeObserver` watch its own output.
    */
 
-  /** `{nodes, links, viewBox}` from `__graph.json`. Read once, at mount. @type {any} */
+  /** `{nodes, links, viewBox}` from `generated/viz/<dataId>.json`. Read once, at mount. @type {any} */
   export let data;
   /** @type {import('./canvas_graph.js').ForceGraphSettings} */
   export let settings;

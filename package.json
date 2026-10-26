@@ -60,10 +60,10 @@
     "remark-rehype": "^11.1.0",
     "remark-stringify": "^11.0.0",
     "strip-markdown": "^6.0.0",
-    "to-vfile": "^8.0.0",
     "unified": "^11.0.4",
     "unist-util-to-string-with-nodes": "^0.1.1",
     "unist-util-visit": "^5.0.0",
+    "vfile": "^6.0.3",
     "vfile-matter": "^5.0.0",
     "vfile-reporter": "^8.1.1",
     "watcher": "^2.3.1"

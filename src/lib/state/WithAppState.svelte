@@ -25,8 +25,8 @@
    * collapses to one column on every navigation.
    */
 
-  /** `__graph.json`'s nodes, for the slug → title index. @type {any[]} */
-  export let nodes = [];
+  /** `index.json`, for the slug → title index. @type {import('./notes_index.js').NoteSummary[]} */
+  export let notes = [];
 
   /**
    * The visualization registry's descriptors, injected by
@@ -41,7 +41,7 @@
 
   const initial = readUrlState($page.url);
 
-  const notesIndex = createNotesIndex(nodes);
+  const notesIndex = createNotesIndex(notes);
   const selection = createSelectionState(toNoteRef($page.data?.note));
   const layout = createLayoutState({ mode: initial.mode });
   const tiles = createTilesState({ slugs: initial.tileSlugs, focusIndex: initial.focusIndex });

@@ -16,6 +16,6 @@
   and pick a place in the shell to put it, which is exactly the decision this
   removed. See `src/routes/CLAUDE.md`.
 -->
-<WithAppState nodes={data.nodes} vizDescriptors={visualizations}>
+<WithAppState notes={data.notes} vizDescriptors={visualizations}>
   <AppShell />
 </WithAppState>

@@ -36,7 +36,7 @@ const FIELDS = ['content', 'title', 'tag'];
 /**
  * Memoised on the `notes` reference, which is stable: `loadSearchNotes()` in
  * `$lib/notes_route.js` returns the same promise every call, so the search and
- * filter overlays hand out the same array from the one `__search.json` module.
+ * filter overlays hand out the same array from the one `search.json` module.
  * Without this, opening either overlay re-indexed the whole corpus
  * (ISSUES.md B3). Callers must `await index.ready()` before `search()`
  * (ISSUES.md B4) — the index is built asynchronously.

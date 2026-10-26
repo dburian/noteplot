@@ -115,7 +115,7 @@ function snapToSpace(text, index, direction, limit = 24) {
 }
 
 /**
- * @param {string} content plaintext, as stored in `__search.json`
+ * @param {string} content plaintext, as stored in `search.json`
  * @param {string[]} terms `Object.keys(match.matchedFields)` — minisearch's
  *   *matched document terms*, so they occur verbatim (case-insensitively) in
  *   `content`; there is no stemming to undo.

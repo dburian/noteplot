@@ -1,24 +1,21 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import path from 'node:path';
-import pino from 'pino';
 import { createServer, build as viteBuild } from 'vite';
-import { preprocess } from './note_preprocessor.js';
+import { preprocess } from './preprocessor/index.js';
+import { logger } from './preprocessor/log.js';
 import { fileURLToPath } from 'node:url';
-
-const logger = pino({
-  transport: {
-    target: 'pino-pretty'
-  }
-});
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 // The site lives in this package, not in whatever directory the user happens to
 // be standing in, so every path we hand the preprocessor is resolved against the
 // package root.
-const SAVE_PATH = path.join(__dirname, 'src/lib/notes/');
+const SAVE_PATH = path.join(__dirname, 'src/lib/generated/');
 const IMG_SAVE_PATH = path.join(__dirname, 'static/note_imgs/');
+// Parsed notes and graph positions, kept between runs. Disposable: deleting it
+// costs one slow start.
+const CACHE_PATH = path.join(__dirname, '.cache/noteplot/');
 
 const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'];
 
@@ -78,6 +75,7 @@ async function watch(noteRootArg, options, command) {
     savePath: SAVE_PATH,
     imgSavePath: IMG_SAVE_PATH,
     imgUrl: '/note_imgs/',
+    cachePath: CACHE_PATH,
     noteRoot
   });
 
@@ -95,6 +93,7 @@ async function build(noteRootArg, options, command) {
     savePath: SAVE_PATH,
     imgSavePath: IMG_SAVE_PATH,
     imgUrl: `${opts.basePath}/note_imgs/`,
+    cachePath: CACHE_PATH,
     noteRoot
   });
 

@@ -18,8 +18,8 @@ prerender** — any `window`, `localStorage` or `sessionStorage` access needs a 
 +layout.svelte               imports app.css, renders <slot/>. Nothing else.
 +error.svelte                status + message, link back to the index
 
-(app)/+layout.js             dynamically imports __graph.json, `prerender = true`
-(app)/+layout.svelte         <WithAppState nodes vizDescriptors><AppShell/>  — no page slot
+(app)/+layout.js             dynamically imports generated/index.json, `prerender = true`
+(app)/+layout.svelte         <WithAppState notes vizDescriptors><AppShell/>  — no page slot
 ```
 
 The group was called `(graph)` and is now `(app)`: it is not "the graph group" any more, it is the
@@ -41,10 +41,14 @@ descriptors in as `vizDescriptors`, so `createVizState` learns each visualizatio
 `defaultSettings` without the state layer importing the visualization layer. Do not "simplify" that
 by importing the registry inside `WithAppState`.
 
-`(app)/+layout.js` does `await import('$lib/notes/__graph.json')` **inside `load`**. It must stay
-a dynamic import: a static one is inlined into the JS bundle by Vite, so the entire graph would load
-with every page (ISSUES.md B2). `load` runs at build time for the prerender and in the browser on
-navigation either way, so nothing else changes.
+`(app)/+layout.js` does `await import('$lib/generated/index.json')` **inside `load`**: the note
+index (`{slug, title, path, matter}` per note) that `NOTES_INDEX` is built from. It must stay a
+dynamic import: a static one is inlined into the JS bundle by Vite (ISSUES.md B2).
+
+It used to load the whole graph instead, and derive the note index from the graph's nodes. That
+tied "which notes exist" to one visualization and sent every page the graph whether anything drew
+it or not. Graph data is now loaded by `VizPane` through `$lib/viz/data.js`, one lazy chunk per
+`generated/viz/<dataId>.json`. See `src/lib/viz/CLAUDE.md`.
 
 ## Route table
 
@@ -133,11 +137,11 @@ Both note routes are three lines over `src/lib/notes_route.js`, which owns the o
 generated JSON:
 
 ```js
-const noteModules = import.meta.glob('$lib/notes/*.json'); // slug -> lazy loader
+const noteModules = import.meta.glob('$lib/generated/notes/*.json'); // slug -> lazy loader
 export function getNote(slug); //         Note | Promise<Note>, memoised per slug
 export async function loadNote(slug); //  error(404) on a miss; warms the same cache
 export function noteEntries(); //         [{slug}, ...] for prerendering
-export function loadSearchNotes(); //     the memoised __search.json promise
+export function loadSearchNotes(); //     the memoised search.json promise
 ```
 
 `getNote` is what the content pane's columns call, and the two share one cache — which is the link
@@ -145,7 +149,7 @@ between a route's `load` and a prerendered page having the note in it. Its rules
 `src/lib/CLAUDE.md`; the one to know here is that **it returns the same reference for the same
 slug**, and an `async` function cannot.
 
-It also holds the `Note` typedef — the frontend's description of what `note_pipeline.js` writes
+It also holds the `Note` typedef — the frontend's description of what `preprocessor/emitters/notes.js` writes
 into each `<slug>.json`. It is a description and not a contract: nothing validates it, so it has
 to be kept in step with the preprocessor by hand. `NoteContent` takes one prop of that type.
 
@@ -157,7 +161,7 @@ duplicated into both route chunks, and a missing slug 404s from a `Map` miss rat
 caught import rejection.
 
 `loadSearchNotes()` replaces the two deleted `search/+page.js` and `filter/+page.js` loaders. It
-is **not** in `(app)/+layout.js`: `__search.json` is the plaintext of every note, and only a
+is **not** in `(app)/+layout.js`: `search.json` is the plaintext of every note, and only a
 visitor who actually opens an overlay should pay for it. Two properties are load-bearing:
 
 - the `import()` is dynamic, for the same reason as the glob (ISSUES.md B2);
@@ -177,12 +181,12 @@ at runtime and nothing depends on the process CWD.
 
 Two things worth knowing:
 
-- The routes are still **coupled to the preprocessor's output path** — `$lib/notes/*.json` is
+- The routes are still **coupled to the preprocessor's output path** — `$lib/generated/notes/*.json` is
   written into the glob pattern — but only in that one module, and Vite resolves it relative to the
   package rather than to wherever the build was started.
-- The `__`-prefix convention is what keeps `__graph.json` and `__search.json` from being treated as
-  notes; `notes_route.js` is now the single place it is enforced. Do not name a generated file
-  without that prefix.
+- Notes live in `generated/notes/` and nothing else does, so the glob needs no filter. The old
+  `__`-prefix convention that kept `__graph.json` and `__search.json` out of it is gone. Put any
+  new generated file somewhere other than `generated/notes/`.
 
 In dev, Vite re-evaluates the glob when a file appears, so a note added while the watcher is
 running is reachable without restarting vite. Verified by hand — worth re-checking if this module
@@ -199,7 +203,7 @@ carries its own.
 
 ## Slugs
 
-Slugs come from `toSlug` in `unify_pipelines.js` — see the root `CLAUDE.md` for the encoding. They
+Slugs come from `toSlug` in `preprocessor/slug.js` — see the root `CLAUDE.md` for the encoding. They
 are **escaped and therefore opaque**: `-` separates path components and `~` escapes a literal `-`,
 so never split a slug on `-` to recover a path. Pass `params.slug` through as the key it is.
 

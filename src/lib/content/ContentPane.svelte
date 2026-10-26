@@ -79,7 +79,7 @@
    * pages render nothing now, so a route-level `<title>` has nowhere to live
    * anyway.
    *
-   * The titles come from `__graph.json`, so this is correct during prerender
+   * The titles come from `index.json`, so this is correct during prerender
    * too.
    */
   $: focusedSlug = $tiles.tiles[$tiles.focusIndex]?.slug ?? null;

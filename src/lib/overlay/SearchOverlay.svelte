@@ -38,7 +38,7 @@
   let highlight = 0;
 
   /**
-   * Monotonic run counter. Every search awaits twice — the lazy `__search.json`
+   * Monotonic run counter. Every search awaits twice — the lazy `search.json`
    * import and `index.ready()` — so two keystrokes can be in flight at once and
    * nothing orders their resolutions. Only the newest run may write `results`.
    */

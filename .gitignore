@@ -1,6 +1,7 @@
 .DS_Store
 node_modules
-src/lib/notes
+src/lib/generated
+/.cache
 static/note_imgs
 /test_notes
 /build

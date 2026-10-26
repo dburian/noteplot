@@ -1,4 +1,5 @@
 import { forceGraph } from './force_graph/index.js';
+import { tagGraph } from './tag_graph/index.js';
 
 /**
  * The visualization registry — the enumeration the toolbar's switcher lists and
@@ -21,13 +22,16 @@ import { forceGraph } from './force_graph/index.js';
  * @typedef {Object} Visualization
  * @property {string} id stable; the settings key, and what is persisted to localStorage
  * @property {string} label shown in the toolbar switcher
+ * @property {string | null} dataId which `src/lib/generated/viz/<dataId>.json` the
+ *   View is handed as `data` -- the id of the preprocessor emitter that writes
+ *   it. `null` for a visualization that needs no generated data.
  * @property {any} View Svelte component; props `{data, settings, callbacks}`
  * @property {any} Controls Svelte component rendered into the toolbar; no props, may be null
  * @property {Record<string, unknown>} defaultSettings
  */
 
 /** @type {Visualization[]} */
-export const visualizations = [forceGraph];
+export const visualizations = [forceGraph, tagGraph];
 
 /**
  * Falls back to the first entry rather than returning `undefined`. `viz.activeId`

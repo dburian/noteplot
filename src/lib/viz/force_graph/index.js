@@ -15,6 +15,7 @@ import ForceGraphControls from './ForceGraphControls.svelte';
 export const forceGraph = {
   id: 'force-graph',
   label: 'Force graph',
+  dataId: 'links',
   View: ForceGraphView,
   Controls: ForceGraphControls,
   defaultSettings: { showConnections: true, showTagsGlow: true }
