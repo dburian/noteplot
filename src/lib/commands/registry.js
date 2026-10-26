@@ -190,7 +190,7 @@ export const commands = [
     group: 'Navigation',
     // Closing the filter overlay does not clear the filter, so this is the one
     // command that undoes it from anywhere.
-    enabled: (ctx) => ctx.values.filter.query !== null,
+    enabled: (ctx) => ctx.values.filter.text !== '',
     run: (ctx) => ctx.filter.clear()
   },
   {

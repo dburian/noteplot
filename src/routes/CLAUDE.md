@@ -94,7 +94,7 @@ you type or share.
 `$lib/state/url_state.js` is the only module that reads or writes the URL. The full form:
 
 ```
-/<focused-slug>?tile=<slug>&tile=<slug>&focus=<n>&layout=<mode>&overlay=<kind>&q=<query>
+/<focused-slug>?tile=<slug>&tile=<slug>&focus=<n>&layout=<mode>&overlay=<kind>&q=<query>&filter=<text>
 ```
 
 | Part      | Meaning                                                                              |
@@ -105,6 +105,7 @@ you type or share.
 | `layout`  | `viz` \| `content`. Omitted for the `split` default and under `/notes/`              |
 | `overlay` | `search` \| `filter` \| `commands` \| `settings` \| `shortcuts`. Omitted when closed |
 | `q`       | the overlay's query. Omitted when the overlay is closed or the query is empty        |
+| `filter`  | the applied filter's text, overlay or not. Omitted when no filter is applied         |
 
 The path stays in the URL because it is what keeps the `[slug]` route, its `load`, and
 prerendering working untouched — and it keeps the common single-note URL clean and shareable.
@@ -116,7 +117,7 @@ The legacy `?onlyContent` / `?noContent` params are gone; `buildUrl` strips them
 **None of these params exist on the server.** `url_state.js`'s `params()` returns an empty
 `URLSearchParams` unless `window` is defined, because the prerendered HTML for `/<slug>` is one
 file serving every query string — reading them at build time would bake one guess into all of
-them. So the server always renders the default: split layout, one tile, no overlay. The real state
+them. So the server always renders the default: split layout, one tile, no overlay, no filter. The real state
 is applied by the client's own `readUrlState` at hydration, which is a flash of the default layout
 on a deep link and not a bug. Verify layout deep links **in the browser**; `curl` will always show
 you `split`.
@@ -141,7 +142,6 @@ const noteModules = import.meta.glob('$lib/generated/notes/*.json'); // slug -> 
 export function getNote(slug); //         Note | Promise<Note>, memoised per slug
 export async function loadNote(slug); //  error(404) on a miss; warms the same cache
 export function noteEntries(); //         [{slug}, ...] for prerendering
-export function loadSearchNotes(); //     the memoised search.json promise
 ```
 
 `getNote` is what the content pane's columns call, and the two share one cache — which is the link
@@ -160,19 +160,12 @@ this object. The difference is that the map now lives in one shared chunk instea
 duplicated into both route chunks, and a missing slug 404s from a `Map` miss rather than from a
 caught import rejection.
 
-`loadSearchNotes()` replaces the two deleted `search/+page.js` and `filter/+page.js` loaders. It
-is **not** in `(app)/+layout.js`: `search.json` is the plaintext of every note, and only a
-visitor who actually opens an overlay should pay for it. Two properties are load-bearing:
-
-- the `import()` is dynamic, for the same reason as the glob (ISSUES.md B2);
-- it returns the **same promise**, and therefore the same array, every time. `getSearchIndex` in
-  `src/lib/search/search_index.js` memoises one built index on that array's identity, so a copy or
-  a spread would silently re-index the whole corpus.
-
-The overlays do not call it directly — they go through `src/lib/search/lazy_index.js`, which pairs
-it with a dynamic `import()` of `search_index.js` itself. That second one matters for the same
-reason: the overlays are mounted by `(app)/+layout.svelte`, so a static import would pull
-`minisearch` into the chunk **every** page loads.
+`search.json` is **not** loaded by any route, nor by `(app)/+layout.js`. It is the plaintext of
+every note, and only a visitor who actually searches should pay for it, so the one `import()` of
+it is inside the search worker (`src/lib/search/search.worker.js`), started when a search or
+filter overlay opens, or when a `?filter=` link is applied.
+A static import anywhere the overlays reach would put the whole collection's text into the chunk
+**every** page loads. See `src/lib/CLAUDE.md`'s `search/` section.
 
 ## Prerender enumeration
 

@@ -104,6 +104,13 @@ container. Every column loads its own note the same way, through `notes_route.js
 route's pages render nothing at all. Nothing scrolls the window, so scroll restoration across
 back/forward is implemented by hand in `src/lib/content/scroll_memory.js`.
 
+Full-text search runs in a **Web Worker** (`$lib/search/search.worker.js`), started when a
+search or filter overlay opens. The worker downloads `search.json` (bodies only) and builds the minisearch index; the page
+sends it `index.json`'s titles, paths and matter, and gets slugs and snippets back. The design is
+sized for about **10k notes** (measured: ~6 s to build in the worker, 5–20 ms per query, ~1 KB
+gzipped per note to download). Well past that, the download and the build call for a sharded,
+per-term static index instead. See `src/lib/CLAUDE.md`'s `search/` section.
+
 Search, filter, the command palette and settings (with its keyboard-shortcuts sub-page) are
 **modal overlays over the content area**, not routes —
 `$lib/overlay/OverlayHost.svelte`, mounted inside the content pane so the toolbar stays clickable
@@ -120,7 +127,7 @@ deleted rather than carried along, and a mobile shell is a later effort.
 | ------------------------------------- | ------------------------------------------------------------------------------------ |
 | `src/lib/generated/notes/<slug>.json` | one per note: `html`, title, links, backlinks, matter, reading time, path(s)         |
 | `src/lib/generated/index.json`        | `[{slug, title, path, matter}]` — the frontend's `NOTES_INDEX`                       |
-| `src/lib/generated/search.json`       | `[{slug, path, title, content, matter}]` plaintext records                           |
+| `src/lib/generated/search.json`       | `[{slug, content}]` plaintext bodies, read only by the search worker                 |
 | `src/lib/generated/viz/<id>.json`     | one per graph emitter: `{viewBox, nodes, links}`; links are `{source, target}` slugs |
 | `static/note_imgs/`                   | images copied out of the note directory                                              |
 | `.cache/noteplot/`                    | parsed records, graph positions, the write manifest — disposable                     |
@@ -216,7 +223,7 @@ exercise the UI.
   each with `.light`/`.dark`) and a `prose-noteplot` theme live in `tailwind.config.js`.
 - **unified / remark / rehype** for markdown, **MathJax** for maths, **Shiki** for code.
 - **d3** for both the build-time force layout and the runtime canvas zoom.
-- **minisearch** for search, filter, and nothing else — the command palette scores its dozen
+- **minisearch** for search, filter, and nothing else, inside a Web Worker — the command palette scores its dozen
   static strings by hand in `src/lib/commands/match.js`.
 - **pino** + `pino-pretty` for logging; **`watcher`** for filesystem events; **commander** for
   the CLI.
@@ -253,7 +260,7 @@ virtual module is not.
 | `src/lib/toolbar/`       | the three-section top strip and its button stack                      |
 | `src/lib/overlay/`       | the modal host and the search / filter / command screens              |
 | `src/lib/commands/`      | the command registry (also every shortcut's action and default keys)  |
-| `src/lib/search/`        | the shared input, result row, and the memoised minisearch index       |
+| `src/lib/search/`        | the shared input, result row, query parser, and the search worker     |
 | `src/lib/viz/`           | the registry, the pane that hosts it, and the force graph renderer    |
 | `static/`                | favicons, manifest, and generated `note_imgs/`                        |
 | `.tmux`                  | the author's dev session bootstrap; not part of the build             |
@@ -280,7 +287,7 @@ nothing should. Doubling the delimiter (`-` → `--`) looks equivalent but is am
 boundaries; see `ISSUES.md` A13.
 
 If you need a note's **location** — the search results show one — take it from the `path` field
-the preprocessor writes into `search.json` and `index.json` (`toDisplayPath` in
+the preprocessor writes into `index.json` (`toDisplayPath` in
 `preprocessor/slug.js`), which is the file's path relative to the note root with `/` separators. That field exists precisely so nothing has to invert `toSlug`:
 `edge/a-b.md` slugs to `edge-a~-b`, and a naive `split('-')` gets it wrong in a way that looks
 right on most notes.

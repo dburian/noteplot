@@ -132,28 +132,3 @@ export async function loadNote(slug) {
 export function noteEntries() {
   return [...notesBySlug.keys()].map((slug) => ({ slug }));
 }
-
-/**
- * The plaintext of every note, for the search and filter overlays.
- *
- * Dynamic, for the same reason as the glob above: a static import of
- * `search.json` gets inlined into the bundle (ISSUES.md B2). It used to live
- * in the `/search` and `/filter` routes' `load`s, which are gone -- the
- * overlays are reachable from anywhere now, so the fetch has to be lazy rather
- * than route-scoped.
- *
- * Returning the *same* promise every time is load-bearing: `getSearchIndex`
- * memoises one index on the notes array's identity, so a second array would
- * re-index the whole corpus (ISSUES.md B3).
- *
- * @type {Promise<any[]> | null}
- */
-let searchNotesPromise = null;
-
-export function loadSearchNotes() {
-  if (!searchNotesPromise) {
-    searchNotesPromise = import('$lib/generated/search.json').then((m) => m.default);
-  }
-
-  return searchNotesPromise;
-}

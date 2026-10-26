@@ -33,8 +33,8 @@ function dist(p1, p2) {
  * @typedef {{showConnections: boolean, showTagsGlow: boolean}} ForceGraphSettings
  * @typedef {import("svelte/store").Readable<ForceGraphSettings>} SettingsStore
  * @typedef {{
- * query: import("minisearch").Query | null,
- * results: import("$lib/search/search_index").Match[] | null,
+ * query: import("$lib/search/query.js").ParsedQuery | null,
+ * results: import("$lib/search/search_client.js").Match[] | null,
  * }} FilterState
  * @typedef {import("svelte/store").Readable<FilterState>} FilterStore
  */
@@ -782,7 +782,7 @@ export class CanvasGraph {
     // The results the filtered maps were last built from. `undefined`, not
     // `null`, so the store's initial `{query: null, results: null}` still
     // counts as a change and the subscription's first call runs.
-    /** @type {import("$lib/search/search_index").Match[] | null | undefined} */
+    /** @type {import("$lib/search/search_client.js").Match[] | null | undefined} */
     this.filterResults = undefined;
     this.filterUnsubscribe = filter.subscribe(this.onFilterChange);
 

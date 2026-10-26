@@ -25,5 +25,8 @@ const precompiledTailwindConfig = {
 };
 
 export default defineConfig({
-  plugins: [sveltekit(), precompiledTailwindConfig]
+  plugins: [sveltekit(), precompiledTailwindConfig],
+  // The search worker `import()`s search.json; the default `iife` worker
+  // format cannot code-split, so that import would fail the build.
+  worker: { format: 'es' }
 });

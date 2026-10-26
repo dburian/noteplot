@@ -28,8 +28,9 @@
 
   // Closing the filter overlay does not clear the filter, so "is the overlay
   // open" and "is a filter in force" are different questions. The badge answers
-  // the second one.
-  $: filterActive = $filter.query !== null;
+  // the second one. `text` rather than `query`, so the badge is up from the
+  // moment a `?filter=` link starts applying, not once its search returns.
+  $: filterActive = $filter.text !== '';
 
   // Both tile operations act on the focused column, so both are absent when
   // there is none. `tiles.splitRight` is a no-op at zero tiles anyway; hiding

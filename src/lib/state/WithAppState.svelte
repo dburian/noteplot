@@ -2,6 +2,7 @@
   import { afterNavigate, goto, replaceState } from '$app/navigation';
   import { navigating, page } from '$app/stores';
   import { onMount, setContext, tick } from 'svelte';
+  import { get } from 'svelte/store';
 
   import * as keys from './keys.js';
   import { createNotesIndex } from './notes_index.js';
@@ -51,7 +52,7 @@
   const overlay = createOverlayState({ kind: initial.overlay, query: initial.query });
   const prefs = createPrefsState();
   const viz = createVizState(vizDescriptors);
-  const filter = createFilterState();
+  const filter = createFilterState(notesIndex);
   // The command registry is pure data over store actions, so importing it here
   // does not make the state layer depend on any component. The per-viz
   // commands are built from the injected descriptors, and the shortcuts store
@@ -95,6 +96,10 @@
       if (next.overlay) overlay.open(next.overlay);
       else overlay.close();
       overlay.setQuery(next.query);
+      // Applying runs a search — on a first load with `?filter=`, that starts
+      // the search worker before anyone opened an overlay, which is the point:
+      // the graph has to come up filtered.
+      if (next.filter !== get(filter).text) filter.apply(next.filter).catch(console.error);
       return;
     }
 
@@ -236,7 +241,8 @@
       tileSlugs: $tiles.tiles.map((t) => t.slug),
       focusIndex: $tiles.focusIndex,
       overlay: $overlay.kind,
-      query: $overlay.query
+      query: $overlay.query,
+      filter: $filter.text
     });
     if (target.href !== $page.url.href) replaceState(target, {});
   }

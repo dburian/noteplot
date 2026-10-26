@@ -47,7 +47,7 @@ returns `{ subscribe, ...named actions }` and no bare `set`, following the exist
 | `OVERLAY`             | `overlay.js`           | `{kind, query}`                          | `kind` is `null｜'search'｜'filter'｜'commands'｜'settings'｜'shortcuts'` |
 | `PREFS`               | `prefs.js`             | `{showMeta}`                             | `localStorage`                                                            |
 | `VIZ`                 | `viz.js`               | `{activeId, settings: {[vizId]: {...}}}` | `localStorage`; per-visualization settings slices                         |
-| `FILTER`              | `filter.js`            | `{query, results}`                       | moved verbatim from `search/WithFilterContext.svelte`                     |
+| `FILTER`              | `filter.js`            | `{text, query, results}`                 | runs its own search — `apply(text)`; `text` is `?filter=`                 |
 | `SHORTCUTS`           | `shortcuts.js`         | `{bindings, byChord, overrides}`         | `localStorage`; stores only overrides of `defaultKeys`                    |
 | `COMMANDS`            | `commands/registry.js` | `{list, byId}`                           | not a store — `buildCommands(vizDescriptors)`, static like `NOTES_INDEX`  |
 
@@ -56,8 +56,11 @@ Three invariants in there are load-bearing and easy to "simplify" away:
 - **`selection.hover()` returns the state object untouched** when the slug has not changed, so no
   subscriber fires. It runs on every pointermove over a node; a fresh object each time meant a
   full graph redraw each time (ISSUES.md C1).
-- **`filter.setQueryAndResults` is one call, not two.** `CanvasGraph.onFilterChange` early-returns
-  on an unchanged `results` reference, which only helps if there is a single write (ISSUES.md C11).
+- **`filter.apply` writes `query` and `results` in one update, not two.** `CanvasGraph.onFilterChange`
+  early-returns on an unchanged `results` reference, which only helps if there is a single write
+  (ISSUES.md C11). It writes `text` first, on its own and at once, because the URL is written from
+  `text` — a `?filter=` being applied on first load would otherwise be stripped from the address bar
+  while its search runs.
 - **Tile ids are a monotonic counter, never random.** They key the `{#each}` _and_ the scroll
   memory, so `Math.random()` / `Date.now()` here would break scroll restoration.
 
@@ -82,7 +85,7 @@ running on the server) and try/catch (storage throws in private-mode Safari).
 layout:
 
 ```
-/<focused-slug>?tile=<slug>&tile=<slug>&focus=<n>&layout=<mode>&overlay=<kind>&q=<query>
+/<focused-slug>?tile=<slug>&tile=<slug>&focus=<n>&layout=<mode>&overlay=<kind>&q=<query>&filter=<text>
 ```
 
 - The **path** is the focused tile's slug — redundant with `tile`/`focus` and deliberately so: it
@@ -91,6 +94,11 @@ layout:
   a slug can contain a comma and a joined list would be ambiguous. Omitted for a single tile.
 - `layout` is omitted for the `split` default, and also under `/notes/`, whose pathname already
   means content-only. The old `?onlyContent` / `?noContent` are gone, and `buildUrl` strips them.
+- **`filter` is independent of `overlay`.** Closing the filter overlay leaves the filter applied,
+  so the URL has to keep it too, or a reload drops a filter the graph still shows. On `enter` and
+  `popstate` the reconcile calls `filter.apply(next.filter)` when it differs from `$filter.text` —
+  which on a first load starts the search worker with no overlay open, because the graph has to
+  come up filtered.
 
 **The two directions have different rules. Do not unify them.**
 
@@ -436,9 +444,7 @@ Three rules in `getNote`:
 - **A rejection is evicted from the cache**, so the next render retries rather than being stuck in
   `{:catch}` forever after one failed chunk fetch.
 
-It also exports `loadSearchNotes()`, a memoised lazy loader for `search.json`. It returns the
-**same promise** every call, because `getSearchIndex` memoises the built index on the resolved
-array's identity.
+`search.json` is deliberately **not** loaded here; the search worker imports it (see `search/`).
 
 ### `note/`
 
@@ -474,34 +480,81 @@ because the mobile branch had no provider. There is one provider for the whole a
 
 ### `search/`
 
-`search_index.js` exports `MiniSearchIndex`, the only index actually used. It wraps `minisearch`
-over the `content`, `title`, and `tag` fields, and `parseSearchString` implements a small query
-language: bare terms, quoted phrases, and `field:term` prefixes, all combined with `AND`. The
-field list is the module constant `FIELDS`, read by both the constructor and the parser — one
-list, so `field:` cannot name something that was never indexed. (It used to be read back out of
-`minisearch`'s `protected _options`.)
+Search is split across a **Web Worker**, and the split is the design. The worker holds the
+index and every note's body; the page holds neither.
 
-**Do not construct it directly — call `getSearchIndex(notes)`.** It memoises one instance on the
-`notes` array's identity, so search and filter share the built index instead of re-indexing the
-corpus on every mount (ISSUES.md B3). Feed it `loadSearchNotes()`'s resolved array untouched; copy
-or spread it and the memo does not hold.
+```
+overlay ── parseSearchString(text) ──▶ ParsedQuery            query.js       (main thread, pure)
+        ── client.search(parsed) ────▶ search.worker.js       search_client.js
+                                        └─ search_core.js     minisearch + phrase/path filters + snippets
+        ◀── {matches: Match[], snippets}   slugs joined back to NOTES_INDEX on the main thread
+```
 
-**And do not import this module from anything the overlays import eagerly** — `lazy_index.js`
-exists to keep that from happening. It `import()`s `search_index.js` and `loadSearchNotes()`
-together and memoises the resulting promise, so `minisearch` and the plaintext of every note both
-arrive on the first overlay open rather than in the `(app)` layout chunk, which loads on every
-page. That is worth about 20 kB of the chunk, and it is the only reason the overlays never name
-`getSearchIndex`.
+- **`query.js`** parses the search box into plain data, a `ParsedQuery` of `{blocks, paths}`. It is
+  plain so that it can cross `postMessage`, sit in the `FILTER` store, and be what `QueryDisplay`
+  renders. A minisearch `Query` can hold `MiniSearch.wildcard`, a `Symbol`, which structured clone
+  refuses. It imports no minisearch. The language is documented at the top of the file: bare words,
+  `"phrases"`, `title:`/`tag:`/`content:`, `path:dir`, and `-` to negate any of them, all ANDed.
+  `FIELDS` is the one list of indexed fields, read by both the parser and the index.
+- **`search_core.js`** is the engine: `createSearchEngine(NOTES_INDEX.all, search.json)` builds the
+  index and returns `{search, snippets}`. It is pure apart from minisearch, so drive it from `node`
+  to check a change — there are no tests.
+- **`search.worker.js`** is the protocol around it (documented in its header). Requests that arrive
+  while the index builds wait for it, in order.
+- **`search_client.js`** owns the one worker. `getSearchClient(notesIndex)` starts it when a search
+  or filter overlay **mounts** (or `?filter=` is applied), not at load — early enough that the index
+  builds while the first query is typed, late enough that the worker downloads every note's plaintext, which a visitor who
+  never searches should not pay for, and the overlays are mounted in the layout chunk every page
+  loads. Only the worker's URL lands in that chunk; `minisearch` and `search.json` are in the
+  worker's own (`build/_app/immutable/workers/`). One worker means search and filter share one
+  index.
+- **`fold.js`** is `fold()`: NFD, strip combining marks, lowercase. It is minisearch's `processTerm`
+  at index and query time, the phrase normaliser, and what `snippet.js` matches against. Those three
+  must stay one function, or a term would match without ever highlighting.
 
-`SearchWindow.svelte` and `FilterWindow.svelte` are **deleted**, along with the `/search` and
-`/filter` routes that rendered them. What is left in here is the three pieces the overlays are
-built out of, and two rules the deleted windows encoded that had to survive into them:
+Matching behaviour, and why each piece is shaped the way it is:
 
-- **`await index.ready()` before every `search()`.** Construction is `addAllAsync`, so a query
-  typed straight after the overlay opens would otherwise run against a half-built index
-  (ISSUES.md B3, B4). The `searching` flag driving the "searching …" state is that await.
-- **Filter writes one `setQueryAndResults`,** never a `setQuery` then a `setResults`. The pair it
-  replaces made the graph rebuild its filtered maps and redraw twice per keystroke (ISSUES.md C11).
+- **Diacritics fold both ways**: `cas` finds `čas`, and `čas` finds `cas`.
+- **Prefix matching applies to the last word only, from `PREFIX_MIN` = 3 characters, and not once
+  the input ends in a space.** At 10k notes a 1-character prefix query took ~200 ms and a
+  2-character one ~9 ms, against ~1 ms at three.
+- **Typo tolerance** (minisearch `fuzzy: 0.2`) applies to unquoted, non-negated words of 4 or more
+  characters. Negated words are exact, because excluding a word's typo-neighbours would drop notes
+  you never named.
+- **Boosts**: title 3, tag 2, body 1.
+- **`"a phrase"`** is minisearch's AND of its words, then a post-filter on word order over the
+  folded, punctuation-stripped text. The normalised text is cached per note on first use: uncached,
+  a phrase of two common words took 1.4 s per keystroke at 10k notes. Cached, the first such query
+  still costs about that much (in the worker, so the page stays responsive) and later ones take
+  ~30 ms. **A negated phrase is only a post-filter**, never `AND_NOT` of its words, which would
+  exclude every note that merely contains all of them.
+- **`path:`** is a post-filter on the note's folded relative path (a prefix, or any `/`-started
+  component), deliberately not an indexed field: indexing it would reweight every result.
+- **Options are set explicitly on every sub-query.** minisearch passes a combination's options down
+  to its children, so a block under the `AND_NOT` root that leaves `combineWith` unset inherits
+  `AND_NOT`.
+
+**The overlays render `PAGE` = 50 rows**, with a "show more" row that asks the worker for the
+next page's snippets. A broad term can match the whole collection, and both the rows (DOM) and the
+snippets (~50 µs each) scale with what is rendered. The filter still hands **every** match to
+the graph; only its preview is paged.
+
+**The filter runs its search in the store**, `filter.apply(text)`, not in the overlay, because a
+filter is also applied from `?filter=` with no overlay open. One `apply` means one "newest run
+wins" counter between the two sources. The overlay's snippets are local state, never in the store:
+rewriting `results` to attach them would change the reference the graph compares. Its preview is
+reactive on `$filter.results` — so it follows a filter changed under it by back/forward — and
+shows a result set only once that set's visible snippets have arrived (`displayed`).
+
+**Old results stay up while the next query runs**, in both overlays. A query takes milliseconds,
+and swapping the list for "searching …" on every keystroke only made it flicker; the "indexing /
+searching" state shows only when there is nothing yet to show.
+
+**Results light their node in the visualization**, through `selection.hover` — the same channel
+prose links use. In search the keyboard cursor drives it (`$: selection.hover(...)` on
+`results[highlight]`), and since the pointer moves the cursor, the pointer too; in filter, which
+has no cursor, row `mouseenter`/`mouseleave`. Both clear it on destroy, or closing with Escape
+would leave a node lit.
 
 `SearchBar.svelte` is the input for **all three** overlays and is the panel's header row, not the
 `text-xl` bordered box in the middle of a page it used to be. Three behavioural changes came with
@@ -525,30 +578,46 @@ The click is still intercepted — opening a note means writing a tile, not navi
 when Ctrl/Cmd/Shift is held, which is a request for a new tab and the browser's to honour.
 
 It is four lines now, not one: title with the note's directory right-aligned, tag chips, a
-match-centred snippet, and the `showMeta` readout. Three things in it will bite:
+match-centred snippet, and the `showMeta` readout. Matched terms are bolded in the title, the tags
+and the snippet — in the title and tags only the terms minisearch reports for _that_ field, so a
+body hit does not bold a title that merely contains the same word. Four things in it will bite:
 
-- **The directory comes from `match.note.path`**, the field `emitters/search.js` writes. It
-  is _not_ derived from the slug — see the root `CLAUDE.md`. Guard it: `path` is `?? ''` because an
-  `search.json` generated before the field existed must still render.
-- **The whitespace inside the snippet `{#each}` is load-bearing.** Svelte collapses a run of
-  whitespace in a text node to one space, so laying `{#if}`, `{#each}` and `</strong>` out on tidy
-  separate lines renders `convexity` as `convex ity`. There is a comment above it saying so; if you
-  reflow it, check the result with `compile(src, {generate: 'ssr'})`.
-- **The snippet is built from `matchedFields`' keys**, so it needs no extra data — but it is per
-  row, so it is also where a pathological result set would show up first.
+- **The directory comes from `match.note.path`**, the `NOTES_INDEX` entry's `path` (from
+  `index.json`). It is _not_ derived from the slug — see the root `CLAUDE.md`.
+- **Marked text is `Marked.svelte`, and its whitespace is load-bearing.** Svelte collapses a run
+  of whitespace in a text node to one space, so laying `{#if}`, `{#each}` and `</strong>` out on
+  tidy separate lines renders `convexity` as `convex ity` — and a comment above the markup, even
+  `<!-- prettier-ignore -->`, renders as a leading space (`# math`). The same goes for the
+  `…{/if}<Marked …/>{#if …}…` run in `SearchMatch`. Check any reflow with
+  `compile(src, {generate: 'ssr'})`.
+- **`highlight(text, terms)`** in `snippet.js` marks the title and each tag, on the main thread.
+  It shares the snippet's matching rules (folded, word-start), without the window.
+- **A `$:` statement must name its reactive inputs itself.** Svelte reads dependencies only from
+  the statement, never from inside a helper it calls, so the per-field terms helper takes `matched`
+  as a parameter. Closed over, `$: tagTerms = termsIn('tag')` named nothing reactive, compiled to a
+  one-off run at construction, before `matched` existed, and crashed every row. `npm run check` and
+  the build cannot see this; confirm with `compile(src, {dev: true})` that the statement sits
+  inside `$$self.$$.update`.
+- **The snippet is a prop**, built in the worker from `matchedFields`' keys, because the body
+  lives only there. It is `undefined` until it arrives, which renders the row without that line.
 
-`snippet.js` is the excerpt builder, and it is pure — no Svelte, no DOM, so it can be exercised
-from `node`. `buildSnippet(content, terms)` collapses the note's paragraph newlines once, slides a
+`snippet.js` is the excerpt builder. It runs in the worker and is pure — no Svelte, no DOM, so it
+can be exercised from `node`. `buildSnippet(content, terms)` collapses the note's paragraph newlines once, slides a
 220-character window to the first matched term (a third of it as lead), snaps both ends to a space,
 and returns `{parts, head, tail}` — alternating `{text, match}` runs plus whether each end was cut.
 Render `parts` with an `{#each}`; **never** `{@html}`, this is note text. Two rules inside it are
 deliberate and easy to "fix" wrongly:
 
-- **A leading word boundary, and no trailing one.** minisearch tokenises with neither prefix nor
-  fuzzy matching on, so a term in `matchedFields` is a whole token that really occurs in the note:
-  searching `form` cannot have matched `transformers`, and bolding the `form` inside it points at
-  text that had nothing to do with the hit. A _trailing_ boundary would be wrong the other way —
+- **A leading word boundary, and no trailing one.** Even with prefix and fuzzy matching on,
+  minisearch reports the _document_ term it hit (`convexity` for `conv`), so a term in
+  `matchedFields` is a whole token that really occurs in the note: `form` cannot have matched
+  `transformers`, and bolding the `form` inside it points at text that had nothing to do with the
+  hit. A _trailing_ boundary would be wrong the other way —
   it would refuse to bold the `convex` of `convexity`, which is what every good search UI does.
+- **Matching happens on folded text, slicing on the original.** The terms come back folded
+  (`cas`), so `foldWithMap` folds the note per character and keeps a map back to the original
+  offsets; a lone combining mark is attached to the letter before it, so a decomposed `č` is
+  bolded whole.
 - **`\p{L}\p{N}` with the `u` flag, not `\b`.** `\b` is ASCII-only in JavaScript, so in `časy`
   the `č` is a non-word character and `\bčas` never matches — which breaks on exactly the notes a
   personal collection is full of.
@@ -678,14 +747,14 @@ the point:
 | `Alt+Enter`  | opens in a new column, stays open     | —                                                |
 | `Escape`     | closes                                | closes; **the filter stays applied**             |
 
-That last cell is why `ContentSection`'s filter badge tracks `$filter.query` rather than
-`$overlay.kind`, and why a "Clear filter" command exists at all.
+That last cell is why `ContentSection`'s filter badge tracks `$filter.text` rather than
+`$overlay.kind`, and why a "Clear filter" command exists at all. `text` rather than `query`, so the
+badge is up from the moment a `?filter=` link starts applying.
 
-Both funnel every open through `openNote(tiles, layout, slug, {where})` — never `goto` — and both hold a
-monotonic `latest` counter, because each run awaits twice (the lazy `search.json` import, then
-`index.ready()`) and nothing orders two in-flight keystrokes. Only the newest run may write its
-results. Both also pass `loadSearchNotes()`'s resolved array to `getSearchIndex` **untouched**; a
-copy or a spread re-indexes the corpus (ISSUES.md B3).
+Both funnel every open through `openNote(tiles, layout, slug, {where})` — never `goto` — and both
+order their runs, because each is a worker round trip and nothing orders two in-flight keystrokes'
+replies: search with a monotonic `latest` counter in the overlay, filter inside `filter.apply`. Both say "indexing notes
+…" rather than "searching …" while the first search waits for the index to build.
 
 `overlay.setQuery` is called from inside the search handler, so `?q=` is already debounced by
 `SearchBar` — there is no second timer, and no `replaceState` per keystroke.

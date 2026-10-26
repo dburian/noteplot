@@ -8,7 +8,7 @@ import { OVERLAY_KINDS } from './overlay.js';
  * at rather than just which note was on top:
  *
  * ```
- * /<focused-slug>?tile=<slug>&tile=<slug>&focus=<n>&layout=<mode>&overlay=<kind>&q=<query>
+ * /<focused-slug>?tile=<slug>&tile=<slug>&focus=<n>&layout=<mode>&overlay=<kind>&q=<query>&filter=<text>
  * ```
  *
  * - **path** is the focused tile's slug. Redundant with `tile`/`focus`, and
@@ -22,6 +22,9 @@ import { OVERLAY_KINDS } from './overlay.js';
  * - **`layout`** is `viz` or `content`; omitted for the `split` default, and
  *   also omitted under `/notes/`, whose pathname already means content-only.
  * - **`overlay`** and **`q`** describe the modal; omitted when it is closed.
+ * - **`filter`** is the applied filter's text, independent of the overlay:
+ *   closing the filter overlay leaves the filter in force, so a reload or a
+ *   shared link has to keep it too. Omitted when no filter is applied.
  *
  * The `?onlyContent` / `?noContent` params this replaces are gone.
  *
@@ -33,6 +36,7 @@ import { OVERLAY_KINDS } from './overlay.js';
  *   focusIndex: number,
  *   overlay: OverlayKind | null,
  *   query: string,
+ *   filter: string,
  * }} UrlState
  */
 
@@ -127,7 +131,14 @@ export function readUrlState(url) {
     ? /** @type {OverlayKind} */ (rawOverlay)
     : null;
 
-  return { mode, tileSlugs, focusIndex, overlay, query: search.get('q') ?? '' };
+  return {
+    mode,
+    tileSlugs,
+    focusIndex,
+    overlay,
+    query: search.get('q') ?? '',
+    filter: search.get('filter') ?? ''
+  };
 }
 
 /**
@@ -135,7 +146,16 @@ export function readUrlState(url) {
  * legacy names from the pre-redesign content state, dropped so an old bookmark
  * does not leave a dead param wedged in the bar forever.
  */
-const OWNED_PARAMS = ['tile', 'focus', 'layout', 'overlay', 'q', 'onlyContent', 'noContent'];
+const OWNED_PARAMS = [
+  'tile',
+  'focus',
+  'layout',
+  'overlay',
+  'q',
+  'filter',
+  'onlyContent',
+  'noContent'
+];
 
 /**
  * Serialise state back into a URL.
@@ -185,6 +205,8 @@ export function buildUrl(currentUrl, state) {
     search.set('overlay', state.overlay);
     if (state.query) search.set('q', state.query);
   }
+
+  if (state.filter) search.set('filter', state.filter);
 
   return url;
 }

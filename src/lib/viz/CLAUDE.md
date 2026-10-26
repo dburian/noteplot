@@ -377,8 +377,9 @@ all: each store subscription compares the new state object by **reference** and 
 is the one already held, `selection.hover()` returns the state object untouched when the hovered
 slug has not changed — which is what stops a full redraw on every pointermove over a node
 (`ISSUES.md` C1) — and `onFilterChange` returns early when `newFilter.results` is the same
-reference as the maps were last built from, which only works because the filter is written with one
-`setQueryAndResults` call rather than two (`ISSUES.md` C11).
+reference as the maps were last built from, which only works because `filter.apply` writes `query`
+and `results` in one update rather than two (`ISSUES.md` C11). Its earlier write of `text` alone
+leaves `results` untouched, so it returns early too.
 
 ### Hit-testing
 
@@ -430,8 +431,8 @@ the hash does.
 `canvas_graph.js` carries the JSDoc typedefs the rest of the force graph refers to: `Node`, `Link`,
 `GlowPixel`, `FrontMatter`, `SelectionState`, `SelectionStore`, `ForceGraphSettings`,
 `SettingsStore`, `FilterState`, `FilterStore`. Keep them next to the code they describe.
-`search_index.js` imports `FrontMatter` from here, which is the one type dependency pointing into
-this directory from outside.
+`FilterState` names the search module's `ParsedQuery` and `Match` types; nothing outside this
+directory imports types from it.
 
 The store typedefs here are **`Readable`**, deliberately narrower than the real stores in
 `state/`: this code only ever subscribes.
