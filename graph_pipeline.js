@@ -174,12 +174,18 @@ export class GraphPipeline {
       // anything above 1 overshoots and amplifies, and the simulation reaches
       // NaN within ~100 ticks. The 60 and 1000 that used to sit here were
       // never applied (ISSUES.md A5) and each diverge on their own once they
-      // are. `repel` is a many-body charge, not a multiplier, hence -20.
+      // are. `repel` is a many-body charge, not a multiplier, hence negative.
+      //
+      // Only the ratio of in-cluster spacing to between-cluster gaps matters:
+      // `shrinkViewBox` fits the whole extent to the canvas, and the tag glow is
+      // sized in screen pixels. `link.distance` sets the former; `radial`, a
+      // linear pull to the origin, packs clusters until `repel` balances it.
+      // `distanceMax` must exceed a cluster's width, or clusters stop pushing.
       forces: {
-        link: { fn: d3.forceLink(links), strength: 1, distance: 0.1 },
-        repel: { fn: d3.forceManyBody(), strength: -20, distanceMax: 60, distanceMin: 0 },
+        link: { fn: d3.forceLink(links), strength: 0.7, distance: 10 },
+        repel: { fn: d3.forceManyBody(), strength: -10, distanceMax: 150, distanceMin: 1 },
         center: { fn: d3.forceCenter(), strength: 1 },
-        radial: { fn: d3.forceRadial(0.001, 0, 0), strength: 0.001 }
+        radial: { fn: d3.forceRadial(0, 0, 0), strength: 0.03 }
       },
       maxSteps: steps
     });
