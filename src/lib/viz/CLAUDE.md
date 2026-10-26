@@ -14,10 +14,12 @@ src/lib/viz/
   force_graph/
     index.js                  the Visualization descriptor — the only export the registry uses
     ForceGraphView.svelte     a <canvas> + onMount → new CanvasGraph(...)
-    ForceGraphControls.svelte the two toolbar toggles
+    ForceGraphControls.svelte the two toolbar toggles, for whichever graph is active
     canvas_graph.js           the renderer: three classes, no Svelte
   tag_graph/
     index.js                  descriptor only: the force graph's View over viz/tags.json
+  date_graph/
+    index.js                  descriptor only: the force graph's View over viz/dates.json
 ```
 
 ## The registry contract
@@ -64,7 +66,7 @@ reason `getNote` does: `VizPane` renders inside an `{#await}`, which tears its t
 every new promise, and here that would rebuild `CanvasGraph` and lose the zoom.
 
 The view is wrapped in **`{#key active.id}`**. `<svelte:component>` remounts only when `this`
-changes, and the link and tag graphs share `ForceGraphView` — without the key, switching between
+changes, and the link, tag and date graphs share `ForceGraphView` — without the key, switching between
 them would keep the old `CanvasGraph`, which has no update path from props, drawing the old graph.
 
 It supplies `callbacks`, which is the whole of what a visualization may do to the app:
@@ -136,7 +138,10 @@ Every position passes through three spaces, and `CanvasScreen` owns all conversi
 **1. viewBox space** — layout coordinates produced by the preprocessor's graph emitters
 (`preprocessor/emitters/graph/`). Node `x`/`y` come
 straight from the d3 force simulation, translated so the bounding box starts at the origin, with
-10% padding added around it. A graph file's `viewBox` is `[minX, minY, width, height]`, mirroring
+10% padding added around it. **The date graph is not translated.** Its layout sets
+`translate: false`, so x is absolute: `ms / timeAxis.msPerUnit`, with the epoch at 0. Its viewBox
+therefore starts far from the origin, which `toScreenPos`/`toViewBoxPos` and the hit-test grid
+handle already, since all of them subtract `viewBox.minX/minY`. A graph file's `viewBox` is `[minX, minY, width, height]`, mirroring
 the SVG attribute it is named after. Nothing about this space depends on the browser.
 
 `width` and `height` are always positive: `graph/layout.js`'s `fitViewBox` floors both at `MIN_VIEW_BOX_SIZE`
@@ -149,7 +154,9 @@ relax; the pins are stripped before serialising, which is why nothing in the gra
 them. A full re-layout happens only when no node has a position — the first run, or after
 `.cache/` is deleted (`ISSUES.md` A14). The one caveat: a new node landing left of or above the existing extent shifts every coordinate by
 the same amount, because the bounding box is always re-originated. Nodes never move _relative to
-each other_.
+each other_. The date graph has neither caveat. It is never re-originated, and its x is
+pinned by the emitter to each note's date rather than taken from the cache, so changing a note's
+date moves that one node and nothing else.
 
 **2. paintBox space** — CSS pixels. The viewBox is letterboxed into the **frame** while preserving
 aspect ratio, so `paintBox` is `{minX, minY, width, height}` describing where the graph actually
@@ -243,9 +250,14 @@ new CanvasGraph({
   filter,
   settings,
   onActivate,
-  onHover
+  onHover,
+  timeAxis // optional; null except for the date graph
 });
 ```
+
+`timeAxis` (`{originMs, msPerUnit}`) comes from the graph file through `ForceGraphView` as
+`data.timeAxis ?? null`. When it is set, `GraphRenderer` draws the date axis. Every other graph
+leaves it null and is drawn exactly as before.
 
 It knows nothing about the app beyond that. `selection`, `filter` and `settings` are **read**;
 the writes go out through `onActivate` and `onHover`. It imports no router — `onClick` used to
@@ -297,7 +309,7 @@ the `zoomBehavior` from `addZoom` on `this` and calling `zoomBehavior.transform(
 
 #### `GraphRenderer` — all drawing, no state
 
-`draw(nodes, links, glow, screen, selection, settings)` is the whole frame. `selection` and
+`draw(nodes, links, glow, screen, selection, settings, timeAxis)` is the whole frame. `selection` and
 `settings` arrive as two arguments because they are two stores: "which note is active" is app-wide
 and "should links be drawn" belongs to this visualization alone. They used to be one `graphState`
 object holding both.
@@ -309,11 +321,24 @@ leak per swap now.
 
 Draw order within a frame:
 
+0. date gridlines (only with a `timeAxis`)
 1. tag glow (if `showTagsGlow`)
-2. links (if `showConnections`)
+2. links: all of them if `showConnections`, otherwise only those of the hovered and the selected
+   note
 3. all nodes
 4. all labels, but only when `transform.k > 2`
 5. the active and hovered nodes **again**, so they land on top
+6. the date labels, in an opaque, borderless band along the canvas bottom (only with a `timeAxis`)
+
+**The date axis** (`timeTicks`) converts the visible canvas x-range back into time through
+`toViewBoxPos` and `timeAxis`, then lets `d3.scaleUtc` pick and format the ticks for about one tick
+per 90 px. Zooming in therefore moves from months to days on its own, and panning moves the ticks
+along. The band stays put vertically. Dates are UTC because the preprocessor writes every date as
+UTC midnight.
+
+**A node with `dateSource: 'mtime'`** (a note with no usable `created`, dated by its file's mtime)
+is drawn with a dashed outline at 45% opacity, and so is its label, unless it is hovered or
+selected. Nodes are hollow already, so hollowness alone would not set it apart.
 
 Steps 1–4 are **culled against the visible box** — the whole canvas, computed
 once per frame by `visibleBox()`. Everything above the fit-to-frame zoom draws
@@ -428,7 +453,7 @@ the hash does.
 
 ## Type definitions
 
-`canvas_graph.js` carries the JSDoc typedefs the rest of the force graph refers to: `Node`, `Link`,
+`canvas_graph.js` carries the JSDoc typedefs the rest of the force graph refers to: `Node`, `TimeAxis`, `Link`,
 `GlowPixel`, `FrontMatter`, `SelectionState`, `SelectionStore`, `ForceGraphSettings`,
 `SettingsStore`, `FilterState`, `FilterStore`. Keep them next to the code they describe.
 `FilterState` names the search module's `ParsedQuery` and `Match` types; nothing outside this

@@ -18,7 +18,7 @@
    * that sized itself would make the `ResizeObserver` watch its own output.
    */
 
-  /** `{nodes, links, viewBox}` from `generated/viz/<dataId>.json`. Read once, at mount. @type {any} */
+  /** `{nodes, links, viewBox, timeAxis?}` from `generated/viz/<dataId>.json`. Read once, at mount. @type {any} */
   export let data;
   /** @type {import('./canvas_graph.js').ForceGraphSettings} */
   export let settings;
@@ -58,7 +58,9 @@
       filter,
       settings: settingsStore,
       onActivate: callbacks.onActivate,
-      onHover: callbacks.onHover
+      onHover: callbacks.onHover,
+      // Only the date graph's file has one; it turns on the date axis.
+      timeAxis: data.timeAxis ?? null
     });
 
     return () => graph.destruct();

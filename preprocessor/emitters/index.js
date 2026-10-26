@@ -1,4 +1,5 @@
 import { createAssetsEmitter } from './assets.js';
+import { createDateGraphEmitter } from './graph/dates.js';
 import { createLinksGraphEmitter } from './graph/links.js';
 import { createTagsGraphEmitter } from './graph/tags.js';
 import { indexEmitter } from './index_json.js';
@@ -26,6 +27,7 @@ export function createEmitters() {
     indexEmitter,
     searchEmitter,
     createLinksGraphEmitter(),
-    createTagsGraphEmitter()
+    createTagsGraphEmitter(),
+    createDateGraphEmitter()
   ];
 }

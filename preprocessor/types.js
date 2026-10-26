@@ -17,6 +17,8 @@
  *   originalPath: string,
  *   title: string,
  *   matter: Record<string, any>,
+ *   created: number | null,
+ *   mtimeMs?: number,
  *   readingTime: {text: string, minutes: number, time: number, words: number},
  *   linkSlugs: string[],
  *   images: NoteImage[],
@@ -28,6 +30,12 @@
  * absolute and kept on purpose -- locally it is useful to see where a note lives.
  * `html` is the rendered body, `text` the stripped plaintext the search index
  * and any content-derived graph read.
+ *
+ * `created` is the frontmatter's `created` date, as ms at UTC midnight, or
+ * `null` when it is missing or malformed (the parse warns). `mtimeMs` is the
+ * **one exception** to "a pure function of the bytes": `NoteParser` attaches the
+ * file's mtime after the cache lookup, never stores it, and only on records
+ * whose `created` is `null` -- it is the date graph's fallback.
  *
  * @typedef {{src: string, dest: string}} NoteImage
  * `src` is the image's absolute path, `dest` its file name in `static/note_imgs/`.

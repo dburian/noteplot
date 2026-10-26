@@ -1,6 +1,16 @@
 import * as d3 from 'd3';
 
 /**
+ * The date graph's horizontal scale: graph units per day. A node is drawn at a
+ * fixed size in screen pixels, so this only sets how wide time is relative to
+ * the vertical spread the forces produce.
+ */
+export const UNITS_PER_DAY = 10;
+
+/** Just over half a day: two notes from one day stack, neighbouring days barely touch. */
+const DATE_COLLIDE_RADIUS = 5.5;
+
+/**
  * Every named force layout a graph emitter may ask for.
  *
  * By name rather than by value because a full layout runs in a worker thread,
@@ -28,6 +38,23 @@ export const LAYOUTS = {
       repel: { fn: d3.forceManyBody(), strength: -10, distanceMax: 150, distanceMin: 1 },
       center: { fn: d3.forceCenter(), strength: 1 },
       radial: { fn: d3.forceRadial(0, 0, 0), strength: 0.03 }
+    })
+  },
+  // x is pinned to the date by the emitter, so only y moves: no centre or radial
+  // force (they would do nothing), and far fewer ticks than `notes` needs.
+  // `collide` keeps same-day notes apart, `repel` spreads notes close in time
+  // vertically so their links are not drawn on top of each other, `link` pulls
+  // linked notes into the same band and `y` keeps the strip near the axis.
+  date: {
+    alphaDecay: 0.01,
+    // x is absolute time (see `emitters/graph/dates.js`); moving it would
+    // break the `timeAxis` mapping and the persisted-position check.
+    translate: false,
+    forces: (links) => ({
+      link: { fn: d3.forceLink(links), strength: 0.2, distance: 20 },
+      collide: { fn: d3.forceCollide(DATE_COLLIDE_RADIUS).iterations(2), strength: 1 },
+      repel: { fn: d3.forceManyBody(), strength: -15, distanceMax: 60, distanceMin: 1 },
+      y: { fn: d3.forceY(0), strength: 0.03 }
     })
   }
 };

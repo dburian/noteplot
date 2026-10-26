@@ -882,7 +882,8 @@ where they were far enough apart for nobody to notice — they are adjacent now.
 ### `viz/`
 
 `registry.js`, `VizPane.svelte`, and `force_graph/` — the canvas renderer, which used to live in
-`src/lib/graph/`. It has its own `CLAUDE.md`; **read it before touching the renderer.**
+`src/lib/graph/`. `tag_graph/` and `date_graph/` are descriptors only, reusing that renderer over
+their own generated data. It has its own `CLAUDE.md`; **read it before touching the renderer.**
 
 `registry.js` is the enumeration the toolbar's switcher lists and the pane renders from. A
 descriptor is `{id, label, dataId, View, Controls, defaultSettings}`; `getVisualization(id)` falls back to

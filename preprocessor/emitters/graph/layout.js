@@ -13,11 +13,14 @@ export const DEFAULT_VIEW_BOX = [0, 0, MIN_VIEW_BOX_SIZE, MIN_VIEW_BOX_SIZE];
 /**
  * @typedef {{
  *   alphaDecay: number,
+ *   translate?: boolean,
  *   forces: (links: any[]) => Record<string, ForceSettings>,
  * }} LayoutParams
  *
  * `forces` is a factory because `d3.forceLink` has to be handed the link array
- * of the run it is part of.
+ * of the run it is part of. `translate: false` keeps the coordinates the
+ * layout produced instead of moving the bounding box to the origin -- for a
+ * graph whose x means something, like the date graph's time axis.
  *
  * @typedef {{
  *   fn: any,
@@ -99,21 +102,23 @@ export function forceLayout(nodes, links, params, maxSteps) {
 
   simulation.tick(ticks);
 
-  return fitViewBox(nodes);
+  return fitViewBox(nodes, { translate: params.translate ?? true });
 }
 
 /**
  * Translates `nodes` in place so their bounding box starts at the origin, and
- * returns a viewBox around it with 10% padding.
+ * returns a viewBox around it with 10% padding. With `translate: false` the
+ * nodes stay put and the viewBox is fitted around them where they are.
  *
  * In place because links point at these very objects. It leaves `fx`/`fy`
  * untranslated, which is harmless -- they are dropped on the way out and
  * rebuilt from the stored positions, which are the translated ones.
  *
  * @param {{x: number, y: number}[]} nodes
+ * @param {{translate?: boolean}} [options]
  * @returns {number[]}
  */
-export function fitViewBox(nodes) {
+export function fitViewBox(nodes, { translate = true } = {}) {
   if (nodes.length == 0) return [...DEFAULT_VIEW_BOX];
 
   let minY = Number.POSITIVE_INFINITY;
@@ -128,18 +133,22 @@ export function fitViewBox(nodes) {
     maxX = Math.max(node.x, maxX);
   }
 
-  for (const node of nodes) {
-    node.x -= minX;
-    node.y -= minY;
+  if (translate) {
+    for (const node of nodes) {
+      node.x -= minX;
+      node.y -= minY;
+    }
   }
+  const originX = translate ? 0 : minX;
+  const originY = translate ? 0 : minY;
 
   // Floored: a single node, or a row of collinear ones, collapses an axis to 0.
   const width = Math.max(maxX - minX, MIN_VIEW_BOX_SIZE);
   const height = Math.max(maxY - minY, MIN_VIEW_BOX_SIZE);
   const paddingFr = 0.1;
   return [
-    (-width * paddingFr) / 2, // min x
-    (-height * paddingFr) / 2, // min y
+    originX - (width * paddingFr) / 2, // min x
+    originY - (height * paddingFr) / 2, // min y
     width + width * paddingFr, // width
     height + height * paddingFr // height
   ];

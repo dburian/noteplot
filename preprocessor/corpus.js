@@ -9,6 +9,8 @@ import { isDeepEqual } from './util.js';
 const DIFFED_FIELDS = [
   'title',
   'matter',
+  'created',
+  'mtimeMs',
   'readingTime',
   'linkSlugs',
   'images',

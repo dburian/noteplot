@@ -18,6 +18,7 @@ import reporter from 'vfile-reporter';
 
 import { toDisplayPath } from '../slug.js';
 import {
+  addCreated,
   addFrontmatter,
   addLinks,
   addReadingTime,
@@ -45,6 +46,7 @@ export function createParser({ noteRoot, imgUrl }) {
     .use(remarkGfm)
     .use(remarkFrontmatter, ['yaml'])
     .use(addFrontmatter)
+    .use(addCreated)
     .use(remarkMath)
     .use(inlineLinks)
     .use(addTitle)
@@ -127,6 +129,7 @@ export function createParser({ noteRoot, imgUrl }) {
         originalPath: absPath,
         title: data.title,
         matter: data.matter,
+        created: data.created,
         readingTime: data.readingTime,
         linkSlugs: data.linkSlugs,
         images: data.images,

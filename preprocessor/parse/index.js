@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import os from 'node:os';
 
 import { logger } from '../log.js';
@@ -18,6 +18,23 @@ const PARSE_POOL_THRESHOLD = 300;
 
 /** More workers than this only contend over the start-up; 8 measured no faster. */
 const MAX_PARSE_WORKERS = 4;
+
+/**
+ * Attaches the file's mtime to a record whose frontmatter has no usable
+ * `created` date -- the date graph's fallback.
+ *
+ * The one field of a record that is not a function of the file's bytes, which
+ * is why it is attached here, after the cache, and never stored in it. Only
+ * undated notes get it, so saving a dated note does not mark it changed and the
+ * date graph is left alone.
+ *
+ * @param {import('../types.js').NoteRecord} record
+ * @param {number} mtimeMs
+ * @returns {import('../types.js').NoteRecord}
+ */
+function withMtime(record, mtimeMs) {
+  return record.created === null ? { ...record, mtimeMs } : record;
+}
 
 /**
  * Turns note paths into `NoteRecord`s: read, look up the cache, parse the
@@ -47,15 +64,15 @@ export class NoteParser {
     const records = [];
     /** Paths that vanished between the event and the read. @type {string[]} */
     const missing = [];
-    /** @type {{absPath: string, source: string, key: string}[]} */
+    /** @type {{absPath: string, source: string, key: string, mtimeMs: number}[]} */
     const misses = [];
     let failures = 0;
 
     await Promise.all(
       paths.map(async (absPath) => {
-        let bytes;
+        let bytes, mtimeMs;
         try {
-          bytes = await readFile(absPath);
+          [bytes, { mtimeMs }] = await Promise.all([readFile(absPath), stat(absPath)]);
         } catch (error) {
           if (error.code == 'ENOENT') {
             missing.push(absPath);
@@ -70,9 +87,9 @@ export class NoteParser {
         const cached = await this.cache.getRecord(key);
         if (cached) {
           this._logWarnings(cached.warnings);
-          records.push(cached.record);
+          records.push(withMtime(cached.record, mtimeMs));
         } else {
-          misses.push({ absPath, source: bytes.toString('utf8'), key });
+          misses.push({ absPath, source: bytes.toString('utf8'), key, mtimeMs });
         }
       })
     );
@@ -92,11 +109,11 @@ export class NoteParser {
 
       try {
         await Promise.all(
-          misses.map(async ({ absPath, source, key }) => {
+          misses.map(async ({ absPath, source, key, mtimeMs }) => {
             try {
               const entry = await parse(absPath, source);
               this._logWarnings(entry.warnings);
-              records.push(entry.record);
+              records.push(withMtime(entry.record, mtimeMs));
               await this.cache.putRecord(key, entry);
             } catch (error) {
               logger.error(error, `Could not parse ${absPath}.`);

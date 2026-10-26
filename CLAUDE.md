@@ -33,7 +33,10 @@ like this:
    into an HTML branch (MathJax, Shiki, figures) and a plaintext branch (for search). The result is
    a `NoteRecord`: a pure function of the file's bytes, its path, and the config. Nothing in
    `parse/` reads another note, and nothing in it logs. Warnings come back as data, because this
-   code also runs in worker threads.
+   code also runs in worker threads. The frontmatter's `created` becomes `record.created` (ms at
+   UTC midnight, or `null` with a warning). The one exception to purity is `mtimeMs`:
+   `NoteParser` attaches the file's mtime **after** the cache lookup, never stores it, and only to
+   records whose `created` is `null`. It is the date graph's fallback.
 2. **Corpus.** `Corpus.apply({upserts, removals})` is the only mutation. It owns `backlinks` and
    returns a `ChangeSet`: `added`, `removed`, `changed` (slug → which fields differ, with
    `backlinks` marked on link targets), `neighbours` (notes whose JSON embeds a title that moved),
@@ -47,7 +50,10 @@ like this:
 **Adding an output is one entry in `preprocessor/emitters/index.js`.** A new graph is a
 `defineGraphEmitter({id, deps, build, layout})` (see `emitters/graph/tags.js`). `build` maps the
 corpus to `{nodes, links}`, and `define_graph.js` handles position persistence, pinning, the
-layout and the output file. A matching visualization is a descriptor in `src/lib/viz/registry.js`
+layout and the output file. `build` may also pin a node's x itself (`fx`), so the persisted y is
+reused only while x is unchanged. It may also return `extra` keys for the output file. The date
+graph (`emitters/graph/dates.js`) does both: x is the note's date, and `timeAxis` maps it back to
+time. Its layout sets `translate: false` so that x stays absolute. A matching visualization is a descriptor in `src/lib/viz/registry.js`
 whose `dataId` is the graph's `id`. Graph nodes that are not notes need a slug containing `/`,
 which `toSlug` can never produce. `VizPane` opens only nodes that are notes.
 
@@ -67,7 +73,8 @@ edited in place is picked up on the next start, or the next save of a note that 
 - The old pipeline took ~18.5 s per start, ~14 s of it in the force layout.
 - Now a warm start (cache present, nothing changed) takes ~60 ms and writes no files.
 - A cold start is dominated by the full force layout: ~18 s per graph, with the graphs running in
-  parallel in worker threads (`emitters/graph/layout.js` `runLayout`).
+  parallel in worker threads (`emitters/graph/layout.js` `runLayout`). The date graph is the
+  exception at ~0.6 s, because only y moves and its layout decays ~100× faster.
 - Positions persist per note root, so only nodes without a position are relaxed (100 ticks among
   the pinned ones).
 - Parsing costs ~3 s of MathJax/Shiki start-up, then ~5–7 ms per note. Worker threads repay their
@@ -123,14 +130,14 @@ deleted rather than carried along, and a mobile shell is a later effort.
 
 ### Generated output — never hand-edit, never commit
 
-| Path                                  | Contents                                                                             |
-| ------------------------------------- | ------------------------------------------------------------------------------------ |
-| `src/lib/generated/notes/<slug>.json` | one per note: `html`, title, links, backlinks, matter, reading time, path(s)         |
-| `src/lib/generated/index.json`        | `[{slug, title, path, matter}]` — the frontend's `NOTES_INDEX`                       |
-| `src/lib/generated/search.json`       | `[{slug, content}]` plaintext bodies, read only by the search worker                 |
-| `src/lib/generated/viz/<id>.json`     | one per graph emitter: `{viewBox, nodes, links}`; links are `{source, target}` slugs |
-| `static/note_imgs/`                   | images copied out of the note directory                                              |
-| `.cache/noteplot/`                    | parsed records, graph positions, the write manifest — disposable                     |
+| Path                                  | Contents                                                                                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/generated/notes/<slug>.json` | one per note: `html`, title, links, backlinks, matter, reading time, path(s)                                                            |
+| `src/lib/generated/index.json`        | `[{slug, title, path, matter}]` — the frontend's `NOTES_INDEX`                                                                          |
+| `src/lib/generated/search.json`       | `[{slug, content}]` plaintext bodies, read only by the search worker                                                                    |
+| `src/lib/generated/viz/<id>.json`     | one per graph emitter: `{viewBox, nodes, links}`; links are `{source, target}` slugs; plus `extra` keys, e.g. `dates.json`'s `timeAxis` |
+| `static/note_imgs/`                   | images copied out of the note directory                                                                                                 |
+| `.cache/noteplot/`                    | parsed records, graph positions, the write manifest — disposable                                                                        |
 
 All three are gitignored and created on demand. Each kind of output has its own directory, so no
 filename prefix is reserved (the old `__graph.json` / `__search.json` convention is gone).

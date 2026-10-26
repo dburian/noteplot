@@ -6,17 +6,17 @@
    * The force graph's own two toggles, rendered into the toolbar by
    * `VizSection` after the switcher. They replace `buttons/ShowConnections` and
    * `buttons/ShowTagsGlow`, which wrote to the same store as `activeNote` —
-   * these write to `viz.settings['force-graph']`, a slice nothing outside this
-   * visualization reads.
+   * these write to the active visualization's slice of `viz.settings`, which
+   * nothing outside that visualization reads.
    *
-   * The id is a literal rather than an import from `./index.js`: that module
-   * imports this component, and reaching back into it for a constant would make
-   * the cycle real for no gain.
+   * The active id, not a fixed one: the link, tag and date graphs all render
+   * these controls, and each keeps its own settings. A hard-coded
+   * `'force-graph'` made the toggles on the other two change the link graph.
    */
 
-  const ID = 'force-graph';
-
   const viz = /** @type {import('$lib/state/viz.js').VizStore} */ (useAppState(VIZ));
+
+  $: ID = $viz.activeId;
 
   /**
    * The store's settings slice is a `Record<string, unknown>` — it is generic

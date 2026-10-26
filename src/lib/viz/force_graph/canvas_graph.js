@@ -11,6 +11,11 @@ const tailwindColors = tailwindConfig.theme.colors;
 // is a generous constant instead.
 const LABEL_REACH = 400;
 
+// The date axis: the band its labels sit in along the bottom of the canvas, and
+// roughly how far apart (CSS pixels) its ticks may be.
+const AXIS_BAND_HEIGHT = 20;
+const AXIS_TICK_SPACING = 90;
+
 /**
  * @param {{x: Number, y: Number}} p1
  * @param {{x: Number, y: Number}} p2
@@ -26,7 +31,8 @@ function dist(p1, p2) {
  * @typedef {{source: Node, target: Node}} Link
  * @typedef {{source: string, target: string}} SerialisedLink
  * @typedef {{tags: Array<string>}} FrontMatter
- * @typedef {{slug: string, title: string, x: Number, y: Number, matter: FrontMatter}} Node
+ * @typedef {{slug: string, title: string, x: Number, y: Number, matter: FrontMatter, dateSource?: 'matter' | 'mtime'}} Node
+ * @typedef {{originMs: Number, msPerUnit: Number}} TimeAxis
  * @typedef {{slug: string, title?: string}} NoteRef
  * @typedef {{activeNote: NoteRef | null, hoveredNote: NoteRef | null}} SelectionState
  * @typedef {import("svelte/store").Readable<SelectionState>} SelectionStore
@@ -98,6 +104,7 @@ class GraphRenderer {
       foreground: '#0f172a',
       background: '#ffffff',
       highlight: '#000',
+      muted: '#a1a1aa',
       darkMode: false,
       glowPixelWidth: 3,
       glowPixelGap: 0.5,
@@ -134,10 +141,12 @@ class GraphRenderer {
       this.theme.foreground = tailwindColors.front.dark;
       this.theme.background = tailwindColors.back.dark;
       this.theme.highlight = tailwindColors.emphasis.dark;
+      this.theme.muted = tailwindColors.muted.dark;
     } else {
       this.theme.foreground = tailwindColors.front.light;
       this.theme.background = tailwindColors.back.light;
       this.theme.highlight = tailwindColors.emphasis.light;
+      this.theme.muted = tailwindColors.muted.light;
     }
 
     this.theme.darkMode = darkModeOn;
@@ -150,9 +159,10 @@ class GraphRenderer {
    * @param {CanvasScreen} screen
    * @param {SelectionState} selection which node is active and which is hovered
    * @param {ForceGraphSettings} settings the force graph's own toggles
+   * @param {TimeAxis | null} timeAxis set when x is time; draws the date axis
    *
    */
-  draw(nodes, links, glow, screen, selection, settings) {
+  draw(nodes, links, glow, screen, selection, settings, timeAxis = null) {
     const ctx = screen.ctx;
     ctx.resetTransform();
     ctx.scale(screen.dpr, screen.dpr);
@@ -165,6 +175,9 @@ class GraphRenderer {
     const isSelected = (node) => node.slug == selection.activeNote?.slug;
 
     const view = this.visibleBox(screen);
+
+    const ticks = timeAxis ? this.timeTicks(screen, timeAxis) : null;
+    if (ticks) this.drawTimeGridlines(ticks, screen);
 
     if (settings.showTagsGlow) {
       const colors = glow.colors;
@@ -182,9 +195,21 @@ class GraphRenderer {
       }
     }
 
-    if (settings.showConnections) {
+    // With connections off, the links of the hovered and the selected note
+    // are still drawn, so a node's neighbourhood is one hover away.
+    const focused = new Set(
+      [selection.hoveredNote?.slug, selection.activeNote?.slug].filter(Boolean)
+    );
+    if (settings.showConnections || focused.size > 0) {
       for (const byTarget of links.values()) {
         for (const link of byTarget.values()) {
+          if (
+            !settings.showConnections &&
+            !focused.has(link.source.slug) &&
+            !focused.has(link.target.slug)
+          ) {
+            continue;
+          }
           if (!this.isLinkVisible(link, screen, view)) continue;
 
           this.drawLink(link, screen);
@@ -217,6 +242,83 @@ class GraphRenderer {
 
       this.drawNode(node, screen, isHovered(node), isSelected(node));
       this.drawNodeLabel(node, screen, isHovered(node), isSelected(node));
+    }
+
+    if (ticks) this.drawTimeLabels(ticks, screen);
+  }
+
+  /**
+   * The date ticks across the visible part of a time-axis graph, at screen x.
+   *
+   * The visible x range is turned back into time and handed to `d3.scaleUtc`,
+   * which picks the interval (years, months, weeks, days) for the requested
+   * density and formats each tick to match -- so zooming in moves from month
+   * names to days by itself. UTC because the preprocessor writes every date as
+   * UTC midnight.
+   *
+   * @param {CanvasScreen} screen
+   * @param {TimeAxis} timeAxis
+   * @returns {{x: Number, label: string}[]}
+   */
+  timeTicks(screen, timeAxis) {
+    const toMs = (/** @type {Number} */ screenX) =>
+      timeAxis.originMs + screen.toViewBoxPos({ x: screenX, y: 0 }).x * timeAxis.msPerUnit;
+
+    const scale = d3
+      .scaleUtc()
+      .domain([new Date(toMs(0)), new Date(toMs(screen.width))])
+      .range([0, screen.width]);
+    const count = Math.max(2, Math.floor(screen.width / AXIS_TICK_SPACING));
+    const format = scale.tickFormat(count);
+
+    return scale
+      .ticks(count)
+      .map((/** @type {Date} */ date) => ({ x: scale(date), label: format(date) }));
+  }
+
+  /**
+   * Faint full-height lines at each tick, under everything else.
+   *
+   * @param {{x: Number, label: string}[]} ticks
+   * @param {CanvasScreen} screen
+   */
+  drawTimeGridlines(ticks, screen) {
+    const ctx = screen.ctx;
+    ctx.save();
+    ctx.strokeStyle = this.theme.muted;
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const { x } of ticks) {
+      // Half a pixel, so a 1px line covers one pixel column instead of two.
+      const px = Math.round(x) + 0.5;
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, screen.height);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * The tick labels, in an opaque band along the bottom of the canvas, over
+   * everything else. The band stays put vertically and only follows the zoom
+   * in x, so the dates are readable wherever the graph has been panned to.
+   *
+   * @param {{x: Number, label: string}[]} ticks
+   * @param {CanvasScreen} screen
+   */
+  drawTimeLabels(ticks, screen) {
+    const ctx = screen.ctx;
+    const top = screen.height - AXIS_BAND_HEIGHT;
+    ctx.fillStyle = this.theme.background;
+    ctx.fillRect(0, top, screen.width, AXIS_BAND_HEIGHT);
+
+    ctx.fillStyle = this.theme.foreground;
+    ctx.font = '11px sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    for (const { x, label } of ticks) {
+      ctx.fillText(label, Math.round(x) + 4, top + AXIS_BAND_HEIGHT / 2);
     }
   }
 
@@ -337,11 +439,18 @@ class GraphRenderer {
     }
     ctx.font = `${fontSize}px sans-serif`;
 
+    ctx.save();
+    if (node.dateSource === 'mtime' && !hovered && !selected) ctx.globalAlpha = 0.45;
     ctx.strokeText(node.title, x + nW, y);
     ctx.fillText(node.title, x + nW, y);
+    ctx.restore();
   }
 
   /**
+   * A node whose date is only its file's mtime -- the date graph's fallback for
+   * a note without a usable `created` -- is drawn dimmed with a dashed outline,
+   * unless it is selected or hovered.
+   *
    * @param {Node} node
    * @param {CanvasScreen} screen
    */
@@ -360,10 +469,17 @@ class GraphRenderer {
       ctx.fillStyle = this.theme.highlight;
       ctx.fillRect(x - nW / 2, y - nW / 2, nW, nW);
     } else {
+      const guessed = node.dateSource === 'mtime' && !hovered;
+      ctx.save();
       ctx.fillStyle = this.theme.background;
       ctx.fillRect(x - nW / 2, y - nW / 2, nW, nW);
+      if (guessed) {
+        ctx.globalAlpha = 0.45;
+        ctx.setLineDash([2, 2]);
+      }
       ctx.lineWidth = 1;
       ctx.strokeRect(x - nW / 2, y - nW / 2, nW, nW);
+      ctx.restore();
     }
   }
 
@@ -722,9 +838,22 @@ export class CanvasGraph {
    * @param {SettingsStore} options.settings this visualization's own toggles
    * @param {(slug: string) => void} options.onActivate a node was clicked
    * @param {(node: Node | null) => void} options.onHover the hovered node changed
+   * @param {TimeAxis | null} [options.timeAxis] how x maps to time, for a graph whose x is a date
    */
-  constructor({ nodes, links, viewBox, canvas, selection, filter, settings, onActivate, onHover }) {
+  constructor({
+    nodes,
+    links,
+    viewBox,
+    canvas,
+    selection,
+    filter,
+    settings,
+    onActivate,
+    onHover,
+    timeAxis = null
+  }) {
     this.onActivate = onActivate;
+    this.timeAxis = timeAxis;
     this.onHoverNode = onHover;
 
     this.nodes = new Map();
@@ -1071,7 +1200,8 @@ export class CanvasGraph {
       this.glow,
       this.screen,
       this.selection,
-      this.settings
+      this.settings,
+      this.timeAxis
     );
   }
 

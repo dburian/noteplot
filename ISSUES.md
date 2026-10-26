@@ -13,7 +13,23 @@ mechanism.
 
 `C5` is what the audit left open. `D1` and `D2` are new, and are not bugs the audit missed — they
 are places where the UI redesign chose a smaller scope on purpose, recorded here so the next reader
-does not mistake them for oversights.
+does not mistake them for oversights. `A21` and `D3` came with the date graph.
+
+---
+
+### A21. `isDeepEqual` treats every `Date` as equal
+
+`preprocessor/util.js`'s `isDeepEqual` compares objects by `Object.getOwnPropertyNames`, and a
+`Date` has none, so any two `Date`s compare equal. js-yaml parses an unquoted frontmatter date
+(`created: 2026-02-11`) into a `Date`, so editing one in `watch` does not mark `matter` as changed,
+and the emitters that embed `matter` (the per-note JSON, `index.json`, the graphs) keep the old
+value until something else about the note changes. A record that came back from the cache holds the
+ISO string instead, because the cache is JSON.
+
+**Left open deliberately.** The date graph does not depend on it: it reads `record.created`, a number
+the parse derives from that `Date`, and `created` is diffed on its own. Fixing it means deciding
+whether `matter` should be normalised to plain JSON at parse time, which changes what every consumer
+of `matter` sees.
 
 ---
 
@@ -68,3 +84,16 @@ self-contained, and mounted by nothing. They are the starting point for whoever 
 time, the visualization as a mode rather than a neighbour — not a set of breakpoints on this one.
 Deleting the half-built version was the honest move; pretending the current one degrades gracefully
 would not be.
+
+### D3. The date graph is a thin strip
+
+The date graph's x is time and its y is whatever the forces spread out, so its viewBox is many times
+wider than tall (about 19:1 on `test_notes`). `CanvasScreen` letterboxes with one scale for both
+axes and `d3.zoom` zooms uniformly, so the graph sits as a band across the middle of the pane and
+same-day notes overlap until you zoom in. `UNITS_PER_DAY` and the `date` layout's forces in
+`emitters/graph/layouts.js` change the proportions, but not the shape.
+
+**Left open deliberately.** Fixing it properly means separate x and y scales in `CanvasScreen`: a
+paintBox that is not aspect-preserving, and probably a zoom that stretches only time. The
+coordinate-space code is the most delicate in the renderer (see `src/lib/viz/CLAUDE.md`). That is
+worth doing once the date graph has been used enough to know it is needed.

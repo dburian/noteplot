@@ -1,3 +1,4 @@
+import { dateGraph } from './date_graph/index.js';
 import { forceGraph } from './force_graph/index.js';
 import { tagGraph } from './tag_graph/index.js';
 
@@ -31,7 +32,7 @@ import { tagGraph } from './tag_graph/index.js';
  */
 
 /** @type {Visualization[]} */
-export const visualizations = [forceGraph, tagGraph];
+export const visualizations = [forceGraph, tagGraph, dateGraph];
 
 /**
  * Falls back to the first entry rather than returning `undefined`. `viz.activeId`
