@@ -1,19 +1,18 @@
 <script>
-  import { useAppState, FILTER, LAYOUT, OVERLAY, PREFS, TILES } from '$lib/state/keys.js';
+  import { useAppState, FILTER, LAYOUT, OVERLAY, TILES } from '$lib/state/keys.js';
   import ToolbarItem from './ToolbarItem.svelte';
 
   /**
-   * Everything about the content area: the three overlays, the metadata
-   * toggle, and the two tile operations.
+   * Everything about the content area: the overlays and the two tile
+   * operations.
    *
-   * The three buttons only flip `overlay.kind`; `overlay/OverlayHost.svelte`
+   * The overlay buttons only flip `overlay.kind`; `overlay/OverlayHost.svelte`
    * reads it and mounts the screen, and the URL's `?overlay=` follows. That is
    * the whole contract — these buttons and the keyboard shortcuts in `AppShell`
    * are interchangeable ways of writing one field.
    *
-   * **Metadata** is broader than its name: it shows a note's frontmatter and
-   * backlinks *and* the parsed-query readout in the search and filter overlays.
-   * Both answer "show me the machinery".
+   * There is no metadata toggle here: it is a set-once preference, and lives
+   * in the settings overlay and the command palette ("Toggle note metadata").
    *
    * Search and Filter shared one identical magnifier SVG in the old vertical
    * strip, where they were far enough apart for nobody to notice. They are
@@ -23,7 +22,6 @@
   const overlay = /** @type {import('$lib/state/overlay.js').OverlayStore} */ (
     useAppState(OVERLAY)
   );
-  const prefs = /** @type {import('$lib/state/prefs.js').PrefsStore} */ (useAppState(PREFS));
   const tiles = /** @type {import('$lib/state/tiles.js').TilesStore} */ (useAppState(TILES));
   const layout = /** @type {import('$lib/state/layout.js').LayoutStore} */ (useAppState(LAYOUT));
   const filter = /** @type {import('$lib/state/filter.js').FilterStore} */ (useAppState(FILTER));
@@ -74,17 +72,16 @@
     activeColor="bg-violet-600 text-back-light dark:bg-violet-500 dark:text-back-dark"
     on:click={() => overlay.toggle('commands')}
   />
-
-  <div class="w-px h-5 mx-1 bg-muted-light dark:bg-muted-dark" aria-hidden="true"></div>
-
   <ToolbarItem
-    label="Metadata"
-    title={`${$prefs.showMeta ? 'Hide' : 'Show'} note metadata and parsed queries`}
-    active={$prefs.showMeta}
-    activeColor="bg-sky-600 text-back-light dark:bg-sky-500 dark:text-back-dark"
-    on:click={prefs.toggleMeta}
+    label="Settings"
+    title="Settings and keyboard shortcuts"
+    active={$overlay.kind === 'settings' || $overlay.kind === 'shortcuts'}
+    on:click={() => overlay.toggle($overlay.kind === 'shortcuts' ? 'shortcuts' : 'settings')}
   />
+
   {#if focused}
+    <div class="w-px h-5 mx-1 bg-muted-light dark:bg-muted-dark" aria-hidden="true"></div>
+
     <ToolbarItem
       label="Split"
       title="Split the focused note into a new column"

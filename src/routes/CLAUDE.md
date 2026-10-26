@@ -70,8 +70,8 @@ matched `$page.data.note.slug`, which moved on every split, so the column handin
 destroyed and rebuilt for a note that had not changed — a visible flicker plus a lost scroll
 position. See `content/` and `notes_route.js` in `src/lib/CLAUDE.md`.
 
-`/search` and `/filter` **are gone**. Search, filter and the command palette are modal overlays
-over the content area, reachable from anywhere and encoded in `?overlay=`. Their route directories
+`/search` and `/filter` **are gone**. Search, filter, the command palette and settings are modal
+overlays over the content area, reachable from anywhere and encoded in `?overlay=`. Their route directories
 were deleted; the components under `src/lib/search/` survive and are rebuilt into overlays.
 
 One consequence worth recording: a note whose slug is `search` or `filter` is no longer shadowed
@@ -97,14 +97,14 @@ you type or share.
 /<focused-slug>?tile=<slug>&tile=<slug>&focus=<n>&layout=<mode>&overlay=<kind>&q=<query>
 ```
 
-| Part      | Meaning                                                                       |
-| --------- | ----------------------------------------------------------------------------- |
-| path      | the focused tile's slug — redundant with `tile`/`focus`, and deliberately so  |
-| `tile`    | **repeated once per column**, in order. Omitted when there is one tile        |
-| `focus`   | index into that list. Omitted when `0` or when there is one tile              |
-| `layout`  | `viz` \| `content`. Omitted for the `split` default and under `/notes/`       |
-| `overlay` | `search` \| `filter` \| `commands`. Omitted when closed                       |
-| `q`       | the overlay's query. Omitted when the overlay is closed or the query is empty |
+| Part      | Meaning                                                                              |
+| --------- | ------------------------------------------------------------------------------------ |
+| path      | the focused tile's slug — redundant with `tile`/`focus`, and deliberately so         |
+| `tile`    | **repeated once per column**, in order. Omitted when there is one tile               |
+| `focus`   | index into that list. Omitted when `0` or when there is one tile                     |
+| `layout`  | `viz` \| `content`. Omitted for the `split` default and under `/notes/`              |
+| `overlay` | `search` \| `filter` \| `commands` \| `settings` \| `shortcuts`. Omitted when closed |
+| `q`       | the overlay's query. Omitted when the overlay is closed or the query is empty        |
 
 The path stays in the URL because it is what keeps the `[slug]` route, its `load`, and
 prerendering working untouched — and it keeps the common single-note URL clean and shareable.

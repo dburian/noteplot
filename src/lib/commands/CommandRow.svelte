@@ -1,6 +1,8 @@
 <script>
   import Button from '$lib/components/Button.svelte';
   import { rowClass } from '$lib/overlay/row_style.js';
+  import { formatChord } from './chord.js';
+  import { useAppState, SHORTCUTS } from '$lib/state/keys.js';
 
   /**
    * One row in the command palette.
@@ -14,7 +16,14 @@
    * Disabled commands stay listed and greyed rather than disappearing: hiding
    * them would make the palette's vocabulary depend on the state you happen to
    * be in. `disabled` also keeps them out of the overlay's tab ring.
+   *
+   * A row shows the command's current shortcuts, so the palette is also where
+   * you learn them.
    */
+
+  const shortcuts = /** @type {import('$lib/state/shortcuts.js').ShortcutsStore} */ (
+    useAppState(SHORTCUTS)
+  );
 
   /** @type {{command: import('./registry.js').Command, enabled: boolean}} */
   export let entry;
@@ -39,8 +48,22 @@
 >
   <span class="flex items-baseline gap-3">
     <span class="min-w-0 truncate">{entry.command.title}</span>
+    {#each $shortcuts.bindings[entry.command.id] ?? [] as chord, i (chord)}
+      <span
+        class="{i === 0
+          ? 'ml-auto'
+          : ''} shrink-0 rounded border px-1 font-mono text-xs text-muted-light dark:text-muted-dark
+               border-muted-light dark:border-muted-dark"
+      >
+        {formatChord(chord)}
+      </span>
+    {/each}
     {#if entry.command.group}
-      <span class="ml-auto shrink-0 text-xs text-muted-light dark:text-muted-dark">
+      <span
+        class="{($shortcuts.bindings[entry.command.id] ?? []).length
+          ? ''
+          : 'ml-auto'} shrink-0 text-xs text-muted-light dark:text-muted-dark"
+      >
         {entry.command.group}
       </span>
     {/if}

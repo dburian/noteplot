@@ -26,6 +26,7 @@
  *   prefs: import('../state/prefs.js').PrefsState,
  *   viz: import('../state/viz.js').VizState,
  *   filter: import('../state/filter.js').FilterState,
+ *   overlay: import('../state/overlay.js').OverlayState,
  * }} values a snapshot of the stores above, refreshed by `CommandOverlay`
  *
  * @typedef {Object} Command
@@ -36,6 +37,14 @@
  * @property {'Layout'|'Content'|'Visualization'|'Navigation'} [group]
  * @property {(ctx: CommandContext) => void} run
  * @property {(ctx: CommandContext) => boolean} [enabled]
+ * @property {string[]} [defaultKeys] chords bound out of the box (see `chord.js`);
+ *   the user's overrides live in `state/shortcuts.js`
+ * @property {boolean} [allowInInput] fire the shortcut even while typing in a
+ *   text field. Only `overlay.close` has it: Escape is how you leave the
+ *   overlay you are typing in
+ * @property {false} [palette] `false` for a shortcut-only command the palette
+ *   does not list — "open the palette" and "close the overlay" from inside the
+ *   palette would be nonsense
  */
 
 /**
@@ -70,6 +79,7 @@ export const commands = [
     description: 'Step through split, visualization only, and content only.',
     keywords: ['view', 'panes', 'toggle', 'split'],
     group: 'Layout',
+    defaultKeys: ['Mod+b'],
     run: (ctx) => ctx.layout.cycle()
   },
   {
@@ -102,6 +112,7 @@ export const commands = [
     description: 'Open the focused note again in a new column to its right.',
     keywords: ['column', 'duplicate', 'side by side'],
     group: 'Content',
+    defaultKeys: ['Mod+\\'],
     // Reveals the content pane too: the palette is reachable in every mode,
     // and a new column is invisible while the pane is hidden.
     run: (ctx) => {
@@ -157,7 +168,10 @@ export const commands = [
     description: 'Find a note by title, tag or text, and open it.',
     keywords: ['find', 'open', 'go to'],
     group: 'Navigation',
-    run: (ctx) => ctx.overlay.open('search')
+    defaultKeys: ['Mod+k', '/'],
+    // `toggle`, not `open`, so the shortcut closes what it opened. From the
+    // palette the two are the same: it closes itself before running.
+    run: (ctx) => ctx.overlay.toggle('search')
   },
   {
     id: 'overlay.filter',
@@ -165,7 +179,8 @@ export const commands = [
     description: 'Restrict the graph to the notes matching a query.',
     keywords: ['restrict', 'narrow', 'graph'],
     group: 'Navigation',
-    run: (ctx) => ctx.overlay.open('filter')
+    defaultKeys: ['Mod+Shift+f'],
+    run: (ctx) => ctx.overlay.toggle('filter')
   },
   {
     id: 'filter.clear',
@@ -177,5 +192,46 @@ export const commands = [
     // command that undoes it from anywhere.
     enabled: (ctx) => ctx.values.filter.query !== null,
     run: (ctx) => ctx.filter.clear()
+  },
+  {
+    id: 'overlay.commands',
+    title: 'Command palette',
+    description: 'Open or close the command palette.',
+    group: 'Navigation',
+    defaultKeys: ['Mod+Shift+p'],
+    palette: false,
+    run: (ctx) => ctx.overlay.toggle('commands')
+  },
+  {
+    id: 'overlay.close',
+    title: 'Close overlay',
+    description: 'Close search, filter, the palette or settings.',
+    group: 'Navigation',
+    defaultKeys: ['Escape'],
+    allowInInput: true,
+    palette: false,
+    // Disabled with nothing open, so the key is left alone — Escape means
+    // something to plenty of other controls.
+    enabled: (ctx) => ctx.values.overlay.kind !== null,
+    run: (ctx) => ctx.overlay.close()
+  },
+  {
+    id: 'overlay.settings',
+    title: 'Open settings',
+    description: 'Preferences and keyboard shortcuts.',
+    keywords: ['preferences', 'options', 'config'],
+    group: 'Navigation',
+    run: (ctx) => ctx.overlay.toggle('settings')
+  },
+  {
+    id: 'overlay.shortcuts',
+    title: 'Edit keyboard shortcuts',
+    description: 'Rebind the key for any command.',
+    keywords: ['keys', 'keybindings', 'hotkeys', 'settings'],
+    group: 'Navigation',
+    run: (ctx) => ctx.overlay.toggle('shortcuts')
   }
 ];
+
+/** @type {Map<string, Command>} */
+export const commandsById = new Map(commands.map((command) => [command.id, command]));

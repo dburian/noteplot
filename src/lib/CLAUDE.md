@@ -10,7 +10,7 @@
 > `WithContentState`, `WithContentSliderState`, `WithFilterContext` and `Adaptive`'s switch — are
 > deleted. `adaptive` is the one legacy context key left, and nothing mounts its provider.
 >
-> The toolbar reads `LAYOUT`, `VIZ`, `HISTORY`, `TILES`, `OVERLAY`, `PREFS` and `FILTER`; the force
+> The toolbar reads `LAYOUT`, `VIZ`, `HISTORY`, `TILES`, `OVERLAY` and `FILTER`; the force
 > graph reads `SELECTION`, `VIZ` and `FILTER`; the content pane reads `TILES`, `NOTES_INDEX` and
 > `PREFS`; the overlays read `OVERLAY`, `FILTER`, `TILES` and `PREFS`, and the command palette
 > reads every store there is. **Every store now has both a reader and a writer** — the gap the
@@ -37,17 +37,18 @@ returns `{ subscribe, ...named actions }` and no bare `set`, following the exist
 
 ### The stores
 
-| Key (`state/keys.js`) | Module           | Value                                    | Notes                                                 |
-| --------------------- | ---------------- | ---------------------------------------- | ----------------------------------------------------- |
-| `NOTES_INDEX`         | `notes_index.js` | `{bySlug, all, titleOf}`                 | not a store — a static lookup built from `index.json` |
-| `SELECTION`           | `selection.js`   | `{activeNote, hoveredNote}`              | `{slug,title}` refs only (ISSUES.md B9)               |
-| `LAYOUT`              | `layout.js`      | `{mode, vizFraction, lastSplitFraction}` | `mode` is `'split'｜'viz'｜'content'`                 |
-| `TILES`               | `tiles.js`       | `{tiles: [{id, slug}], focusIndex}`      | zero tiles is legal and means "no note open"          |
-| `HISTORY`             | `history.js`     | `{recent: [{slug,title}]}`               | max 8, deduped, `sessionStorage`                      |
-| `OVERLAY`             | `overlay.js`     | `{kind, query}`                          | `kind` is `null｜'search'｜'filter'｜'commands'`      |
-| `PREFS`               | `prefs.js`       | `{showMeta}`                             | `localStorage`                                        |
-| `VIZ`                 | `viz.js`         | `{activeId, settings: {[vizId]: {...}}}` | `localStorage`; per-visualization settings slices     |
-| `FILTER`              | `filter.js`      | `{query, results}`                       | moved verbatim from `search/WithFilterContext.svelte` |
+| Key (`state/keys.js`) | Module           | Value                                    | Notes                                                                     |
+| --------------------- | ---------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
+| `NOTES_INDEX`         | `notes_index.js` | `{bySlug, all, titleOf}`                 | not a store — a static lookup built from `index.json`                     |
+| `SELECTION`           | `selection.js`   | `{activeNote, hoveredNote}`              | `{slug,title}` refs only (ISSUES.md B9)                                   |
+| `LAYOUT`              | `layout.js`      | `{mode, vizFraction, lastSplitFraction}` | `mode` is `'split'｜'viz'｜'content'`                                     |
+| `TILES`               | `tiles.js`       | `{tiles: [{id, slug}], focusIndex}`      | zero tiles is legal and means "no note open"                              |
+| `HISTORY`             | `history.js`     | `{recent: [{slug,title}]}`               | max 8, deduped, `sessionStorage`                                          |
+| `OVERLAY`             | `overlay.js`     | `{kind, query}`                          | `kind` is `null｜'search'｜'filter'｜'commands'｜'settings'｜'shortcuts'` |
+| `PREFS`               | `prefs.js`       | `{showMeta}`                             | `localStorage`                                                            |
+| `VIZ`                 | `viz.js`         | `{activeId, settings: {[vizId]: {...}}}` | `localStorage`; per-visualization settings slices                         |
+| `FILTER`              | `filter.js`      | `{query, results}`                       | moved verbatim from `search/WithFilterContext.svelte`                     |
+| `SHORTCUTS`           | `shortcuts.js`   | `{bindings, byChord, overrides}`         | `localStorage`; stores only overrides of `defaultKeys`                    |
 
 Three invariants in there are load-bearing and easy to "simplify" away:
 
@@ -217,7 +218,7 @@ URL block writes them straight back from state the navigation never touched.
             │  └─ (scroll container) flex-1 min-h-0 overflow-y-auto
             │     └─ NoteContent     from getNote(tile.slug) — no column is special
             └─ OverlayHost           only when $overlay.kind; owns focus restore
-               └─ Search | Filter | CommandOverlay
+               └─ Search | Filter | Command | Settings | ShortcutsOverlay
                   └─ OverlayShell    absolute inset-0, opaque, fills the pane
                                      header / input / body / footer slots
 ```
@@ -268,25 +269,44 @@ place.
 
 ### Keyboard shortcuts
 
-All of them are in **one window-level handler in `AppShell`**, not spread across the components
+All of them go through **one window-level handler in `AppShell`**, not spread across the components
 they drive: a shortcut has to work when nothing in particular is focused, and a handler inside an
 overlay could only ever run once that overlay was already open.
 
-| Keys                | Action                       |
-| ------------------- | ---------------------------- |
-| `Ctrl/Cmd+K` or `/` | toggle the search overlay    |
-| `Ctrl/Cmd+Shift+F`  | toggle the filter overlay    |
-| `Ctrl/Cmd+Shift+P`  | toggle the command palette   |
-| `Escape`            | close the overlay            |
-| `Ctrl/Cmd+\`        | split the focused note right |
-| `Ctrl/Cmd+B`        | cycle the layout             |
+**A shortcut is a chord bound to a command id**, and the handler is a lookup: `chordFromEvent(ev)`
+→ `$shortcuts.byChord` → `commandsById` → `command.run(ctx)`. Nothing in `AppShell` knows which
+key does what. The actions are the command registry; the defaults are each command's
+`defaultKeys`; the user's changes are `state/shortcuts.js`, edited from the settings overlay.
+
+| Default keys        | Command                                        |
+| ------------------- | ---------------------------------------------- |
+| `Ctrl/Cmd+K` or `/` | `overlay.search` — toggle the search overlay   |
+| `Ctrl/Cmd+Shift+F`  | `overlay.filter` — toggle the filter overlay   |
+| `Ctrl/Cmd+Shift+P`  | `overlay.commands` — toggle the palette        |
+| `Escape`            | `overlay.close` — close the overlay            |
+| `Ctrl/Cmd+\`        | `content.split` — split the focused note right |
+| `Ctrl/Cmd+B`        | `layout.cycle` — cycle the layout              |
+
+Every other command is unbound by default and can be bound.
+
+**Chords** (`commands/chord.js`) are `Mod+Alt+Shift+<key>` in that fixed order, key lower-cased.
+`Mod` is Ctrl _or_ Cmd. Shift is dropped for a non-letter character, because on many layouts a
+symbol needs Shift to type at all (`/` is Shift+ú on Czech) — without that, `/` would be a different
+chord per layout. Write defaults in this form (`'Mod+k'`, not `'Mod+K'`); `formatChord` is for
+display only and is never parsed back.
 
 The handler bails out when the event target is an `input`, `textarea` or `[contenteditable]` —
-**except for `Escape`**, which is how you leave the overlay you are typing in. Escape is therefore
-handled here and nowhere else; `OverlayShell` deliberately carries no key handler, so there is one
-closer rather than two racing to call the same action. The shell's ✕ button is a second _closer_ —
-it calls the same `overlay.close()` — but not a second Escape handler, and `overlay/focus_trap.js`
-sees only `Tab` for the same reason.
+**unless the command has `allowInInput`**, which only `overlay.close` has: Escape is how you leave
+the overlay you are typing in. A command whose `enabled(ctx)` is false leaves the key alone, so
+Escape with nothing open is not swallowed. Escape is handled here and nowhere else;
+`OverlayShell` deliberately carries no key handler, so there is one closer rather than two racing
+to call the same action. The shell's ✕ button is a second _closer_ — it calls the same
+`overlay.close()` — but not a second Escape handler, and `overlay/focus_trap.js` sees only `Tab`
+for the same reason.
+
+`ctx` comes from `commands/context.js`'s `useCommandContext()`, which reads `values` with `get()`
+at keypress time. The palette builds its own reactive `ctx` instead, because it needs `enabled` to
+re-evaluate as state changes.
 
 ## Directories
 
@@ -429,7 +449,7 @@ declared-unused one warns at compile time, and the object sidesteps both. The sh
 typedef in `$lib/notes_route.js`, which is the frontend's description of what `emitters/notes.js`
 writes. `NoteMetaContent.svelte` is the
 metadata block (references, backlinks, tags, reading time), gated on `$prefs.showMeta` — the
-toolbar's Metadata toggle. `WithHoverableLinks.svelte` reaches into the rendered HTML, finds
+settings overlay's metadata toggle. `WithHoverableLinks.svelte` reaches into the rendered HTML, finds
 `a[data-slug]` and wires hover events to the `SELECTION` store, so hovering a link in prose
 highlights the node in the visualization and vice versa — the `data-slug` attribute is injected
 back in `preprocessor/parse/plugins.js`'s `addLinks`.
@@ -535,7 +555,7 @@ deliberate and easy to "fix" wrongly:
 A term that matched only `title` or `tag`, an empty query, or a note the term is not in all land on
 the same fallback: the head of the note, unhighlighted. That is what the row used to always show.
 
-`QueryDisplay.svelte` is behind the toolbar's **Metadata** toggle in both overlays, the same
+`QueryDisplay.svelte` is behind the settings overlay's **metadata** toggle in both overlays, the same
 switch that shows a note's frontmatter and backlinks. It takes a `margin` prop, passed through to
 `InfoBox`, and both call sites pass `mb-0`: `InfoBox`'s default `mb-10` is a paragraph-break-sized
 gap under a readout that sits directly above the result list, which reads as a section break that
@@ -548,12 +568,36 @@ not.)
 ### `overlay/`
 
 `OverlayHost.svelte`, `OverlayShell.svelte`, `OverlayEmpty.svelte`, `focus_trap.js`,
-`row_style.js`, and one screen per kind: `SearchOverlay`, `FilterOverlay`, `CommandOverlay`.
+`row_style.js`, `record_chord.js`, and one screen per kind: `SearchOverlay`, `FilterOverlay`,
+`CommandOverlay`, `SettingsOverlay`, `ShortcutsOverlay`.
 
 `OverlayHost` is the single mount point and the only thing that maps a kind to a component.
 Nothing else decides what is open: the toolbar buttons, the shortcuts, two commands and
 `?overlay=` all write `overlay.kind`, and this reads it. A fourth screen is a key in `OverlayKind`
 plus a row in `SCREENS`.
+
+#### Settings
+
+`settings` and `shortcuts` are two overlay kinds, not one kind with a sub-page field: the
+shortcuts screen is settings' sub-page, `?overlay=shortcuts` needs nothing new in the URL, and
+`OverlayHost`'s focus restore already spans moving between kinds. Like every overlay kind they
+are written with `replaceState`, so moving between them is not a back-button stop — the
+"‹ Settings" button is the way back.
+
+`SettingsOverlay` holds the `PREFS` toggle and the link into the sub-page. `ShortcutsOverlay` lists
+**every** command, shortcut-only ones too, and edits `SHORTCUTS`. Neither has a `SearchBar`, so
+each focuses its own first control on mount.
+
+`record_chord.js` is the recorder, and it is the one key handler besides `AppShell`'s. It listens
+on `window` in the **capture** phase and stops propagation, so `AppShell`'s bubble-phase listener
+never sees the keypress — which is what makes Escape, or a chord already bound to something,
+recordable instead of acted on. Bare Tab is let through and blur cancels, so the keyboard can
+still leave it.
+
+Recording a chord that another command has **moves** it (`shortcuts.add` returns the previous
+owner, and the row says so) rather than refusing — refusing would leave no way to swap two keys.
+The store keeps only overrides, so a command nobody rebound follows its `defaultKeys` when they
+change in code, and an override equal to the defaults is dropped.
 
 **It is mounted inside `ContentPane`, and that placement is the design.** The modal covers the
 content area only, so the toolbar stays clickable and the visualization stays visible _and usable_
@@ -647,7 +691,11 @@ copy or a spread re-indexes the corpus (ISSUES.md B3).
 
 ### `commands/`
 
-`registry.js` is a list of `{id, title, description, keywords, group, run, enabled}`. A command is
+`registry.js` is a list of `{id, title, description, keywords, group, run, enabled}`, plus the
+shortcut fields `defaultKeys`, `allowInInput` and `palette: false` (a shortcut-only command the
+palette does not list — `overlay.commands`, `overlay.close`). Every keyboard shortcut runs a
+command from here; see "Keyboard shortcuts" above. A palette row shows the command's current
+chords. A command is
 **data that calls a store action**; none of them touches the DOM or navigates, which is what keeps a command
 and the toolbar button beside it from drifting apart.
 
@@ -660,7 +708,9 @@ hiding them would make the palette's vocabulary depend on the state you happen t
 Two details that will bite whoever edits it:
 
 - **The palette closes _before_ it runs the command.** `overlay.search` and `overlay.filter`
-  _open_ an overlay; closing afterwards would immediately undo them.
+  _open_ an overlay; closing afterwards would immediately undo them. They `toggle` rather than
+  `open` (the shortcut should close what it opened), which from the palette is the same thing
+  because the overlay is already closed when they run.
 - **The two visualization toggles are written against a setting name, not against the force
   graph.** `viz.updateSettings` writes into whichever visualization is active and `enabled` asks
   whether that one actually has the setting, so a second visualization needs no edit here and does
@@ -694,7 +744,7 @@ One horizontal strip, `Toolbar.svelte`, in three sections:
 | ---------------- | -------- | ------------------------------------------------------------- |
 | `VizSection`     | natural  | `VizSwitcher`, then the active visualization's own `Controls` |
 | `HistorySection` | `flex-1` | chips for `$history.recent`, scrolled horizontally            |
-| `ContentSection` | natural  | Search, Filter, Commands, Metadata, Split, Close              |
+| `ContentSection` | natural  | Search, Filter, Commands, Settings, Split, Close              |
 
 Three things in here are easy to get wrong:
 
@@ -709,9 +759,10 @@ Three things in here are easy to get wrong:
 - **`ContentSection`'s filter badge tracks `$filter.query`, not `$overlay.kind`.** Closing the
   filter overlay does not clear the filter, so "the panel is open" and "a filter is in force" are
   different questions.
-- **The Metadata toggle is broader than its name.** It gates a note's frontmatter and backlinks
-  _and_ the parsed-query readout inside the search and filter overlays — both are "show me the
-  machinery".
+- **There is no Metadata toggle in the strip.** It is a set-once preference, so it lives in the
+  settings overlay (and the palette's "Toggle note metadata"). It is broader than its name: it
+  gates a note's frontmatter and backlinks _and_ the parsed-query readout inside the search and
+  filter overlays — both are "show me the machinery".
 - **Split reveals the content pane as well** (`layout.reveal()` beside `tiles.splitRight()`), since
   the strip is on screen in every mode and a new column is invisible in `viz`.
 - **Split and Close are absent when no note is open.** Both act on the focused column and there is

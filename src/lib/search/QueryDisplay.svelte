@@ -5,7 +5,7 @@
    * What `parseSearchString` made of what you typed — which fields it will look
    * in, and how the terms combine.
    *
-   * In the overlays this is behind the toolbar's **Metadata** toggle, the same
+   * In the overlays this is behind the settings overlay's **metadata** toggle, the same
    * switch that shows a note's frontmatter and backlinks: both answer "show me
    * the machinery", and neither is something you want in the way by default.
    *

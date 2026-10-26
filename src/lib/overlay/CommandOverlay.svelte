@@ -48,7 +48,8 @@
       tiles: $tiles,
       prefs: $prefs,
       viz: $viz,
-      filter: $filter
+      filter: $filter,
+      overlay: $overlay
     }
   };
 
@@ -57,13 +58,18 @@
     tiles: $tiles,
     prefs: $prefs,
     viz: $viz,
-    filter: $filter
+    filter: $filter,
+    overlay: $overlay
   };
+
+  // Shortcut-only commands (open the palette, close the overlay) mean nothing
+  // from inside the palette.
+  const listed = commands.filter((command) => command.palette !== false);
 
   let value = '';
   let highlight = 0;
 
-  $: entries = matchCommands(commands, value).map(({ command }) => ({
+  $: entries = matchCommands(listed, value).map(({ command }) => ({
     command,
     enabled: command.enabled ? command.enabled(ctx) : true
   }));

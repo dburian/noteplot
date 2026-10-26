@@ -13,6 +13,8 @@
   import { createPrefsState } from './prefs.js';
   import { createVizState } from './viz.js';
   import { createFilterState } from './filter.js';
+  import { createShortcutsState } from './shortcuts.js';
+  import { commands } from '$lib/commands/registry.js';
   import { buildUrl, indexPath, notePath, readUrlState, slugFromPath } from './url_state.js';
 
   /**
@@ -50,6 +52,9 @@
   const prefs = createPrefsState();
   const viz = createVizState(vizDescriptors);
   const filter = createFilterState();
+  // The command registry is pure data over store actions, so importing it here
+  // does not make the state layer depend on any component.
+  const shortcuts = createShortcutsState(commands);
 
   setContext(keys.NOTES_INDEX, notesIndex);
   setContext(keys.SELECTION, selection);
@@ -60,6 +65,7 @@
   setContext(keys.PREFS, prefs);
   setContext(keys.VIZ, viz);
   setContext(keys.FILTER, filter);
+  setContext(keys.SHORTCUTS, shortcuts);
 
   /**
    * URL → stores.

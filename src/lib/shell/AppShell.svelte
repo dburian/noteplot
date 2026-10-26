@@ -1,5 +1,8 @@
 <script>
-  import { useAppState, LAYOUT, OVERLAY, TILES } from '$lib/state/keys.js';
+  import { useAppState, LAYOUT, OVERLAY, SHORTCUTS, TILES } from '$lib/state/keys.js';
+  import { chordFromEvent } from '$lib/commands/chord.js';
+  import { useCommandContext } from '$lib/commands/context.js';
+  import { commandsById } from '$lib/commands/registry.js';
   import { visibleMode } from '$lib/state/layout.js';
   import Toolbar from '$lib/toolbar/Toolbar.svelte';
   import VizPane from '$lib/viz/VizPane.svelte';
@@ -25,80 +28,52 @@
   );
   const tiles = /** @type {import('$lib/state/tiles.js').TilesStore} */ (useAppState(TILES));
 
+  const shortcuts = /** @type {import('$lib/state/shortcuts.js').ShortcutsStore} */ (
+    useAppState(SHORTCUTS)
+  );
+  const commandContext = useCommandContext();
+
   /**
    * The app's keyboard shortcuts, all of them, in one window-level handler.
    *
-   * | Ctrl/Cmd+K, /      | search    |
-   * | Ctrl/Cmd+Shift+F   | filter    |
-   * | Ctrl/Cmd+Shift+P   | commands  |
-   * | Escape             | close the overlay |
-   * | Ctrl/Cmd+\\        | split the focused note right |
-   * | Ctrl/Cmd+B         | cycle the layout |
+   * A shortcut is a chord bound to a command id: the actions are the command
+   * registry (`commands/registry.js`, whose `defaultKeys` are the defaults) and
+   * the bindings are `state/shortcuts.js`, which the settings overlay edits. So
+   * this handler is a lookup — nothing here knows which key does what.
    *
-   * They live here rather than in the components they drive because a shortcut
-   * has to work when nothing in particular is focused, and because a handler
-   * per overlay would only run once that overlay was already open.
+   * It lives here rather than in the components a shortcut drives because a
+   * shortcut has to work when nothing in particular is focused, and because a
+   * handler per overlay would only run once that overlay was already open.
    *
    * @param {KeyboardEvent} ev
    */
   function onKeydown(ev) {
-    // Escape is the one key that must still work from inside a text field —
-    // it is how you leave the overlay you are typing in. It is handled *here*
-    // and nowhere else: `OverlayShell` deliberately has no key handler, and
-    // `overlay/focus_trap.js` sees only Tab, so no two handlers race on the
-    // same key. (The shell's ✕ is a second *closer*, calling the same action —
-    // an opaque full-pane modal has no backdrop left to click.)
-    if (ev.key === 'Escape') {
-      if (!$overlay.kind) return;
-      ev.preventDefault();
-      overlay.close();
-      return;
-    }
+    const chord = chordFromEvent(ev);
+    if (!chord) return;
+    const id = $shortcuts.byChord.get(chord);
+    const command = id ? commandsById.get(id) : undefined;
+    if (!command) return;
 
-    // Everything below would otherwise eat characters as you type — `/` most
-    // obviously, but Ctrl+B and Ctrl+K are text-editing keys in some fields too.
+    // Most shortcuts would otherwise eat characters as you type — `/` most
+    // obviously, but Ctrl+B and Ctrl+K are text-editing keys in some fields
+    // too. `allowInInput` is for Escape (`overlay.close`): it is how you leave
+    // the overlay you are typing in. It is handled *here* and nowhere else:
+    // `OverlayShell` deliberately has no key handler, and
+    // `overlay/focus_trap.js` sees only Tab, so no two handlers race on the
+    // same key.
     const target = ev.target;
     const typing =
       target instanceof HTMLElement &&
       (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-    if (typing) return;
+    if (typing && !command.allowInInput) return;
 
-    const mod = ev.ctrlKey || ev.metaKey;
-    // With Shift held, `ev.key` is the upper-case letter.
-    const key = ev.key.toLowerCase();
+    // A disabled command leaves the key alone — Escape with nothing open is
+    // not ours to swallow.
+    const ctx = commandContext();
+    if (command.enabled && !command.enabled(ctx)) return;
 
-    if (!mod) {
-      if (key === '/') {
-        ev.preventDefault();
-        overlay.toggle('search');
-      }
-      return;
-    }
-
-    if (ev.shiftKey) {
-      if (key === 'f') {
-        ev.preventDefault();
-        overlay.toggle('filter');
-      } else if (key === 'p') {
-        ev.preventDefault();
-        overlay.toggle('commands');
-      }
-      return;
-    }
-
-    if (key === 'k') {
-      ev.preventDefault();
-      overlay.toggle('search');
-    } else if (key === '\\') {
-      ev.preventDefault();
-      tiles.splitRight();
-      // A new column is invisible while the content pane is hidden, and this
-      // shortcut works in every mode. A no-op unless the mode is `viz`.
-      layout.reveal();
-    } else if (key === 'b') {
-      ev.preventDefault();
-      layout.cycle();
-    }
+    ev.preventDefault();
+    command.run(ctx);
   }
 
   /**

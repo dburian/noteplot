@@ -1,4 +1,5 @@
 import { base } from '$app/paths';
+import { OVERLAY_KINDS } from './overlay.js';
 
 /**
  * The single place the URL is read and written.
@@ -37,8 +38,7 @@ import { base } from '$app/paths';
 
 /** @type {LayoutMode[]} */
 const MODES = ['split', 'viz', 'content'];
-/** @type {OverlayKind[]} */
-const KINDS = ['search', 'filter', 'commands'];
+const KINDS = OVERLAY_KINDS;
 
 /** The note-only route. Its pathname *seeds* content mode rather than owning it. */
 const NOTES_PREFIX = () => `${base}/notes/`;

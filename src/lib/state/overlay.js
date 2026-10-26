@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 
 /**
- * @typedef {'search'|'filter'|'commands'} OverlayKind
+ * @typedef {'search'|'filter'|'commands'|'settings'|'shortcuts'} OverlayKind
  * @typedef {{kind: OverlayKind | null, query: string}} OverlayState
  * @typedef {{
  *   subscribe: import('svelte/store').Readable<OverlayState>['subscribe'],
@@ -13,10 +13,13 @@ import { writable } from 'svelte/store';
  */
 
 /** @type {OverlayKind[]} */
-export const OVERLAY_KINDS = ['search', 'filter', 'commands'];
+export const OVERLAY_KINDS = ['search', 'filter', 'commands', 'settings', 'shortcuts'];
 
 /**
- * The modal over the content area — search, filter, or the command palette.
+ * The modal over the content area — search, filter, the command palette, or
+ * settings. `shortcuts` is settings' one sub-page: a kind of its own rather
+ * than a field beside `kind`, so `?overlay=shortcuts` needs nothing new in the
+ * URL and `OverlayHost`'s focus restore already spans moving between them.
  * These used to be the `/search` and `/filter` routes; they are overlays now
  * so they can open on top of whatever you are reading without replacing it,
  * and so the graph stays visible and usable underneath.

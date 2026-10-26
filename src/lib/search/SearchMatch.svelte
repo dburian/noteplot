@@ -32,7 +32,7 @@
   /** Whether ↑/↓ has this row highlighted. @type {boolean} */
   export let active = false;
 
-  /** Show which fields matched. Driven by the toolbar's Metadata toggle. @type {boolean} */
+  /** Show which fields matched. Driven by the metadata preference (settings overlay). @type {boolean} */
   export let showMeta = false;
 
   /** Characters of excerpt around the match. @type {number} */

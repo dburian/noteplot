@@ -5,14 +5,16 @@
   import SearchOverlay from './SearchOverlay.svelte';
   import FilterOverlay from './FilterOverlay.svelte';
   import CommandOverlay from './CommandOverlay.svelte';
+  import SettingsOverlay from './SettingsOverlay.svelte';
+  import ShortcutsOverlay from './ShortcutsOverlay.svelte';
 
   /**
-   * The one mount point for all three modals, in `ContentPane`.
+   * The one mount point for every modal, in `ContentPane`.
    *
    * Nothing outside `overlay.js` decides what is open: the toolbar buttons, the
    * keyboard shortcuts, the commands and `?overlay=` all write `kind`, and this
-   * reads it. Adding a fourth screen is a key in `OverlayKind` and a row in the
-   * map below.
+   * reads it. Adding a screen is a key in `OverlayKind` and a row in the map
+   * below.
    *
    * `<svelte:component>` remounts on every change of `this`, which is what
    * makes each screen's `onMount` autofocus fire on open and its state start
@@ -38,7 +40,9 @@
   const SCREENS = {
     search: SearchOverlay,
     filter: FilterOverlay,
-    commands: CommandOverlay
+    commands: CommandOverlay,
+    settings: SettingsOverlay,
+    shortcuts: ShortcutsOverlay
   };
 
   /**

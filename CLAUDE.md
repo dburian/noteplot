@@ -104,7 +104,8 @@ container. Every column loads its own note the same way, through `notes_route.js
 route's pages render nothing at all. Nothing scrolls the window, so scroll restoration across
 back/forward is implemented by hand in `src/lib/content/scroll_memory.js`.
 
-Search, filter and the command palette are **modal overlays over the content area**, not routes —
+Search, filter, the command palette and settings (with its keyboard-shortcuts sub-page) are
+**modal overlays over the content area**, not routes —
 `$lib/overlay/OverlayHost.svelte`, mounted inside the content pane so the toolbar stays clickable
 and the visualization stays visible and usable underneath. Which one is open is one field in one
 store, mirrored into `?overlay=`. See `src/routes/CLAUDE.md` and `src/lib/CLAUDE.md`.
@@ -251,7 +252,7 @@ virtual module is not.
 | `src/lib/content/`       | the content pane's columns, and their scroll memory                   |
 | `src/lib/toolbar/`       | the three-section top strip and its button stack                      |
 | `src/lib/overlay/`       | the modal host and the search / filter / command screens              |
-| `src/lib/commands/`      | the command registry and its subsequence matcher                      |
+| `src/lib/commands/`      | the command registry (also every shortcut's action and default keys)  |
 | `src/lib/search/`        | the shared input, result row, and the memoised minisearch index       |
 | `src/lib/viz/`           | the registry, the pane that hosts it, and the force graph renderer    |
 | `static/`                | favicons, manifest, and generated `note_imgs/`                        |
