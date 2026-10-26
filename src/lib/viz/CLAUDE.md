@@ -27,7 +27,7 @@ A visualization is one descriptor in `registry.js`'s `visualizations` array:
 | Field             | Meaning                                                                |
 | ----------------- | ---------------------------------------------------------------------- |
 | `id`              | stable; the `viz.settings` key and what is persisted to `localStorage` |
-| `label`           | shown in the toolbar switcher                                          |
+| `label`           | shown in the toolbar switcher, and titles its "Show <label>" command   |
 | `dataId`          | which `src/lib/generated/viz/<dataId>.json` `View` gets as `data`      |
 | `View`            | Svelte component, props `{data, settings, callbacks}`                  |
 | `Controls`        | Svelte component rendered into the toolbar, no props; may be `null`    |

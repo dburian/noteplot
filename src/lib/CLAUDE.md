@@ -37,18 +37,19 @@ returns `{ subscribe, ...named actions }` and no bare `set`, following the exist
 
 ### The stores
 
-| Key (`state/keys.js`) | Module           | Value                                    | Notes                                                                     |
-| --------------------- | ---------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
-| `NOTES_INDEX`         | `notes_index.js` | `{bySlug, all, titleOf}`                 | not a store — a static lookup built from `index.json`                     |
-| `SELECTION`           | `selection.js`   | `{activeNote, hoveredNote}`              | `{slug,title}` refs only (ISSUES.md B9)                                   |
-| `LAYOUT`              | `layout.js`      | `{mode, vizFraction, lastSplitFraction}` | `mode` is `'split'｜'viz'｜'content'`                                     |
-| `TILES`               | `tiles.js`       | `{tiles: [{id, slug}], focusIndex}`      | zero tiles is legal and means "no note open"                              |
-| `HISTORY`             | `history.js`     | `{recent: [{slug,title}]}`               | max 8, deduped, `sessionStorage`                                          |
-| `OVERLAY`             | `overlay.js`     | `{kind, query}`                          | `kind` is `null｜'search'｜'filter'｜'commands'｜'settings'｜'shortcuts'` |
-| `PREFS`               | `prefs.js`       | `{showMeta}`                             | `localStorage`                                                            |
-| `VIZ`                 | `viz.js`         | `{activeId, settings: {[vizId]: {...}}}` | `localStorage`; per-visualization settings slices                         |
-| `FILTER`              | `filter.js`      | `{query, results}`                       | moved verbatim from `search/WithFilterContext.svelte`                     |
-| `SHORTCUTS`           | `shortcuts.js`   | `{bindings, byChord, overrides}`         | `localStorage`; stores only overrides of `defaultKeys`                    |
+| Key (`state/keys.js`) | Module                 | Value                                    | Notes                                                                     |
+| --------------------- | ---------------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
+| `NOTES_INDEX`         | `notes_index.js`       | `{bySlug, all, titleOf}`                 | not a store — a static lookup built from `index.json`                     |
+| `SELECTION`           | `selection.js`         | `{activeNote, hoveredNote}`              | `{slug,title}` refs only (ISSUES.md B9)                                   |
+| `LAYOUT`              | `layout.js`            | `{mode, vizFraction, lastSplitFraction}` | `mode` is `'split'｜'viz'｜'content'`                                     |
+| `TILES`               | `tiles.js`             | `{tiles: [{id, slug}], focusIndex}`      | zero tiles is legal and means "no note open"                              |
+| `HISTORY`             | `history.js`           | `{recent: [{slug,title}]}`               | max 8, deduped, `sessionStorage`                                          |
+| `OVERLAY`             | `overlay.js`           | `{kind, query}`                          | `kind` is `null｜'search'｜'filter'｜'commands'｜'settings'｜'shortcuts'` |
+| `PREFS`               | `prefs.js`             | `{showMeta}`                             | `localStorage`                                                            |
+| `VIZ`                 | `viz.js`               | `{activeId, settings: {[vizId]: {...}}}` | `localStorage`; per-visualization settings slices                         |
+| `FILTER`              | `filter.js`            | `{query, results}`                       | moved verbatim from `search/WithFilterContext.svelte`                     |
+| `SHORTCUTS`           | `shortcuts.js`         | `{bindings, byChord, overrides}`         | `localStorage`; stores only overrides of `defaultKeys`                    |
+| `COMMANDS`            | `commands/registry.js` | `{list, byId}`                           | not a store — `buildCommands(vizDescriptors)`, static like `NOTES_INDEX`  |
 
 Three invariants in there are load-bearing and easy to "simplify" away:
 
@@ -274,7 +275,7 @@ they drive: a shortcut has to work when nothing in particular is focused, and a 
 overlay could only ever run once that overlay was already open.
 
 **A shortcut is a chord bound to a command id**, and the handler is a lookup: `chordFromEvent(ev)`
-→ `$shortcuts.byChord` → `commandsById` → `command.run(ctx)`. Nothing in `AppShell` knows which
+→ `$shortcuts.byChord` → `COMMANDS.byId` → `command.run(ctx)`. Nothing in `AppShell` knows which
 key does what. The actions are the command registry; the defaults are each command's
 `defaultKeys`; the user's changes are `state/shortcuts.js`, edited from the settings overlay.
 
@@ -716,6 +717,15 @@ Two details that will bite whoever edits it:
   whether that one actually has the setting, so a second visualization needs no edit here and does
   not inherit a command that would do nothing.
 
+**Each visualization gets a generated "Show <label>" command** (`viz.show.<id>`), from
+`vizCommands(descriptors)`. It switches the active visualization and, in `content` mode, opens the
+split — otherwise the switch happens in a hidden pane. So the full list is not a module constant:
+`WithAppState` builds it with `buildCommands(vizDescriptors)` and publishes it as `COMMANDS`, and
+`AppShell`, `CommandOverlay` and `ShortcutsOverlay` read it from there. Two reasons it is built
+there rather than by importing `viz/registry.js` here: that file pulls in Svelte components, which
+the state layer must not depend on; and `createShortcutsState` drops stored overrides for ids it
+was not given, so it must see the generated ids or a binding to one vanishes on reload.
+
 `description` is **required**, not optional. The rows show one under the title, and the array is
 annotated `@type {Command[]}`, so a forgotten description is an `npm run check` failure rather than
 a blank line in the palette.
@@ -813,7 +823,8 @@ localStorage and can name a visualization that has since been renamed away. `Con
 
 The state layer never imports this file. `(app)/+layout.svelte` passes `visualizations` into
 `WithAppState`'s `vizDescriptors`, which is how `createVizState` learns each visualization's
-`defaultSettings` without `state/` depending on `viz/`. There is deliberately no second copy of
+`defaultSettings`, and `buildCommands` each one's "Show <label>" command, without `state/`
+depending on `viz/`. There is deliberately no second copy of
 those defaults.
 
 `VizPane` supplies the visualization's `callbacks` — `{onActivate, onHover}` — rather than letting

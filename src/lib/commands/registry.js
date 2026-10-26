@@ -233,5 +233,52 @@ export const commands = [
   }
 ];
 
-/** @type {Map<string, Command>} */
-export const commandsById = new Map(commands.map((command) => [command.id, command]));
+/**
+ * One "Show <label>" command per visualization, generated from the
+ * descriptors so a new visualization gets its command without an edit here.
+ *
+ * Generated rather than imported: `viz/registry.js` pulls in Svelte components,
+ * and the state layer — which needs every command id, or `shortcuts.js` drops a
+ * binding to one as unknown — must not depend on them. `WithAppState` is handed
+ * the descriptors anyway, so it builds the full list with `buildCommands`.
+ *
+ * Always enabled: on the active visualization it still reveals the pane, and
+ * that is the one useful thing it can do there.
+ *
+ * @param {{id: string, label: string}[]} descriptors
+ * @returns {Command[]}
+ */
+export function vizCommands(descriptors) {
+  return descriptors.map((d) => ({
+    id: `viz.show.${d.id}`,
+    title: `Show ${d.label}`,
+    description: `Switch the visualization pane to the ${d.label.toLowerCase()}.`,
+    keywords: ['switch', 'visualization', 'graph'],
+    group: /** @type {const} */ ('Visualization'),
+    // In `content` mode the pane is hidden, and switching what it shows would
+    // look like nothing happened. `viz` and `split` already show it.
+    run: (ctx) => {
+      ctx.viz.setActive(d.id);
+      if (ctx.values.layout.mode === 'content') ctx.layout.setMode('split');
+    }
+  }));
+}
+
+/**
+ * The full vocabulary: the static commands with the generated ones placed
+ * after the last Visualization command, so the palette's empty-query order
+ * stays grouped. Published as the `COMMANDS` context by `WithAppState`.
+ *
+ * @typedef {{list: Command[], byId: Map<string, Command>}} Commands
+ *
+ * @param {{id: string, label: string}[]} descriptors
+ * @returns {Commands}
+ */
+export function buildCommands(descriptors) {
+  let at = commands.length;
+  commands.forEach((c, i) => {
+    if (c.group === 'Visualization') at = i + 1;
+  });
+  const list = [...commands.slice(0, at), ...vizCommands(descriptors), ...commands.slice(at)];
+  return { list, byId: new Map(list.map((command) => [command.id, command])) };
+}

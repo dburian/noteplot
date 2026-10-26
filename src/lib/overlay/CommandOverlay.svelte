@@ -1,11 +1,19 @@
 <script>
   import { matchCommands } from '$lib/commands/match.js';
-  import { commands } from '$lib/commands/registry.js';
   import CommandRow from '$lib/commands/CommandRow.svelte';
   import OverlayEmpty from './OverlayEmpty.svelte';
   import OverlayShell from './OverlayShell.svelte';
   import SearchBar from '$lib/search/SearchBar.svelte';
-  import { useAppState, FILTER, LAYOUT, OVERLAY, PREFS, TILES, VIZ } from '$lib/state/keys.js';
+  import {
+    useAppState,
+    COMMANDS,
+    FILTER,
+    LAYOUT,
+    OVERLAY,
+    PREFS,
+    TILES,
+    VIZ
+  } from '$lib/state/keys.js';
 
   /**
    * The command palette. Everything the toolbar can do, by name.
@@ -22,6 +30,9 @@
   const filter = /** @type {import('$lib/state/filter.js').FilterStore} */ (useAppState(FILTER));
   const overlay = /** @type {import('$lib/state/overlay.js').OverlayStore} */ (
     useAppState(OVERLAY)
+  );
+  const { list: commands } = /** @type {import('$lib/commands/registry.js').Commands} */ (
+    useAppState(COMMANDS)
   );
 
   /**

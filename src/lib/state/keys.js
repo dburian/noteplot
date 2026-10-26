@@ -21,6 +21,7 @@ export const PREFS = 'noteplot:prefs';
 export const VIZ = 'noteplot:viz';
 export const FILTER = 'noteplot:filter';
 export const SHORTCUTS = 'noteplot:shortcuts';
+export const COMMANDS = 'noteplot:commands';
 
 /**
  * Read one of the app contexts. Throws instead of returning `undefined`, so a

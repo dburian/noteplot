@@ -1,8 +1,7 @@
 <script>
-  import { useAppState, LAYOUT, OVERLAY, SHORTCUTS, TILES } from '$lib/state/keys.js';
+  import { useAppState, COMMANDS, LAYOUT, OVERLAY, SHORTCUTS, TILES } from '$lib/state/keys.js';
   import { chordFromEvent } from '$lib/commands/chord.js';
   import { useCommandContext } from '$lib/commands/context.js';
-  import { commandsById } from '$lib/commands/registry.js';
   import { visibleMode } from '$lib/state/layout.js';
   import Toolbar from '$lib/toolbar/Toolbar.svelte';
   import VizPane from '$lib/viz/VizPane.svelte';
@@ -30,6 +29,9 @@
 
   const shortcuts = /** @type {import('$lib/state/shortcuts.js').ShortcutsStore} */ (
     useAppState(SHORTCUTS)
+  );
+  const { byId: commandsById } = /** @type {import('$lib/commands/registry.js').Commands} */ (
+    useAppState(COMMANDS)
   );
   const commandContext = useCommandContext();
 

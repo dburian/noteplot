@@ -4,9 +4,8 @@
   import Button from '$lib/components/Button.svelte';
   import OverlayShell from './OverlayShell.svelte';
   import { recordChord } from './record_chord.js';
-  import { commands, commandsById } from '$lib/commands/registry.js';
   import { formatChord } from '$lib/commands/chord.js';
-  import { useAppState, OVERLAY, SHORTCUTS } from '$lib/state/keys.js';
+  import { useAppState, COMMANDS, OVERLAY, SHORTCUTS } from '$lib/state/keys.js';
 
   /**
    * Settings › Keyboard shortcuts: every command, its chords, and the controls
@@ -28,6 +27,8 @@
   const shortcuts = /** @type {import('$lib/state/shortcuts.js').ShortcutsStore} */ (
     useAppState(SHORTCUTS)
   );
+  const { list: commands, byId: commandsById } =
+    /** @type {import('$lib/commands/registry.js').Commands} */ (useAppState(COMMANDS));
 
   /** @type {('Layout'|'Content'|'Visualization'|'Navigation')[]} */
   const GROUPS = ['Layout', 'Content', 'Visualization', 'Navigation'];

@@ -14,7 +14,7 @@
   import { createVizState } from './viz.js';
   import { createFilterState } from './filter.js';
   import { createShortcutsState } from './shortcuts.js';
-  import { commands } from '$lib/commands/registry.js';
+  import { buildCommands } from '$lib/commands/registry.js';
   import { buildUrl, indexPath, notePath, readUrlState, slugFromPath } from './url_state.js';
 
   /**
@@ -37,7 +37,7 @@
    * rather than seeded with a copy of the force graph's settings, which would
    * be a second definition free to drift from `viz/registry.js`.
    *
-   * @type {{id: string, defaultSettings?: Record<string, unknown>}[]}
+   * @type {{id: string, label: string, defaultSettings?: Record<string, unknown>}[]}
    */
   export let vizDescriptors = [];
 
@@ -53,8 +53,11 @@
   const viz = createVizState(vizDescriptors);
   const filter = createFilterState();
   // The command registry is pure data over store actions, so importing it here
-  // does not make the state layer depend on any component.
-  const shortcuts = createShortcutsState(commands);
+  // does not make the state layer depend on any component. The per-viz
+  // commands are built from the injected descriptors, and the shortcuts store
+  // must see them all, or it drops a binding to one as naming no command.
+  const commands = buildCommands(vizDescriptors);
+  const shortcuts = createShortcutsState(commands.list);
 
   setContext(keys.NOTES_INDEX, notesIndex);
   setContext(keys.SELECTION, selection);
@@ -66,6 +69,7 @@
   setContext(keys.VIZ, viz);
   setContext(keys.FILTER, filter);
   setContext(keys.SHORTCUTS, shortcuts);
+  setContext(keys.COMMANDS, commands);
 
   /**
    * URL → stores.
