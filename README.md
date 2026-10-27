@@ -22,6 +22,13 @@ npm run watch:notes '<path to root note folder>'
 npm run watch:vite
 ```
 
+To stamp `created` / `accessed` dates (from git history, else mtime) into every
+note's frontmatter, for the date graph:
+
+```bash
+node index.js add-dates '<path to root note folder>' --dry-run
+```
+
 ## TODOs
 
 ### 1.0

@@ -79,7 +79,7 @@ export function addCreated() {
  * @param {unknown} value
  * @returns {number | null}
  */
-function parseCreated(value) {
+export function parseCreated(value) {
   if (value instanceof Date) {
     const ms = value.getTime();
     if (Number.isNaN(ms)) return null;

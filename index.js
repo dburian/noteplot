@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import path from 'node:path';
 import { createServer, build as viteBuild } from 'vite';
 import { preprocess } from './preprocessor/index.js';
 import { logger } from './preprocessor/log.js';
+import { addDates } from './tools/add_dates.js';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
@@ -120,6 +121,12 @@ async function build(noteRootArg, options, command) {
   await viteBuild();
 }
 
+async function addDatesCommand(noteRootArg, options, command) {
+  const { opts, noteRoot } = setupCommonOpts(noteRootArg, command);
+
+  await addDates({ noteRoot, mode: opts.mode, dryRun: opts.dryRun });
+}
+
 async function main() {
   const prog = new Command();
 
@@ -159,6 +166,21 @@ async function main() {
       'BASE_PATH' in process.env ? process.env.BASE_PATH : ''
     )
     .action(build);
+
+  prog
+    .command('add-dates')
+    .description("Adds `created` and `accessed` dates to every note's frontmatter.")
+    .argument('<note-dir>', 'Root directory containing all notes and images.')
+    .addOption(
+      new Option(
+        '--mode <mode>',
+        'What to do with existing dates: `warn` leaves them and warns on malformed or differing ones, `fix` also replaces malformed ones, `set` overwrites them all. Missing dates are always added.'
+      )
+        .choices(['warn', 'fix', 'set'])
+        .default('fix')
+    )
+    .option('--dry-run', 'Print the changes without writing them.', false)
+    .action(addDatesCommand);
 
   await prog.parseAsync();
 }

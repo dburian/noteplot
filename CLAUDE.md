@@ -167,6 +167,16 @@ node index.js build <note-dir>
 npm run preview
 ```
 
+`node index.js add-dates <note-dir> [--mode warn|fix|set] [--dry-run]` (`tools/add_dates.js`)
+edits the notes themselves — the only command that does. It writes `created` and `accessed` as
+unquoted `YYYY-MM-DD` into every frontmatter: `created` is the day of the commit that first added
+the note (following renames), `accessed` the day of the last commit touching it, both from a single
+`git log` over the note root; a note git does not know about gets its mtime's day. Missing keys are
+always added. `--mode` decides what happens to existing ones: `warn` leaves them and warns on
+malformed values and on values that differ from git, `fix` (the default) also replaces malformed
+ones, `set` overwrites everything. The frontmatter is edited as text, so comments and formatting
+survive, and each file's mtime is restored afterwards.
+
 `npm run dev` / `npm run build` run **vite alone** and will fail or serve stale data unless the
 preprocessor has already populated `src/lib/generated/`. Prefer the `index.js` entry points.
 
@@ -259,6 +269,7 @@ virtual module is not.
 | `preprocessor/`          | the build-time half — see "Half 1" above; contracts in `types.js`     |
 | `preprocessor/parse/`    | remark/rehype plugins, the single-parse `NoteRecord` builder, workers |
 | `preprocessor/emitters/` | one module per output; `index.js` is the registry                     |
+| `tools/`                 | `add-dates`: writes `created` / `accessed` into notes' frontmatter    |
 | `src/routes/`            | pages and data loading — see `src/routes/CLAUDE.md`                   |
 | `src/lib/`               | components and state — see `src/lib/CLAUDE.md`                        |
 | `src/lib/state/`         | the stores and the URL contract — see `src/lib/CLAUDE.md`             |
