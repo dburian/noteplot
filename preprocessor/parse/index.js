@@ -20,20 +20,17 @@ const PARSE_POOL_THRESHOLD = 300;
 const MAX_PARSE_WORKERS = 4;
 
 /**
- * Attaches the file's mtime to a record whose frontmatter has no usable
- * `created` date -- the date graph's fallback.
+ * Attaches the note's dates -- from git or the filesystem, see `dates.js`.
  *
- * The one field of a record that is not a function of the file's bytes, which
- * is why it is attached here, after the cache, and never stored in it. Only
- * undated notes get it, so saving a dated note does not mark it changed and the
- * date graph is left alone.
+ * The fields of a record that are not a function of the file's bytes, which is
+ * why they are attached here, after the cache, and never stored in it.
  *
- * @param {import('../types.js').NoteRecord} record
- * @param {number} mtimeMs
+ * @param {import('../types.js').ParsedRecord} record
+ * @param {import('../dates.js').Dates} dates
  * @returns {import('../types.js').NoteRecord}
  */
-function withMtime(record, mtimeMs) {
-  return record.created === null ? { ...record, mtimeMs } : record;
+function withDates(record, dates) {
+  return { ...record, ...dates };
 }
 
 /**
@@ -44,10 +41,12 @@ export class NoteParser {
   /**
    * @param {{noteRoot: string, imgUrl: string}} config
    * @param {import('../cache.js').Cache} cache
+   * @param {import('../dates.js').NoteDates} dates
    */
-  constructor({ noteRoot, imgUrl }, cache) {
+  constructor({ noteRoot, imgUrl }, cache, dates) {
     this.parserConfig = { noteRoot, imgUrl };
     this.cache = cache;
+    this.dates = dates;
     /** Built on first use; a warm start may never need it. */
     this.inProcess = null;
   }
@@ -64,15 +63,15 @@ export class NoteParser {
     const records = [];
     /** Paths that vanished between the event and the read. @type {string[]} */
     const missing = [];
-    /** @type {{absPath: string, source: string, key: string, mtimeMs: number}[]} */
+    /** @type {{absPath: string, source: string, key: string, stats: import('node:fs').Stats}[]} */
     const misses = [];
     let failures = 0;
 
     await Promise.all(
       paths.map(async (absPath) => {
-        let bytes, mtimeMs;
+        let bytes, stats;
         try {
-          [bytes, { mtimeMs }] = await Promise.all([readFile(absPath), stat(absPath)]);
+          [bytes, stats] = await Promise.all([readFile(absPath), stat(absPath)]);
         } catch (error) {
           if (error.code == 'ENOENT') {
             missing.push(absPath);
@@ -87,9 +86,9 @@ export class NoteParser {
         const cached = await this.cache.getRecord(key);
         if (cached) {
           this._logWarnings(cached.warnings);
-          records.push(withMtime(cached.record, mtimeMs));
+          records.push(withDates(cached.record, this.dates.get(absPath, stats)));
         } else {
-          misses.push({ absPath, source: bytes.toString('utf8'), key, mtimeMs });
+          misses.push({ absPath, source: bytes.toString('utf8'), key, stats });
         }
       })
     );
@@ -109,11 +108,11 @@ export class NoteParser {
 
       try {
         await Promise.all(
-          misses.map(async ({ absPath, source, key, mtimeMs }) => {
+          misses.map(async ({ absPath, source, key, stats }) => {
             try {
               const entry = await parse(absPath, source);
               this._logWarnings(entry.warnings);
-              records.push(withMtime(entry.record, mtimeMs));
+              records.push(withDates(entry.record, this.dates.get(absPath, stats)));
               await this.cache.putRecord(key, entry);
             } catch (error) {
               logger.error(error, `Could not parse ${absPath}.`);

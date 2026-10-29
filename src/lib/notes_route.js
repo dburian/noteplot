@@ -22,7 +22,13 @@ import { error } from '@sveltejs/kit';
  *   noteRoot: string,
  *   originalPath: string,
  *   readingTime: {text: string, minutes: number, time: number, words: number},
+ *   created: number,
+ *   accessed: number,
+ *   dateSource: 'git' | 'fs',
  * }} Note
+ *
+ * `created` and `accessed` are ms timestamps from git history, or from the
+ * filesystem when `dateSource` is `'fs'`; see `preprocessor/dates.js`.
  */
 
 /**

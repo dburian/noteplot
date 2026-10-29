@@ -50,7 +50,7 @@ export class ParsePool {
   /**
    * @param {string} absPath
    * @param {string} source
-   * @returns {Promise<{record: import('../types.js').NoteRecord, warnings: string[]}>}
+   * @returns {Promise<{record: import('../types.js').ParsedRecord, warnings: string[]}>}
    */
   parse(absPath, source) {
     return new Promise((resolve, reject) => {

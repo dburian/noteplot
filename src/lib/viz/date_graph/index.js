@@ -8,8 +8,8 @@ import ForceGraphControls from '../force_graph/ForceGraphControls.svelte';
  * A descriptor only, like `tag_graph/`: the preprocessor's
  * `emitters/graph/dates.js` pins each note's x to its date and lays out only y,
  * and writes a `timeAxis` into `viz/dates.json`. That key is what turns on the
- * renderer's date ticks, and a node's `dateSource: 'mtime'` is what draws it
- * dimmed -- its note had no usable `created` date, so its file's mtime stands in.
+ * renderer's date ticks, and a node's `dateSource: 'fs'` is what draws it
+ * dimmed -- git does not track its note, so a filesystem time stands in.
  *
  * Connections are off by default: links between notes far apart in time cross
  * the whole strip. The hovered and the selected note still show theirs.

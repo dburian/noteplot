@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises';
 
 import { Cache } from './cache.js';
 import { Corpus, isAffected } from './corpus.js';
+import { NoteDates } from './dates.js';
 import { createEmitters } from './emitters/index.js';
 import { logger } from './log.js';
 import { NoteParser } from './parse/index.js';
@@ -49,7 +50,8 @@ class Preprocessor {
     this.config = config;
     this.cache = new Cache(config.cachePath, config);
     this.writer = new ArtifactWriter(config.savePath, this.cache);
-    this.parser = new NoteParser(config, this.cache);
+    this.dates = new NoteDates(config.noteRoot);
+    this.parser = new NoteParser(config, this.cache, this.dates);
     this.corpus = new Corpus();
     this.emitters = createEmitters();
     this.scanner = new NoteScanner(config.noteRoot, {
@@ -66,6 +68,7 @@ class Preprocessor {
   async scanAll() {
     const started = performance.now();
     const paths = await this.scanner.listNotes();
+    await this.dates.load(paths);
 
     const { failures } = await this.process({ upserts: paths, removals: [], cold: true });
 
@@ -94,8 +97,13 @@ class Preprocessor {
       // The watcher calls this from a timer, where a rejection would become an
       // unhandled rejection and take the whole process down.
       try {
+        const upserts = events.filter((e) => e.eventType != 'unlink').map((e) => e.targetPath);
+        // A saved note is now dirty, so its `accessed` becomes its mtime.
+        await this.dates
+          .refresh(upserts)
+          .catch((error) => logger.warn(`Could not ask git which notes changed: ${error.message}`));
         await this.process({
-          upserts: events.filter((e) => e.eventType != 'unlink').map((e) => e.targetPath),
+          upserts,
           removals: events.filter((e) => e.eventType == 'unlink').map((e) => e.targetPath),
           cold: false
         });

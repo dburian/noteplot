@@ -17,8 +17,9 @@
  *   originalPath: string,
  *   title: string,
  *   matter: Record<string, any>,
- *   created: number | null,
- *   mtimeMs?: number,
+ *   created: number,
+ *   accessed: number,
+ *   dateSource: 'git' | 'fs',
  *   readingTime: {text: string, minutes: number, time: number, words: number},
  *   linkSlugs: string[],
  *   images: NoteImage[],
@@ -31,11 +32,13 @@
  * `html` is the rendered body, `text` the stripped plaintext the search index
  * and any content-derived graph read.
  *
- * `created` is the frontmatter's `created` date, as ms at UTC midnight, or
- * `null` when it is missing or malformed (the parse warns). `mtimeMs` is the
- * **one exception** to "a pure function of the bytes": `NoteParser` attaches the
- * file's mtime after the cache lookup, never stores it, and only on records
- * whose `created` is `null` -- it is the date graph's fallback.
+ * `created`, `accessed` and `dateSource` are the **one exception** to "a pure
+ * function of the bytes". They come from git history or the filesystem
+ * (`dates.js`), in ms, and `NoteParser` attaches them after the cache lookup.
+ * They are never stored: the cache holds a **ParsedRecord**, which is a
+ * NoteRecord without them. Frontmatter dates are not read.
+ *
+ * @typedef {Omit<NoteRecord, 'created' | 'accessed' | 'dateSource'>} ParsedRecord
  *
  * @typedef {{src: string, dest: string}} NoteImage
  * `src` is the image's absolute path, `dest` its file name in `static/note_imgs/`.

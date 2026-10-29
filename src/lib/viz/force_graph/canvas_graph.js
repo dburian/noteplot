@@ -31,7 +31,7 @@ function dist(p1, p2) {
  * @typedef {{source: Node, target: Node}} Link
  * @typedef {{source: string, target: string}} SerialisedLink
  * @typedef {{tags: Array<string>}} FrontMatter
- * @typedef {{slug: string, title: string, x: Number, y: Number, matter: FrontMatter, dateSource?: 'matter' | 'mtime'}} Node
+ * @typedef {{slug: string, title: string, x: Number, y: Number, matter: FrontMatter, dateSource?: 'git' | 'fs'}} Node
  * @typedef {{originMs: Number, msPerUnit: Number}} TimeAxis
  * @typedef {{slug: string, title?: string}} NoteRef
  * @typedef {{activeNote: NoteRef | null, hoveredNote: NoteRef | null}} SelectionState
@@ -441,7 +441,7 @@ class GraphRenderer {
     ctx.font = `${fontSize}px sans-serif`;
 
     ctx.save();
-    if (node.dateSource === 'mtime' && !hovered && !selected) ctx.globalAlpha = 0.45;
+    if (node.dateSource === 'fs' && !hovered && !selected) ctx.globalAlpha = 0.45;
     ctx.strokeText(node.title, x + nW, y);
     ctx.fillText(node.title, x + nW, y);
     ctx.restore();
@@ -495,8 +495,8 @@ class GraphRenderer {
   }
 
   /**
-   * A node whose date is only its file's mtime -- the date graph's fallback for
-   * a note without a usable `created` -- is drawn dimmed with a dashed outline,
+   * A node whose date comes from the filesystem -- the date graph's fallback for
+   * a note git does not track -- is drawn dimmed with a dashed outline,
    * unless it is selected or hovered.
    *
    * @param {Node} node
@@ -517,7 +517,7 @@ class GraphRenderer {
       ctx.fillStyle = this.theme.highlight;
       ctx.fillRect(x - nW / 2, y - nW / 2, nW, nW);
     } else {
-      const guessed = node.dateSource === 'mtime' && !hovered;
+      const guessed = node.dateSource === 'fs' && !hovered;
       ctx.save();
       ctx.fillStyle = this.theme.background;
       ctx.fillRect(x - nW / 2, y - nW / 2, nW, nW);

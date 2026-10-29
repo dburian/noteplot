@@ -94,7 +94,7 @@ export class Cache {
 
   /**
    * @param {string} key
-   * @returns {Promise<{record: import('./types.js').NoteRecord, warnings: string[]} | null>}
+   * @returns {Promise<{record: import('./types.js').ParsedRecord, warnings: string[]} | null>}
    */
   async getRecord(key) {
     this.usedKeys.add(key);
@@ -103,7 +103,7 @@ export class Cache {
 
   /**
    * @param {string} key
-   * @param {{record: import('./types.js').NoteRecord, warnings: string[]}} entry
+   * @param {{record: import('./types.js').ParsedRecord, warnings: string[]}} entry
    */
   async putRecord(key, entry) {
     this.usedKeys.add(key);

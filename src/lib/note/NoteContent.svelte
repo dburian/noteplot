@@ -30,7 +30,9 @@
     backlinks: note.backlinks,
     noteRoot: note.noteRoot,
     matter: note.matter,
-    readingTime: note.readingTime
+    readingTime: note.readingTime,
+    created: note.created,
+    accessed: note.accessed
   };
 </script>
 

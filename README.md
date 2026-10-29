@@ -22,44 +22,37 @@ npm run watch:notes '<path to root note folder>'
 npm run watch:vite
 ```
 
-To stamp `created` / `accessed` dates (from git history, else mtime) into every
-note's frontmatter, for the date graph:
-
-```bash
-node index.js add-dates '<path to root note folder>' --dry-run
-```
-
 ## TODOs
 
 ### 1.0
 
 - [ ] suggestions for search bar
-- [ ] filling in active filter string
-- [ ] keyboard shortcuts
+- [x] filling in active filter string
+- [x] keyboard shortcuts
 - [x] colored toolbar buttons w/ on/off + hovered styling
 - [x] toolbar labels
-- [ ] toolbar resize on line, not button
-- [ ] search string to url
-- [ ] filter string to url
+- [x] toolbar resize on line, not button
+- [x] search string to url
+- [x] filter string to url
 - [ ] mobile version of it all
 
 ### Ideas
 
-- [ ] refactor loading of search index jsons
-  - [ ] lazy load them (perhaps even in `minisearch` index form)
-  - [ ] have global available index
-  - [ ] do not have `/search` or `/filter` in url, only the search params?
+- [x] refactor loading of search index jsons
+  - [x] lazy load them (perhaps even in `minisearch` index form)
+  - [x] have global available index
+  - [x] do not have `/search` or `/filter` in url, only the search params?
 - [ ] helpers for tailwind classes?
 - [ ] documentation
 - [ ] typescript (or learn to write better jsdoc)
 - [ ] svelte 5 (down the line)
-- [ ] date graph
+- [x] date graph
 - [ ] graph transformations to url params (so go back and forward in history)
-- [ ] shallow routing for content slider searchParams
-- [ ] add access date and creation date to dates
-- [ ] graph controls
+- [x] shallow routing for content slider searchParams
+- [x] add access date and creation date to dates
+- [x] graph controls
   - [ ] activate/deactivate force simulation
-- [ ] commandline for full keyboard experience
+- [x] commandline for full keyboard experience
 
 #### Desktop
 

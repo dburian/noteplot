@@ -53,51 +53,6 @@ export function addFrontmatter() {
 }
 
 /**
- * Reads the frontmatter's `created` into `file.data.created`: the day at UTC
- * midnight, in ms, or `null` when it is missing or not a date. Accepts what
- * js-yaml makes of an unquoted `created: 2026-02-11` (a `Date`, cut to its
- * day) and a quoted `"YYYY-MM-DD"`. Anything else warns: the date graph then
- * falls back to the file's mtime, which is not something to do silently.
- */
-export function addCreated() {
-  return (_, file) => {
-    const value = /** @type {any} */ (file.data.matter)?.created;
-    const created = parseCreated(value);
-    if (created === null) {
-      warn(
-        file,
-        value === undefined
-          ? `${file.path} has no \`created\` date in its frontmatter; the date graph uses its mtime.`
-          : `${file.path} has a malformed \`created\` date (${JSON.stringify(value)}); the date graph uses its mtime.`
-      );
-    }
-    file.data.created = created;
-  };
-}
-
-/**
- * @param {unknown} value
- * @returns {number | null}
- */
-export function parseCreated(value) {
-  if (value instanceof Date) {
-    const ms = value.getTime();
-    if (Number.isNaN(ms)) return null;
-    return Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate());
-  }
-  if (typeof value != 'string') return null;
-
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
-  if (!match) return null;
-  const [year, month, day] = match.slice(1).map(Number);
-  const ms = Date.UTC(year, month - 1, day);
-  // `Date.UTC` rolls 2026-02-30 over into March rather than rejecting it.
-  const date = new Date(ms);
-  if (date.getUTCMonth() != month - 1 || date.getUTCDate() != day) return null;
-  return ms;
-}
-
-/**
  * Rewrites every local image to its URL under `imgUrl` and records where it has
  * to be copied from and to. Copying is the assets emitter's job, not the
  * parser's: a cached record must not depend on a side effect having happened.

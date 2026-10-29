@@ -6,15 +6,18 @@
   // No `title`: this block is *about* the note, and the note's own title is
   // rendered by its content, not repeated here. `NoteContent` builds these
   // props explicitly, so dropping it here drops it there too.
-  export let slug, links, backlinks, noteRoot, matter, readingTime;
+  export let slug, links, backlinks, noteRoot, matter, readingTime, created, accessed;
 
   export let displayNoteRoot = dev;
   export let displaySlug = dev;
 
   // Reactive and defaulted: `matter` is `{}` for a note with no frontmatter,
   // and was `null` in anything built before the frontmatter fix.
-  let tags, otherMatter;
+  let tags, otherMatter, matterKeys;
   $: ({ tags, ...otherMatter } = matter ?? {});
+  // Frontmatter `created` / `accessed` are left out: the preprocessor does not
+  // read them, and the real dates are shown below.
+  $: matterKeys = Object.keys(otherMatter).filter((key) => key != 'created' && key != 'accessed');
 
   // `readingTime.time` is a duration in milliseconds. Reading it back through
   // `new Date(...).getMinutes()` was a wall-clock read, and so wrong in any
@@ -22,6 +25,17 @@
   let readMins, readSecs;
   $: readMins = Math.floor(readingTime.time / 60000);
   $: readSecs = Math.round((readingTime.time % 60000) / 1000);
+
+  /**
+   * The local calendar day of a ms timestamp, as `YYYY-MM-DD`.
+   *
+   * @param {number} ms
+   */
+  function day(ms) {
+    const date = new Date(ms);
+    const pad = (/** @type {number} */ n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
 </script>
 
 <InfoBox>
@@ -45,7 +59,11 @@
     {#if tags && tags.length > 0}
       <li><strong>tags:</strong> {tags.join(', ')}</li>
     {/if}
-    {#each Object.keys(otherMatter) as key}
+    {#if created !== undefined}
+      <li><strong>created:</strong> {day(created)}</li>
+      <li><strong>last accessed:</strong> {day(accessed)}</li>
+    {/if}
+    {#each matterKeys as key}
       <li><strong>{key}:</strong> {matter[key]}</li>
     {/each}
     {#if displayNoteRoot}

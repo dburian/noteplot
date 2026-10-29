@@ -337,7 +337,7 @@ per 90 px. Zooming in therefore moves from months to days on its own, and pannin
 along. The band stays put vertically. Dates are UTC because the preprocessor writes every date as
 UTC midnight.
 
-**A node with `dateSource: 'mtime'`** (a note with no usable `created`, dated by its file's mtime)
+**A node with `dateSource: 'fs'`** (a note git does not track, dated by its file's birthtime or mtime)
 is drawn with a dashed outline at 45% opacity, and so is its label, unless it is hovered or
 selected. Nodes are hollow already, so hollowness alone would not set it apart.
 
