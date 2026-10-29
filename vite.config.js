@@ -1,15 +1,15 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import resolveConfig from "tailwindcss/resolveConfig";
-import tailwindConfig from "./tailwind.config.js";
+import resolveConfig from 'tailwindcss/resolveConfig';
+import tailwindConfig from './tailwind.config.js';
 
 const fullConfig = resolveConfig(tailwindConfig);
 
-const virtualModuleId = "virtual:tailwind-config";
-const resolvedVirtualModuleId = "\0" + virtualModuleId;
+const virtualModuleId = 'virtual:tailwind-config';
+const resolvedVirtualModuleId = '\0' + virtualModuleId;
 
 const precompiledTailwindConfig = {
-  name: "tailwind-config-module",
+  name: 'tailwind-config-module',
   /** @param {string} id */
   resolveId(id) {
     if (id === virtualModuleId) {
@@ -22,8 +22,11 @@ const precompiledTailwindConfig = {
       return `export default ${JSON.stringify(fullConfig, null, 2)}`;
     }
   }
-}
+};
 
 export default defineConfig({
-  plugins: [sveltekit(), precompiledTailwindConfig]
+  plugins: [sveltekit(), precompiledTailwindConfig],
+  // The search worker `import()`s search.json; the default `iife` worker
+  // format cannot code-split, so that import would fail the build.
+  worker: { format: 'es' }
 });

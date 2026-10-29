@@ -1,38 +1,51 @@
 <script>
-    import InfoBox from '$lib/components/InfoBox.svelte';
+  import InfoBox from '$lib/components/InfoBox.svelte';
+  import { FIELDS } from './query.js';
 
-
-  /** @type {import('minisearch').Query} */
+  /**
+   * What `parseSearchString` made of what you typed — which fields each term
+   * is looked up in, how it matches, and the path filters. Everything listed
+   * must hold (AND).
+   *
+   * In the overlays this is behind the settings overlay's **metadata** toggle, the same
+   * switch that shows a note's frontmatter and backlinks: both answer "show me
+   * the machinery", and neither is something you want in the way by default.
+   *
+   * @type {import('./query.js').ParsedQuery | null}
+   */
   export let query;
+
+  /** Passed through to `InfoBox`; the overlays want `mb-0`. @type {string} */
+  export let margin = 'mb-10';
+
+  /** @param {import('./query.js').QueryBlock} block */
+  function how(block) {
+    if (block.phrase) return 'phrase';
+    if (block.exact) return 'exact';
+    return [block.prefix && 'prefix', block.fuzzy && 'typo-tolerant'].filter(Boolean).join(', ');
+  }
 </script>
 
 {#if query}
-  <InfoBox>
-    {#if typeof query == 'string'}
-      {query}
-    {:else}
-      <div>
-        {#if query.fields !== undefined}
-          <p>
-            <span class="font-bold">fields:</span>
-            {query.fields.join(', ')}
-          </p>
-        {/if}
-        {#if query.combineWith !== undefined}
-          <p>
-            <span class="font-bold">combine:</span>
-            {query.combineWith}
-          </p>
-        {/if}
-        <span class="font-bold">queries:</span>
-        <ul>
-        {#each query.queries as subQuery}
-          <li>
-            <svelte:self query={subQuery} />
-          </li>
-        {/each}
-        </ul>
-      </div>
-    {/if}
+  <InfoBox {margin}>
+    <ul>
+      {#each query.blocks as block}
+        <li>
+          {#if block.negate}<span class="font-bold">not</span>{/if}
+          <span class="font-bold">
+            {block.fields.length === FIELDS.length ? 'any field' : block.fields.join(', ')}:
+          </span>
+          {block.text}
+          {#if how(block)}<span class="italic">({how(block)})</span>{/if}
+        </li>
+      {/each}
+      {#each query.paths as path}
+        <li>
+          {#if path.negate}<span class="font-bold">not</span>{/if}
+          <span class="font-bold">path:</span>
+          {path.value}
+        </li>
+      {/each}
+    </ul>
   </InfoBox>
 {/if}
