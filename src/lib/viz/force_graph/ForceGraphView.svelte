@@ -59,8 +59,8 @@
       settings: settingsStore,
       onActivate: callbacks.onActivate,
       onHover: callbacks.onHover,
-      // Only the date graph's file has one; it turns on the date axis.
-      timeAxis: data.timeAxis ?? null
+      // Only the date graph's file has them; they turn on the date axes.
+      timeAxes: data.timeAxes ?? null
     });
 
     return () => graph.destruct();

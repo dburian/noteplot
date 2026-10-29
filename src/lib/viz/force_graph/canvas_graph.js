@@ -11,10 +11,18 @@ const tailwindColors = tailwindConfig.theme.colors;
 // is a generous constant instead.
 const LABEL_REACH = 400;
 
-// The date axis: the band its labels sit in along the bottom of the canvas, and
-// roughly how far apart (CSS pixels) its ticks may be.
+// The time axes: the bands their labels sit in -- along the bottom of the
+// canvas for x, down its left edge for y -- and roughly how far apart (CSS
+// pixels) their ticks may be. A y label is one line high, so y ticks can sit
+// closer together than x ones.
 const AXIS_BAND_HEIGHT = 20;
-const AXIS_TICK_SPACING = 90;
+const AXIS_BAND_WIDTH = 64;
+const AXIS_TICK_SPACING = { x: 90, y: 60 };
+// Ticks closer together than this are finer than months, and the axis then
+// marks month boundaries and pins the name of the month it starts in.
+const MONTH_MS = 28 * 86_400_000;
+const AXIS_FONT = '11px sans-serif';
+const AXIS_NAME_FONT = 'bold 11px sans-serif';
 
 /**
  * @param {{x: Number, y: Number}} p1
@@ -32,7 +40,15 @@ function dist(p1, p2) {
  * @typedef {{source: string, target: string}} SerialisedLink
  * @typedef {{tags: Array<string>}} FrontMatter
  * @typedef {{slug: string, title: string, x: Number, y: Number, matter: FrontMatter, dateSource?: 'git' | 'fs'}} Node
- * @typedef {{originMs: Number, msPerUnit: Number}} TimeAxis
+ * @typedef {{originMs: Number, msPerUnit: Number, label?: string}} TimeAxis
+ * @typedef {{x?: TimeAxis, y?: TimeAxis}} TimeAxes
+ * @typedef {{pos: Number, label: string}} TimeTick
+ * @typedef {{
+ *   ticks: TimeTick[],
+ *   months: Number[] | null,
+ *   timeAt: (pos: Number) => Number,
+ *   name: string | null,
+ * }} AxisTicks
  * @typedef {{slug: string, title?: string}} NoteRef
  * @typedef {{activeNote: NoteRef | null, hoveredNote: NoteRef | null}} SelectionState
  * @typedef {import("svelte/store").Readable<SelectionState>} SelectionStore
@@ -159,10 +175,10 @@ class GraphRenderer {
    * @param {CanvasScreen} screen
    * @param {SelectionState} selection which node is active and which is hovered
    * @param {ForceGraphSettings} settings the force graph's own toggles
-   * @param {TimeAxis | null} timeAxis set when x is time; draws the date axis
+   * @param {TimeAxes | null} timeAxes which of x and y are time; draws their date axes
    *
    */
-  draw(nodes, links, glow, screen, selection, settings, timeAxis = null) {
+  draw(nodes, links, glow, screen, selection, settings, timeAxes = null) {
     const ctx = screen.ctx;
     ctx.resetTransform();
     ctx.scale(screen.dpr, screen.dpr);
@@ -176,8 +192,10 @@ class GraphRenderer {
 
     const view = this.visibleBox(screen);
 
-    const ticks = timeAxis ? this.timeTicks(screen, timeAxis) : null;
-    if (ticks) this.drawTimeGridlines(ticks, screen);
+    const xTicks = timeAxes?.x ? this.timeTicks(screen, timeAxes.x, 'x') : null;
+    const yTicks = timeAxes?.y ? this.timeTicks(screen, timeAxes.y, 'y') : null;
+    this.drawTimeGridlines(xTicks, yTicks, screen);
+    if (timeAxes?.x && timeAxes?.y) this.drawTimeDiagonal(timeAxes.x, timeAxes.y, screen);
 
     if (settings.showTagsGlow) {
       const colors = glow.colors;
@@ -245,81 +263,225 @@ class GraphRenderer {
       if (settings.showTagsGlow) this.drawNodeTags(node, glow, screen);
     }
 
-    if (ticks) this.drawTimeLabels(ticks, screen);
+    this.drawTimeLabels(xTicks, yTicks, screen);
   }
 
   /**
-   * The date ticks across the visible part of a time-axis graph, at screen x.
+   * The date ticks across the visible part of one time axis, at screen
+   * position along it.
    *
-   * The visible x range is turned back into time and handed to `d3.scaleUtc`,
-   * which picks the interval (years, months, weeks, days) for the requested
-   * density and formats each tick to match -- so zooming in moves from month
-   * names to days by itself. UTC because the preprocessor writes every date as
-   * UTC midnight.
+   * The visible range of `dim` is turned back into time and handed to
+   * `d3.scaleUtc`, which picks the interval (years, months, weeks, days) for the
+   * requested density and formats each tick to match -- so zooming in moves from
+   * month names to days by itself. UTC because the preprocessor writes every
+   * date as UTC midnight. A negative `msPerUnit` (time running upward) needs no
+   * special case: the domain is simply descending.
+   *
+   * Once the ticks are finer than months, `months` holds the screen position of
+   * every visible month boundary; otherwise it is null. `timeAt` maps a screen
+   * position back to time, for the pinned month name.
    *
    * @param {CanvasScreen} screen
-   * @param {TimeAxis} timeAxis
-   * @returns {{x: Number, label: string}[]}
+   * @param {TimeAxis} axis
+   * @param {'x' | 'y'} dim
+   * @returns {AxisTicks}
    */
-  timeTicks(screen, timeAxis) {
-    const toMs = (/** @type {Number} */ screenX) =>
-      timeAxis.originMs + screen.toViewBoxPos({ x: screenX, y: 0 }).x * timeAxis.msPerUnit;
+  timeTicks(screen, axis, dim) {
+    const extent = dim == 'x' ? screen.width : screen.height;
+    const timeAt = (/** @type {Number} */ pos) =>
+      axis.originMs +
+      screen.toViewBoxPos(dim == 'x' ? { x: pos, y: 0 } : { x: 0, y: pos })[dim] * axis.msPerUnit;
 
     const scale = d3
       .scaleUtc()
-      .domain([new Date(toMs(0)), new Date(toMs(screen.width))])
-      .range([0, screen.width]);
-    const count = Math.max(2, Math.floor(screen.width / AXIS_TICK_SPACING));
+      .domain([new Date(timeAt(0)), new Date(timeAt(extent))])
+      .range([0, extent]);
+    const count = Math.max(2, Math.floor(extent / AXIS_TICK_SPACING[dim]));
     const format = scale.tickFormat(count);
+    const dates = scale.ticks(count);
 
-    return scale
-      .ticks(count)
-      .map((/** @type {Date} */ date) => ({ x: scale(date), label: format(date) }));
+    const fine = dates.length >= 2 && Math.abs(+dates[1] - +dates[0]) < MONTH_MS;
+    const [lo, hi] = d3.extent(scale.domain());
+    const months = fine
+      ? d3.utcMonth.range(lo, hi).map((/** @type {Date} */ date) => scale(date))
+      : null;
+
+    return {
+      ticks: dates.map((/** @type {Date} */ date) => ({ pos: scale(date), label: format(date) })),
+      months,
+      timeAt,
+      name: axis.label ?? null
+    };
   }
 
   /**
-   * Faint full-height lines at each tick, under everything else.
+   * Faint lines across the whole canvas at each tick, under everything else:
+   * vertical for x ticks, horizontal for y ticks. Month boundaries, when the
+   * ticks are finer than months, are drawn over them in the highlight colour,
+   * so a zoomed-in view still shows where one month ends.
    *
-   * @param {{x: Number, label: string}[]} ticks
+   * @param {AxisTicks | null} xTicks
+   * @param {AxisTicks | null} yTicks
    * @param {CanvasScreen} screen
    */
-  drawTimeGridlines(ticks, screen) {
+  drawTimeGridlines(xTicks, yTicks, screen) {
+    if (!xTicks && !yTicks) return;
+    const ctx = screen.ctx;
+    // Half a pixel, so a 1px line covers one pixel row or column instead of two.
+    const lines = (/** @type {Number[]} */ xs, /** @type {Number[]} */ ys) => {
+      ctx.beginPath();
+      for (const pos of xs) {
+        const px = Math.round(pos) + 0.5;
+        ctx.moveTo(px, 0);
+        ctx.lineTo(px, screen.height);
+      }
+      for (const pos of ys) {
+        const py = Math.round(pos) + 0.5;
+        ctx.moveTo(0, py);
+        ctx.lineTo(screen.width, py);
+      }
+      ctx.stroke();
+    };
+
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = this.theme.muted;
+    ctx.globalAlpha = 0.35;
+    lines(
+      (xTicks?.ticks ?? []).map(({ pos }) => pos),
+      (yTicks?.ticks ?? []).map(({ pos }) => pos)
+    );
+    ctx.strokeStyle = this.theme.highlight;
+    ctx.globalAlpha = 0.6;
+    lines(xTicks?.months ?? [], yTicks?.months ?? []);
+    ctx.restore();
+  }
+
+  /**
+   * With both axes in time, the identity line: every point where x and y name
+   * the same moment. It is drawn through the times at the four canvas corners,
+   * which covers whatever part of it is on screen, and the canvas clips the
+   * rest.
+   *
+   * @param {TimeAxis} xAxis
+   * @param {TimeAxis} yAxis
+   * @param {CanvasScreen} screen
+   */
+  drawTimeDiagonal(xAxis, yAxis, screen) {
+    const topLeft = screen.toViewBoxPos({ x: 0, y: 0 });
+    const bottomRight = screen.toViewBoxPos({ x: screen.width, y: screen.height });
+    const times = [
+      xAxis.originMs + topLeft.x * xAxis.msPerUnit,
+      xAxis.originMs + bottomRight.x * xAxis.msPerUnit,
+      yAxis.originMs + topLeft.y * yAxis.msPerUnit,
+      yAxis.originMs + bottomRight.y * yAxis.msPerUnit
+    ];
+    const [from, to] = [Math.min(...times), Math.max(...times)].map((ms) =>
+      screen.toScreenPos({
+        x: (ms - xAxis.originMs) / xAxis.msPerUnit,
+        y: (ms - yAxis.originMs) / yAxis.msPerUnit
+      })
+    );
+
     const ctx = screen.ctx;
     ctx.save();
     ctx.strokeStyle = this.theme.muted;
-    ctx.globalAlpha = 0.35;
+    ctx.globalAlpha = 0.6;
     ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    for (const { x } of ticks) {
-      // Half a pixel, so a 1px line covers one pixel column instead of two.
-      const px = Math.round(x) + 0.5;
-      ctx.moveTo(px, 0);
-      ctx.lineTo(px, screen.height);
-    }
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
     ctx.stroke();
     ctx.restore();
   }
 
   /**
-   * The tick labels, in an opaque band along the bottom of the canvas, over
-   * everything else. The band stays put vertically and only follows the zoom
-   * in x, so the dates are readable wherever the graph has been panned to.
+   * The tick labels, in opaque bands over everything else: x's along the
+   * bottom of the canvas, y's down its left edge. Each band stays put across
+   * the canvas and only follows the zoom along its own axis, so the dates are
+   * readable wherever the graph has been panned to. With both, the corner they
+   * share is left empty.
    *
-   * @param {{x: Number, label: string}[]} ticks
+   * Each band also carries the axis's name, if it has one -- at the right end
+   * of the x band, at the top of the y band -- and, while its ticks are finer
+   * than months, the name of the month the band starts in, pinned next to it in
+   * the highlight colour. Tick labels that would run into either are dropped.
+   *
+   * @param {AxisTicks | null} xTicks
+   * @param {AxisTicks | null} yTicks
    * @param {CanvasScreen} screen
    */
-  drawTimeLabels(ticks, screen) {
+  drawTimeLabels(xTicks, yTicks, screen) {
+    if (!xTicks && !yTicks) return;
     const ctx = screen.ctx;
     const top = screen.height - AXIS_BAND_HEIGHT;
-    ctx.fillStyle = this.theme.background;
-    ctx.fillRect(0, top, screen.width, AXIS_BAND_HEIGHT);
+    const left = yTicks ? AXIS_BAND_WIDTH : 0;
 
-    ctx.fillStyle = this.theme.foreground;
-    ctx.font = '11px sans-serif';
-    ctx.textBaseline = 'middle';
+    ctx.fillStyle = this.theme.background;
+    if (xTicks) ctx.fillRect(0, top, screen.width, AXIS_BAND_HEIGHT);
+    if (yTicks) ctx.fillRect(0, 0, AXIS_BAND_WIDTH, screen.height);
+
     ctx.textAlign = 'left';
-    for (const { x, label } of ticks) {
-      ctx.fillText(label, Math.round(x) + 4, top + AXIS_BAND_HEIGHT / 2);
+    if (xTicks) {
+      const middle = top + AXIS_BAND_HEIGHT / 2;
+      ctx.textBaseline = 'middle';
+      let from = left;
+      let to = screen.width;
+
+      if (xTicks.months) {
+        const month = d3.utcFormat('%B %Y')(new Date(xTicks.timeAt(left)));
+        ctx.font = AXIS_NAME_FONT;
+        ctx.fillStyle = this.theme.highlight;
+        ctx.fillText(month, left + 4, middle);
+        from = left + 4 + ctx.measureText(month).width + 8;
+      }
+      if (xTicks.name) {
+        ctx.font = AXIS_NAME_FONT;
+        ctx.fillStyle = this.theme.foreground;
+        ctx.textAlign = 'right';
+        ctx.fillText(xTicks.name, screen.width - 4, middle);
+        ctx.textAlign = 'left';
+        to = screen.width - 4 - ctx.measureText(xTicks.name).width - 8;
+      }
+
+      ctx.font = AXIS_FONT;
+      ctx.fillStyle = this.theme.foreground;
+      for (const { pos, label } of xTicks.ticks) {
+        const start = Math.round(pos) + 4;
+        if (start < from || start + ctx.measureText(label).width > to) continue;
+        ctx.fillText(label, start, middle);
+      }
+    }
+
+    if (yTicks) {
+      const width = AXIS_BAND_WIDTH - 8;
+      const bottom = xTicks ? top : screen.height;
+      ctx.textBaseline = 'top';
+      let from = 4;
+
+      if (yTicks.name) {
+        ctx.font = AXIS_NAME_FONT;
+        ctx.fillStyle = this.theme.foreground;
+        ctx.fillText(yTicks.name, 4, from, width);
+        from += 14;
+      }
+      if (yTicks.months) {
+        const month = d3.utcFormat('%b %Y')(new Date(yTicks.timeAt(from)));
+        ctx.font = AXIS_NAME_FONT;
+        ctx.fillStyle = this.theme.highlight;
+        ctx.fillText(month, 4, from, width);
+        from += 14;
+      }
+
+      // Just above its gridline, so the label reads as naming the line.
+      ctx.font = AXIS_FONT;
+      ctx.fillStyle = this.theme.foreground;
+      ctx.textBaseline = 'bottom';
+      for (const { pos, label } of yTicks.ticks) {
+        if (pos > bottom || pos - 13 < from) continue;
+        ctx.fillText(label, 4, Math.round(pos) - 2, width);
+      }
     }
   }
 
@@ -886,7 +1048,7 @@ export class CanvasGraph {
    * @param {SettingsStore} options.settings this visualization's own toggles
    * @param {(slug: string) => void} options.onActivate a node was clicked
    * @param {(node: Node | null) => void} options.onHover the hovered node changed
-   * @param {TimeAxis | null} [options.timeAxis] how x maps to time, for a graph whose x is a date
+   * @param {TimeAxes | null} [options.timeAxes] how x and/or y map to time, for a graph whose axes are dates
    */
   constructor({
     nodes,
@@ -898,10 +1060,10 @@ export class CanvasGraph {
     settings,
     onActivate,
     onHover,
-    timeAxis = null
+    timeAxes = null
   }) {
     this.onActivate = onActivate;
-    this.timeAxis = timeAxis;
+    this.timeAxes = timeAxes;
     this.onHoverNode = onHover;
 
     this.nodes = new Map();
@@ -1249,7 +1411,7 @@ export class CanvasGraph {
       this.screen,
       this.selection,
       this.settings,
-      this.timeAxis
+      this.timeAxes
     );
   }
 

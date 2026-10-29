@@ -139,7 +139,9 @@ Every position passes through three spaces, and `CanvasScreen` owns all conversi
 (`preprocessor/emitters/graph/`). Node `x`/`y` come
 straight from the d3 force simulation, translated so the bounding box starts at the origin, with
 10% padding added around it. **The date graph is not translated.** Its layout sets
-`translate: false`, so x is absolute: `ms / timeAxis.msPerUnit`, with the epoch at 0. Its viewBox
+`translate: false`, so both coordinates are absolute: x is `created / timeAxes.x.msPerUnit` and y
+is `accessed / timeAxes.y.msPerUnit`, with the epoch at 0. The y `msPerUnit` is negative, so later
+dates sit higher up. Its viewBox
 therefore starts far from the origin, which `toScreenPos`/`toViewBoxPos` and the hit-test grid
 handle already, since all of them subtract `viewBox.minX/minY`. A graph file's `viewBox` is `[minX, minY, width, height]`, mirroring
 the SVG attribute it is named after. Nothing about this space depends on the browser.
@@ -154,9 +156,11 @@ relax; the pins are stripped before serialising, which is why nothing in the gra
 them. A full re-layout happens only when no node has a position — the first run, or after
 `.cache/` is deleted (`ISSUES.md` A14). The one caveat: a new node landing left of or above the existing extent shifts every coordinate by
 the same amount, because the bounding box is always re-originated. Nodes never move _relative to
-each other_. The date graph has neither caveat. It is never re-originated, and its x is
-pinned by the emitter to each note's date rather than taken from the cache, so changing a note's
-date moves that one node and nothing else.
+each other_. The date graph has neither caveat. It is never re-originated, and both of its
+coordinates are pinned by the emitter to each note's dates rather than taken from the cache, so
+changing a note's dates moves that one node and nothing else. Notes that share a day cell (same
+created day, same accessed day) are spread over a disc of under half a day around it, ordered by
+slug.
 
 **2. paintBox space** — CSS pixels. The viewBox is letterboxed into the **frame** while preserving
 aspect ratio, so `paintBox` is `{minX, minY, width, height}` describing where the graph actually
@@ -251,13 +255,14 @@ new CanvasGraph({
   settings,
   onActivate,
   onHover,
-  timeAxis // optional; null except for the date graph
+  timeAxes // optional; null except for the date graph
 });
 ```
 
-`timeAxis` (`{originMs, msPerUnit}`) comes from the graph file through `ForceGraphView` as
-`data.timeAxis ?? null`. When it is set, `GraphRenderer` draws the date axis. Every other graph
-leaves it null and is drawn exactly as before.
+`timeAxes` (`{x?, y?}`, each `{originMs, msPerUnit}`) comes from the graph file through
+`ForceGraphView` as `data.timeAxes ?? null`, each with an optional `label`. `GraphRenderer` draws a date axis for each axis that
+is present, and the created = accessed diagonal when both are. Every other graph leaves it null and
+is drawn exactly as before.
 
 It knows nothing about the app beyond that. `selection`, `filter` and `settings` are **read**;
 the writes go out through `onActivate` and `onHover`. It imports no router — `onClick` used to
@@ -309,7 +314,7 @@ the `zoomBehavior` from `addZoom` on `this` and calling `zoomBehavior.transform(
 
 #### `GraphRenderer` — all drawing, no state
 
-`draw(nodes, links, glow, screen, selection, settings, timeAxis)` is the whole frame. `selection` and
+`draw(nodes, links, glow, screen, selection, settings, timeAxes)` is the whole frame. `selection` and
 `settings` arrive as two arguments because they are two stores: "which note is active" is app-wide
 and "should links be drawn" belongs to this visualization alone. They used to be one `graphState`
 object holding both.
@@ -321,7 +326,8 @@ leak per swap now.
 
 Draw order within a frame:
 
-0. date gridlines (only with a `timeAxis`)
+0. date gridlines, vertical for x and horizontal for y, then the dashed identity line where x and
+   y name the same moment (only with both). All of these are drawn only with `timeAxes`.
 1. tag glow (if `showTagsGlow`)
 2. links: all of them if `showConnections`, otherwise only those of the hovered and the selected
    note
@@ -329,12 +335,25 @@ Draw order within a frame:
 4. all labels, but only when `transform.k > 2`
 5. the active and hovered nodes **again**, so they land on top, each with its tags line under
    its label when `showTagsGlow` is on (see _Tag glow_)
-6. the date labels, in an opaque, borderless band along the canvas bottom (only with a `timeAxis`)
+6. the date labels, in opaque, borderless bands, one along the canvas bottom for x and one down its
+   left edge for y (only with `timeAxes`). With both bands, the corner they share stays empty.
 
-**The date axis** (`timeTicks`) converts the visible canvas x-range back into time through
-`toViewBoxPos` and `timeAxis`, then lets `d3.scaleUtc` pick and format the ticks for about one tick
-per 90 px. Zooming in therefore moves from months to days on its own, and panning moves the ticks
-along. The band stays put vertically. Dates are UTC because the preprocessor writes every date as
+**The date axes** (`timeTicks(screen, axis, dim)`) convert the visible canvas range of one
+dimension back into time through `toViewBoxPos` and the axis, then let `d3.scaleUtc` pick and format
+the ticks: about one tick per 90 px on x, and one per 60 px on y. Zooming in therefore moves from
+months to days on its own, and panning moves the ticks along. A negative `msPerUnit` needs no
+special case, because the scale's domain is then just descending. Each band stays put across the
+canvas and follows the zoom only along its own axis. A y label sits just above its gridline.
+
+An axis's optional `label` (the date graph's `created` and `accessed`) is printed in bold in its
+band, at the right end of the x band and at the top of the y band. **Once an axis's ticks are finer
+than months** (consecutive ticks less than 28 days apart), every visible month boundary is drawn in
+the highlight colour over the gridlines. The name of the month the band starts in is also pinned at
+its start, next to the axis name: `%B %Y` on x, and the shorter `%b %Y` on y, which has to fit
+`AXIS_BAND_WIDTH`. This keeps the month readable once the tick labels are only days. Tick labels
+that would run into either are dropped.
+
+Dates are UTC because the preprocessor writes every date as
 UTC midnight.
 
 **A node with `dateSource: 'fs'`** (a note git does not track, dated by its file's birthtime or mtime)

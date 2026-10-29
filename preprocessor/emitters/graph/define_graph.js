@@ -38,14 +38,18 @@ function toSerialisableNode(node) {
  * the preprocessor does -- runs only when no node has a position at all: the
  * first run, or after the cache is deleted.
  *
- * **`build` may pin a node's x** by returning it with `fx` set -- the date
- * graph pins each note to its date. That pin always wins; the persisted y is
- * reused only while the persisted x still equals it, so a note whose date moved
- * is relaxed again at its new x. Such a layout must not translate (see
- * `LayoutParams.translate`), or the stored x would never match.
+ * **`build` may pin a node's x** by returning it with `fx` set. That pin
+ * always wins; the persisted y is reused only while the persisted x still
+ * equals it, so a node whose x moved is relaxed again at its new x. Such a
+ * layout must not translate (see `LayoutParams.translate`), or the stored x
+ * would never match.
+ *
+ * **It may pin both**, with `fx` and `fy` -- the date graph pins each note to
+ * its created and accessed days. Such a node ignores the persisted position,
+ * and when every node is pinned, no layout runs at all.
  *
  * `extra` is spread into the output next to `viewBox`, `nodes` and `links`,
- * which it must not name -- the date graph's `timeAxis` travels this way.
+ * which it must not name -- the date graph's `timeAxes` travels this way.
  *
  * @param {{
  *   id: string,
@@ -69,6 +73,9 @@ export function defineGraphEmitter({ id, deps, build, layout }) {
       const built = build(corpus);
       const nodes = bySlug(built.nodes).map((node) => {
         const position = positions?.get(node.slug);
+        if (typeof node.fx == 'number' && typeof node.fy == 'number') {
+          return { ...node, x: node.fx, y: node.fy };
+        }
         if (typeof node.fx == 'number') {
           const pinned = { ...node, x: node.fx };
           return position?.x === node.fx ? { ...pinned, y: position.y, fy: position.y } : pinned;

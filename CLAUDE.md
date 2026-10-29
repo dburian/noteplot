@@ -52,9 +52,11 @@ like this:
 `defineGraphEmitter({id, deps, build, layout})` (see `emitters/graph/tags.js`). `build` maps the
 corpus to `{nodes, links}`, and `define_graph.js` handles position persistence, pinning, the
 layout and the output file. `build` may also pin a node's x itself (`fx`), so the persisted y is
-reused only while x is unchanged. It may also return `extra` keys for the output file. The date
-graph (`emitters/graph/dates.js`) does both: x is the note's date, and `timeAxis` maps it back to
-time. Its layout sets `translate: false` so that x stays absolute. A matching visualization is a descriptor in `src/lib/viz/registry.js`
+reused only while x is unchanged, or pin both x and y (`fx` and `fy`), which bypasses the
+persisted position and the layout. It may also return `extra` keys for the output file. The date
+graph (`emitters/graph/dates.js`) pins both: x is the note's created day, y its accessed day
+(negated, so later is higher), and `timeAxes` maps both back to time. Its layout sets
+`translate: false` so that both stay absolute, and has no forces, because it never runs. A matching visualization is a descriptor in `src/lib/viz/registry.js`
 whose `dataId` is the graph's `id`. Graph nodes that are not notes need a slug containing `/`,
 which `toSlug` can never produce. `VizPane` opens only nodes that are notes.
 
@@ -75,7 +77,7 @@ edited in place is picked up on the next start, or the next save of a note that 
 - Now a warm start (cache present, nothing changed) takes ~60 ms and writes no files.
 - A cold start is dominated by the full force layout: ~18 s per graph, with the graphs running in
   parallel in worker threads (`emitters/graph/layout.js` `runLayout`). The date graph is the
-  exception at ~0.6 s, because only y moves and its layout decays ~100× faster.
+  exception: `build` pins every node, so it has no layout at all.
 - Positions persist per note root, so only nodes without a position are relaxed (100 ticks among
   the pinned ones).
 - Parsing costs ~3 s of MathJax/Shiki start-up, then ~5–7 ms per note. Worker threads repay their
@@ -116,8 +118,8 @@ moved in from elsewhere in the repo starts its history at the move. Git runs thr
 with no shell, and its `/` paths are compared against `path.relative(...)` split on `path.sep`, so
 this works the same on every OS.
 
-The date graph depends on `created` and `dateSource`, but **not** `accessed`, so a save does not
-re-lay it out. The note JSON carries all three, and `NoteMetaContent` shows both dates.
+The date graph depends on `created`, `accessed` and `dateSource`, so a save moves that note's node
+up its y axis. That rewrites `dates.json`, but nothing is laid out, so it is cheap. The note JSON carries all three, and `NoteMetaContent` shows both dates.
 
 ### Half 2 — the SvelteKit site (`src/`)
 
@@ -161,7 +163,7 @@ deleted rather than carried along, and a mobile shell is a later effort.
 | `src/lib/generated/notes/<slug>.json` | one per note: `html`, title, links, backlinks, matter, reading time, path(s)                                                            |
 | `src/lib/generated/index.json`        | `[{slug, title, path, matter}]` — the frontend's `NOTES_INDEX`                                                                          |
 | `src/lib/generated/search.json`       | `[{slug, content}]` plaintext bodies, read only by the search worker                                                                    |
-| `src/lib/generated/viz/<id>.json`     | one per graph emitter: `{viewBox, nodes, links}`; links are `{source, target}` slugs; plus `extra` keys, e.g. `dates.json`'s `timeAxis` |
+| `src/lib/generated/viz/<id>.json`     | one per graph emitter: `{viewBox, nodes, links}`; links are `{source, target}` slugs; plus `extra` keys, e.g. `dates.json`'s `timeAxes` |
 | `static/note_imgs/`                   | images copied out of the note directory                                                                                                 |
 | `.cache/noteplot/`                    | parsed records, graph positions, the write manifest — disposable                                                                        |
 
