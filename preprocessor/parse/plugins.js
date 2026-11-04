@@ -132,6 +132,28 @@ export function addReadingTime() {
   };
 }
 
+/**
+ * Removes the heading the title came from, but only when it opens the note:
+ * the first top-level node after the frontmatter. The frontend renders
+ * `title` itself, above the note's HTML and below its tags
+ * (`src/lib/note/NoteHeader.svelte`), so leaving that heading in would show it
+ * twice. A heading further down is left in place -- in a note that opens with
+ * prose, it is part of the body, not a header.
+ *
+ * `addTitle` takes the first heading in document order, so a heading that is
+ * the first node is always the one the title came from.
+ */
+export function removeLeadingHeading() {
+  return (tree) => {
+    if (!('children' in tree)) return;
+
+    const first = tree.children.findIndex((node) => node.type !== 'yaml');
+    if (first !== -1 && tree.children[first].type === 'heading') {
+      tree.children.splice(first, 1);
+    }
+  };
+}
+
 export function removeFirstHeader() {
   return (tree) => {
     if (!('children' in tree)) return;

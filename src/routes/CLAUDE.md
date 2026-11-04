@@ -211,7 +211,7 @@ goto(`${base}/${slug}`);
 ```
 
 `url_state.js` exports `notePath(slug)` and `indexPath()` for exactly this; use them rather than
-building the string again. `NoteMetaContent`'s reference/backlink hrefs are `` `${base}/${slug}` ``
+building the string again. `NoteHeader`'s reference/backlink hrefs are `` `${base}/${slug}` ``
 (was a relative `./${slug}`, B12), and `+error.svelte`'s "Go to index" link goes through
 `indexPath()` — it was a bare `href="/"`, which left the site entirely under a sub-path deploy.
 That page is outside the `(app)` layout, so it imports `url_state.js` directly; the module holds

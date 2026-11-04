@@ -1,7 +1,7 @@
 <script>
   /**
-   * A left-ruled aside: the note metadata block, and the parsed-query readout
-   * in the search and filter overlays.
+   * A left-ruled aside: the parsed-query readout in the search and filter
+   * overlays.
    *
    * The margin is a **prop**, not something a caller passes through `class`.
    * Tailwind resolves competing utilities by their order in the generated

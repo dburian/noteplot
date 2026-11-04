@@ -1,6 +1,13 @@
+import { createTagColors } from '../tag_colors.js';
+
 /**
  * @typedef {{slug: string, title: string, path?: string, matter?: Record<string, any>}} NoteSummary
- * @typedef {{bySlug: Map<string, NoteSummary>, all: NoteSummary[], titleOf: (slug: string) => string}} NotesIndex
+ * @typedef {{
+ *   bySlug: Map<string, NoteSummary>,
+ *   all: NoteSummary[],
+ *   titleOf: (slug: string) => string,
+ *   tagColors: Map<string, import('../tag_colors.js').TagColor>,
+ * }} NotesIndex
  */
 
 /**
@@ -38,5 +45,9 @@ export function createNotesIndex(notes) {
     return bySlug.get(slug)?.title ?? slug;
   }
 
-  return { bySlug, all, titleOf };
+  // The one tag palette: the graphs' glow and the note header both read it,
+  // so a tag is the same colour everywhere. See `tag_colors.js`.
+  const tagColors = createTagColors(all);
+
+  return { bySlug, all, titleOf, tagColors };
 }

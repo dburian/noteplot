@@ -7,9 +7,10 @@
    * is looked up in, how it matches, and the path filters. Everything listed
    * must hold (AND).
    *
-   * In the overlays this is behind the settings overlay's **metadata** toggle, the same
-   * switch that shows a note's frontmatter and backlinks: both answer "show me
-   * the machinery", and neither is something you want in the way by default.
+   * In the overlays this is behind the settings overlay's **search details**
+   * toggle, the same switch that shows each row's matched fields: both answer
+   * "show me the machinery", and neither is something you want in the way by
+   * default.
    *
    * @type {import('./query.js').ParsedQuery | null}
    */

@@ -119,7 +119,7 @@ with no shell, and its `/` paths are compared against `path.relative(...)` split
 this works the same on every OS.
 
 The date graph depends on `created`, `accessed` and `dateSource`, so a save moves that note's node
-up its y axis. That rewrites `dates.json`, but nothing is laid out, so it is cheap. The note JSON carries all three, and `NoteMetaContent` shows both dates.
+up its y axis. That rewrites `dates.json`, but nothing is laid out, so it is cheap. The note JSON carries all three, and `NoteHeader` shows both dates.
 
 ### Half 2 — the SvelteKit site (`src/`)
 

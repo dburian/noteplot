@@ -1049,6 +1049,7 @@ export class CanvasGraph {
    * @param {(slug: string) => void} options.onActivate a node was clicked
    * @param {(node: Node | null) => void} options.onHover the hovered node changed
    * @param {TimeAxes | null} [options.timeAxes] how x and/or y map to time, for a graph whose axes are dates
+   * @param {Map<string, GlowColor>} [options.tagColors] the collection-wide tag palette (`NOTES_INDEX.tagColors`)
    */
   constructor({
     nodes,
@@ -1060,9 +1061,11 @@ export class CanvasGraph {
     settings,
     onActivate,
     onHover,
-    timeAxes = null
+    timeAxes = null,
+    tagColors = new Map()
   }) {
     this.onActivate = onActivate;
+    this.tagColors = tagColors;
     this.timeAxes = timeAxes;
     this.onHoverNode = onHover;
 
@@ -1317,19 +1320,13 @@ export class CanvasGraph {
       }
     }
 
+    // The palette is collection-wide, not this graph's own, so a tag has the
+    // same colour in every graph and in the note header (`$lib/tag_colors.js`).
     /** @type {Map<string, GlowColor>} */
     const colors = new Map();
-    let lastHue = 0;
-    const hueStep = 360 / types.size;
     for (const type of types) {
-      // `formatHex()` drops the alpha, so the glow has always been opaque --
-      // kept as is, precomputing it is meant to be a pure performance change.
-      /** @param {number} saturation */
-      const hex = (saturation) =>
-        d3.color(`hsla(${lastHue}, ${saturation}%, 50%, 0.4)`)?.formatHex();
-
-      colors.set(type, { light: hex(30), dark: hex(50) });
-      lastHue += hueStep;
+      const color = this.tagColors.get(String(type));
+      if (color) colors.set(type, color);
     }
 
     // `+ 1` for the square's own width, which is drawn from the offset

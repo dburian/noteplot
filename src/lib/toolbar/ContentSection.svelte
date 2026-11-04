@@ -11,8 +11,9 @@
    * the whole contract — these buttons and the keyboard shortcuts in `AppShell`
    * are interchangeable ways of writing one field.
    *
-   * There is no metadata toggle here: it is a set-once preference, and lives
-   * in the settings overlay and the command palette ("Toggle note metadata").
+   * There is no search-details toggle here: it is a set-once preference, and
+   * lives in the settings overlay and the command palette ("Toggle search
+   * details").
    *
    * Search and Filter shared one identical magnifier SVG in the old vertical
    * strip, where they were far enough apart for nobody to notice. They are
