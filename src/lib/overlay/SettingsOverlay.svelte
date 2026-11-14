@@ -28,7 +28,7 @@
 <OverlayShell title="Settings" on:close={overlay.close}>
   <section class="px-4 py-2">
     <h2 class="pb-2 text-xs uppercase tracking-wide text-muted-light dark:text-muted-dark">
-      Content
+      Search
     </h2>
     <label class="flex cursor-pointer items-start gap-3 py-2">
       <input
@@ -39,10 +39,9 @@
         on:change={(ev) => prefs.setShowMeta(ev.currentTarget.checked)}
       />
       <span>
-        <span class="block">Show note metadata</span>
+        <span class="block">Show search details</span>
         <span class="block text-sm text-muted-light dark:text-muted-dark">
-          Each note's frontmatter, backlinks and reading time, and the parsed query in search and
-          filter.
+          The parsed query in search and filter, and which fields each result matched.
         </span>
       </span>
     </label>

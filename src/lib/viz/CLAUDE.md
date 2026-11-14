@@ -450,12 +450,16 @@ are neither clickable nor hoverable even though they may still be drawn.
 Each node's frontmatter `tags` become a cloud of translucent squares around it. `generateGlow()`
 runs once at construction:
 
-- every distinct tag across all notes gets a hue, evenly spaced around the 360° wheel
+- every tag takes its colour from **one collection-wide palette**, `NOTES_INDEX.tagColors`
+  (`$lib/tag_colors.js`): every distinct tag in `index.json`, **sorted**, with hues evenly spaced
+  round the wheel. `ForceGraphView` passes it in as `tagColors`. It used to be spaced over each
+  graph's own tags in the order met, so one tag could have a different colour in each graph, and
+  `note/NoteHeader.svelte`'s tag squares could not match "the" graph's
 - each node gets `numGlowPixels` (20) squares, split evenly across its tags
 - each square's offset is `floor(sample_normal(random) * 5)` grid steps from the node — a
   Box–Muller normal sample, so the cloud is denser near the centre
 
-`generateGlow()` also resolves each tag's hue into a **pair of hex colours**, `{light, dark}` —
+Each tag's colour is a **pair of hex colours**, `{light, dark}` —
 the saturation differs (30% / 50%) and the variant is picked once per node from `theme.darkMode`.
 `drawNodeGlow` then only indexes a map; it used to build an `hsla()` string and run it through
 `d3.color(...).formatHex()` inside the pixel loop, 20 squares × every node × every frame

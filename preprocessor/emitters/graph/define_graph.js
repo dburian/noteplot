@@ -34,7 +34,8 @@ function toSerialisableNode(node) {
  *
  * **Positions persist** in the cache, per note root. A node that has one is pinned there; only
  * nodes without one are relaxed, for 100 ticks among the pinned (ISSUES.md
- * A14). The full relaxation -- tens of thousands of ticks, the slowest thing
+ * A14). For that run the pinned nodes are recentred on the origin, where the
+ * full layout had them (see `centrePlacedNodes`). The full relaxation -- tens of thousands of ticks, the slowest thing
  * the preprocessor does -- runs only when no node has a position at all: the
  * first run, or after the cache is deleted.
  *
@@ -93,7 +94,10 @@ export function defineGraphEmitter({ id, deps, build, layout }) {
       if (unplaced > 0) {
         const full = unplaced == nodes.length;
         if (full) logger.info(`Laying out ${id} graph from scratch (${nodes.length} nodes).`);
-        else seedPinnedNodes(nodes, links);
+        else {
+          seedPinnedNodes(nodes, links);
+          if (LAYOUTS[layout].translate ?? true) centrePlacedNodes(nodes);
+        }
         viewBox = await runLayout(layout, nodes, links, full ? null : 100);
       } else {
         // Nothing to place, but a removed node can still shrink the extent.
@@ -116,6 +120,35 @@ export function defineGraphEmitter({ id, deps, build, layout }) {
       ]);
     }
   };
+}
+
+/**
+ * Moves the placed nodes (those with `fy`), pins included, so their centroid
+ * is at the origin.
+ *
+ * Persisted positions are translated so their bounding box starts at the
+ * origin, but the layout's forces are anchored there: `center` shifts every
+ * node by minus the centroid each tick, and `radial` pulls toward (0, 0). The
+ * pinned nodes snap back after each tick, so only the new nodes move, and they
+ * drift a fixed amount per tick, away from the graph. An unlinked one never
+ * stops. Recentring puts the pinned nodes back in the frame the full layout
+ * produced them in; `fitViewBox` translates everything back afterwards.
+ *
+ * Only for layouts that translate: elsewhere the coordinates are absolute.
+ *
+ * @param {Record<string, any>[]} nodes
+ */
+function centrePlacedNodes(nodes) {
+  const placed = nodes.filter((node) => 'fy' in node);
+  if (placed.length == 0) return;
+  const cx = placed.reduce((sum, node) => sum + node.x, 0) / placed.length;
+  const cy = placed.reduce((sum, node) => sum + node.y, 0) / placed.length;
+  for (const node of placed) {
+    node.x -= cx;
+    node.y -= cy;
+    node.fx -= cx;
+    node.fy -= cy;
+  }
 }
 
 /**

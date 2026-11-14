@@ -25,7 +25,8 @@ import {
   addTitle,
   collectImgs,
   rehypeWrapTextElems,
-  removeFirstHeader
+  removeFirstHeader,
+  removeLeadingHeading
 } from './plugins.js';
 
 /**
@@ -54,6 +55,9 @@ export function createParser({ noteRoot, imgUrl }) {
     .use(addLinks, { noteRoot });
 
   const html = unified()
+    // Still Markdown at this point: the title heading goes before the tree
+    // becomes hast. The frontend renders the title itself.
+    .use(removeLeadingHeading)
     .use(remarkRehype, { allowDangerousHtml: true, passThrough: [] })
     .use(rehypeMathjax, {
       loader: { load: ['[tex]/mathtools'] },

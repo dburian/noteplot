@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
 
-  import { useAppState, FILTER, SELECTION } from '$lib/state/keys.js';
+  import { useAppState, FILTER, NOTES_INDEX, SELECTION } from '$lib/state/keys.js';
   import { CanvasGraph } from './canvas_graph.js';
 
   /**
@@ -37,6 +37,9 @@
     useAppState(SELECTION)
   );
   const filter = /** @type {import('$lib/state/filter.js').FilterStore} */ (useAppState(FILTER));
+  const notesIndex = /** @type {import('$lib/state/notes_index.js').NotesIndex} */ (
+    useAppState(NOTES_INDEX)
+  );
 
   /**
    * The one prop that has to keep flowing after mount. `CanvasGraph` has no
@@ -60,7 +63,10 @@
       onActivate: callbacks.onActivate,
       onHover: callbacks.onHover,
       // Only the date graph's file has them; they turn on the date axes.
-      timeAxes: data.timeAxes ?? null
+      timeAxes: data.timeAxes ?? null,
+      // Collection-wide, so a tag is the same colour in every graph and in the
+      // note header.
+      tagColors: notesIndex.tagColors
     });
 
     return () => graph.destruct();

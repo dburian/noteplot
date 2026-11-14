@@ -39,7 +39,7 @@ returns `{ subscribe, ...named actions }` and no bare `set`, following the exist
 
 | Key (`state/keys.js`) | Module                 | Value                                    | Notes                                                                     |
 | --------------------- | ---------------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
-| `NOTES_INDEX`         | `notes_index.js`       | `{bySlug, all, titleOf}`                 | not a store — a static lookup built from `index.json`                     |
+| `NOTES_INDEX`         | `notes_index.js`       | `{bySlug, all, titleOf, tagColors}`      | not a store — a static lookup built from `index.json`                     |
 | `SELECTION`           | `selection.js`         | `{activeNote, hoveredNote}`              | `{slug,title}` refs only (ISSUES.md B9)                                   |
 | `LAYOUT`              | `layout.js`            | `{mode, vizFraction, lastSplitFraction}` | `mode` is `'split'｜'viz'｜'content'`                                     |
 | `TILES`               | `tiles.js`             | `{tiles: [{id, slug}], focusIndex}`      | zero tiles is legal and means "no note open"                              |
@@ -149,7 +149,7 @@ of that gate are load-bearing:
   store is already correct and _ahead_ of the URL; reconciling there would read the
   not-yet-rewritten `?tile` params and collapse a three-column layout to one column on every
   click. For other navigation types only the focused tile follows the new path, which is what an
-  un-intercepted `<a>` (a metadata backlink) needs.
+  un-intercepted `<a>` (a note header's backlink) needs.
 - `tiles.reconcile` keeps the existing `id` of any tile whose slug already matches at that
   position. Minting fresh ids per navigation would invalidate the scroll memory on exactly the
   back/forward presses it exists to serve.
@@ -195,7 +195,7 @@ no-op in practice, since the nudge below already widened the layout to open the 
 but they go through the same helper because they are a navigation source like any other.
 
 `WithAppState`'s `afterNavigate` calls `tiles.open(pathSlug)` on any non-`popstate` navigation, to
-catch links it did not route (a metadata backlink, say). That call is a no-op when `openNote` ran
+catch links it did not route (a note header's backlink, say). That call is a no-op when `openNote` ran
 first, and does the work when it did not. It deliberately stays on `tiles.open` rather than
 `openNote`: a first load or a bookmark arrives as `enter`, where `?layout=viz` is authoritative and
 revealing the pane would override the URL. Same for the `popstate`/`enter` reconcile above — which
@@ -454,9 +454,20 @@ inside `Prose`. The spread meant declaring a prop per key of the generated JSON,
 and `path`, which nothing in there renders; an undeclared key in a spread warns at runtime and a
 declared-unused one warns at compile time, and the object sidesteps both. The shape is the `Note`
 typedef in `$lib/notes_route.js`, which is the frontend's description of what `emitters/notes.js`
-writes. `NoteMetaContent.svelte` is the
-metadata block (references, backlinks, tags, reading time), gated on `$prefs.showMeta` — the
-settings overlay's metadata toggle. `WithHoverableLinks.svelte` reaches into the rendered HTML, finds
+writes. `NoteHeader.svelte` is everything above the body, and it is **always shown**: backlinks
+(left, `→ Title`) beside references (right, `Title →`); the tags, each a `■` in its colour from
+`NOTES_INDEX.tagColors` linking to `?filter=tag:<tag>`; the title; then a dimmed line of
+`toLocaleDateString()` dates and reading time, and one of any other frontmatter.
+
+- **The title is rendered here, not by `note.html`.** The preprocessor drops the heading the title
+  came from when it opens the note (`removeLeadingHeading` in `preprocessor/parse/plugins.js`), so
+  the tags can sit above it and the dates below. A heading further down stays in the body, and a
+  note with no heading still gets its filename title.
+- **A tag click is intercepted** into `filter.apply('tag:…')` (switching `content` mode to `split`,
+  since a filter only shows in the graph); Ctrl/Cmd/Shift-clicks go to the browser. The `href` is
+  built from `$page.url` in the browser only — the prerender may not read `searchParams`.
+
+`WithHoverableLinks.svelte` reaches into the rendered HTML, finds
 `a[data-slug]` and wires hover events to the `SELECTION` store, so hovering a link in prose
 highlights the node in the visualization and vice versa — the `data-slug` attribute is injected
 back in `preprocessor/parse/plugins.js`'s `addLinks`.
@@ -625,8 +636,8 @@ deliberate and easy to "fix" wrongly:
 A term that matched only `title` or `tag`, an empty query, or a note the term is not in all land on
 the same fallback: the head of the note, unhighlighted. That is what the row used to always show.
 
-`QueryDisplay.svelte` is behind the settings overlay's **metadata** toggle in both overlays, the same
-switch that shows a note's frontmatter and backlinks. It takes a `margin` prop, passed through to
+`QueryDisplay.svelte` is behind the settings overlay's **search details** toggle
+(`$prefs.showMeta`) in both overlays, the same switch that shows each row's matched fields. It takes a `margin` prop, passed through to
 `InfoBox`, and both call sites pass `mb-0`: `InfoBox`'s default `mb-10` is a paragraph-break-sized
 gap under a readout that sits directly above the result list, which reads as a section break that
 is not there. It has to be a **prop** rather than a `class="mb-0"` from the call site because
@@ -838,10 +849,11 @@ Three things in here are easy to get wrong:
 - **`ContentSection`'s filter badge tracks `$filter.query`, not `$overlay.kind`.** Closing the
   filter overlay does not clear the filter, so "the panel is open" and "a filter is in force" are
   different questions.
-- **There is no Metadata toggle in the strip.** It is a set-once preference, so it lives in the
-  settings overlay (and the palette's "Toggle note metadata"). It is broader than its name: it
-  gates a note's frontmatter and backlinks _and_ the parsed-query readout inside the search and
-  filter overlays — both are "show me the machinery".
+- **There is no search-details toggle in the strip.** It is a set-once preference, so it lives in
+  the settings overlay (and the palette's "Toggle search details"). It gates the parsed-query
+  readout and each row's matched fields in the search and filter overlays. A note's metadata is
+  no longer behind it: `NoteHeader` is always shown. The pref keeps its old name, `showMeta`, so
+  stored preferences survive.
 - **Split reveals the content pane as well** (`layout.reveal()` beside `tiles.splitRight()`), since
   the strip is on screen in every mode and a new column is invisible in `viz`.
 - **Split and Close are absent when no note is open.** Both act on the focused column and there is

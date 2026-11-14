@@ -138,9 +138,9 @@ export const commands = [
   },
   {
     id: 'content.toggleMeta',
-    title: 'Toggle note metadata',
-    description: "Show or hide each note's frontmatter, backlinks and reading time.",
-    keywords: ['frontmatter', 'backlinks', 'tags', 'reading time'],
+    title: 'Toggle search details',
+    description: 'Show or hide the parsed query and the matched fields in search and filter.',
+    keywords: ['metadata', 'query', 'matched fields', 'debug'],
     group: 'Content',
     run: (ctx) => ctx.prefs.toggleMeta()
   },

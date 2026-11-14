@@ -1,8 +1,7 @@
 <script>
   import Prose from '$lib/Prose.svelte';
-  import { useAppState, PREFS } from '$lib/state/keys.js';
   import WithHoverableLinks from './WithHoverableLinks.svelte';
-  import NoteMetaContent from './NoteMetaContent.svelte';
+  import NoteHeader from './NoteHeader.svelte';
 
   /**
    * One note's rendered body.
@@ -21,27 +20,12 @@
    * @type {import('$lib/notes_route.js').Note}
    */
   export let note;
-
-  const prefs = /** @type {import('$lib/state/prefs.js').PrefsStore} */ (useAppState(PREFS));
-
-  $: metaProps = {
-    slug: note.slug,
-    links: note.links,
-    backlinks: note.backlinks,
-    noteRoot: note.noteRoot,
-    matter: note.matter,
-    readingTime: note.readingTime,
-    created: note.created,
-    accessed: note.accessed
-  };
 </script>
 
 <div class="w-full grid justify-center p-3 sm:p-6">
   <Prose>
     <WithHoverableLinks>
-      {#if $prefs.showMeta}
-        <NoteMetaContent {...metaProps} />
-      {/if}
+      <NoteHeader {note} />
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
       {@html note.html}
     </WithHoverableLinks>
